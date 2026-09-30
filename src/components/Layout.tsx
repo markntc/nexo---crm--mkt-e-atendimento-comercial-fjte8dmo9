@@ -190,32 +190,6 @@ export default function Layout() {
         </div>
 
         {/* User Footer */}
-        <div className="p-3 border-t border-[#D5DBDB] bg-slate-50/60">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#1B4F72] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-[#1C2833] truncate">
-                  {user?.name || 'Administrador'}
-                </p>
-                <p className="text-[10px] text-[#5D6D7E] truncate">
-                  {user?.email || 'skip.adm@ntc.ind.br'}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              title="Encerrar Sessão"
-              className="h-8 w-8 text-[#5D6D7E] hover:text-red-600 hover:bg-red-50"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
       </aside>
 
       {/* MOBILE DRAWER */}
