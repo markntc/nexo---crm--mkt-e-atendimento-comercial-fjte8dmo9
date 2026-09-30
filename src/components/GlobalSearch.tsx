@@ -127,7 +127,7 @@ export const GlobalSearch: React.FC = () => {
               title: item.dados_contato,
               subtitle: `Origem: ${item.origem} • Status: ${item.status_qualificacao}`,
               badge: 'Lead',
-              link: `/leads?search=${encodeURIComponent(cleanQ)}`,
+              link: `/contatos?sub=leads&search=${encodeURIComponent(cleanQ)}`,
             })
           })
         } catch {

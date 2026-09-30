@@ -70,7 +70,7 @@ export default function Layout() {
   const fetchSidebarCounts = async () => {
     try {
       const nowIso = new Date().toISOString()
-      const [tarefasRes, dupRes, b2bRes, b2cRes] = await Promise.all([
+      const [tarefasRes, dupRes, b2bRes, b2cRes, leadsRes] = await Promise.all([
         pb
           .collection('atividades')
           .getList(1, 1, {
@@ -91,11 +91,17 @@ export default function Layout() {
           .collection('pessoas')
           .getList(1, 1)
           .catch(() => ({ totalItems: 0 })),
+        pb
+          .collection('leads')
+          .getList(1, 1)
+          .catch(() => ({ totalItems: 0 })),
       ])
 
       setTarefasVencidasCount(tarefasRes.totalItems || 0)
       setDuplicidadesCount(dupRes.totalItems || 0)
-      setContatosCount((b2bRes.totalItems || 0) + (b2cRes.totalItems || 0))
+      setContatosCount(
+        (b2bRes.totalItems || 0) + (b2cRes.totalItems || 0) + (leadsRes.totalItems || 0),
+      )
     } catch {
       // Ignora erro de contagem para não travar layout
     }
@@ -127,9 +133,8 @@ export default function Layout() {
       path: '/contatos',
       icon: Users2,
       badge: contatosCount > 0 ? contatosCount : null,
-      activeMatches: ['/contatos', '/clientes'],
+      activeMatches: ['/contatos', '/clientes', '/leads'],
     },
-    { label: 'Leads', path: '/leads', icon: Target, badge: null },
     {
       label: 'Tarefas',
       path: '/tarefas',

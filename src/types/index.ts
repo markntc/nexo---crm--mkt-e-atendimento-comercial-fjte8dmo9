@@ -94,24 +94,32 @@ export type StatusRelacionamento = 'Cliente' | 'Prospect'
 
 export interface Lead {
   id: string
-  marca_id: string
+  marca_id?: string
+  marca_origem_id?: string
   origem:
     | 'Formulário Web'
     | 'Landing Page'
     | 'Indicação'
     | 'WhatsApp'
+    | 'Chat / WhatsApp'
     | 'Feira'
+    | 'Evento / Feira'
+    | 'Campanha Paga'
+    | 'Prospecção Ativa'
     | 'Importação'
     | 'Outro'
   dados_contato: string
-  status_qualificacao: 'Novo' | 'Qualificado' | 'Desqualificado' | 'Convertido'
+  status_qualificacao: 'Novo' | 'Qualificado' | 'Desqualificado' | 'Descartado' | 'Convertido'
   cliente_b2b_id?: string
   cliente_b2c_id?: string
+  convertido_para_id?: string
   criado_por_id?: string
   created: string
   updated: string
   expand?: {
     marca_id?: Marca
+    marca_origem_id?: Marca
+    convertido_para_id?: Oportunidade
     cliente_b2b_id?: Organizacao
     cliente_b2c_id?: Pessoa
   }

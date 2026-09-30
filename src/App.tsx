@@ -58,11 +58,10 @@ export default function App() {
                   <Route path="pipelines" element={<Navigate to="/negocios" replace />} />
                   <Route path="oportunidades" element={<Navigate to="/negocios" replace />} />
 
-                  {/* Contatos (Pessoas B2C e Organizações B2B unificados estilo Pipedrive) */}
+                  {/* Contatos (Pessoas B2C, Organizações B2B e Leads unificados estilo Pipedrive) */}
                   <Route path="contatos" element={<Clientes />} />
                   <Route path="clientes" element={<Navigate to="/contatos" replace />} />
-
-                  <Route path="leads" element={<Leads />} />
+                  <Route path="leads" element={<Navigate to="/contatos?sub=leads" replace />} />
                   <Route path="tarefas" element={<Tarefas />} />
                   <Route path="conciliacao" element={<Conciliacao />} />
                   <Route path="importacao" element={<Importacao />} />

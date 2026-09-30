@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T19:52:31.641Z",
+  "generatedAt": "2026-09-30T20:19:17.245Z",
   "collections": [
     {
       "name": "users",
@@ -605,6 +605,13 @@
           "required": false,
           "system": false,
           "selectValues": ["CPF", "CNPJ", "AMBOS"]
+        },
+        {
+          "name": "lead_origem_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "leads"
         }
       ],
       "indexes": [

@@ -610,7 +610,7 @@ export default function Index() {
               </CardDescription>
             </div>
             <Button
-              onClick={() => navigate('/leads')}
+              onClick={() => navigate('/contatos?sub=leads')}
               variant="outline"
               size="sm"
               className="text-xs border-[#D5DBDB]"

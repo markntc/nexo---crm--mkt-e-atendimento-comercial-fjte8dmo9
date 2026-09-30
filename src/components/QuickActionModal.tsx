@@ -24,6 +24,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { isValidCPF, isValidCNPJ, maskCPF, maskCNPJ, maskPhone } from '@/lib/formatters'
 import type { Funil, Organizacao, Pessoa, Oportunidade } from '@/types'
+import { AddDealModal } from '@/components/AddDealModal'
 
 export type QuickActionType =
   | 'lead'
@@ -43,6 +44,7 @@ interface QuickActionModalProps {
 export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalProps) {
   const { user } = useAuth()
   const { marcas, activeBrand } = useBrand()
+  const isDealAction = type === 'negocio'
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -372,6 +374,21 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
     }
   }
 
+  if (isDealAction) {
+    return (
+      <AddDealModal
+        open={true}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) onClose()
+        }}
+        onSuccess={() => {
+          onClose()
+          if (onSuccess) onSuccess()
+        }}
+      />
+    )
+  }
+
   return (
     <Dialog open={!!type} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
@@ -504,159 +521,6 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* FORM: NEGÓCIO */}
-          {type === 'negocio' && (
-            <>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Título do Negócio <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  required
-                  placeholder="ex: Fornecimento de Peças - Lote 500 un"
-                  value={negTitulo}
-                  onChange={(e) => setNegTitulo(e.target.value)}
-                  className="h-9 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">
-                    Valor Estimado (R$)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={negValor}
-                    onChange={(e) => setNegValor(Number(e.target.value))}
-                    className="h-9 text-xs rounded-xl"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Funil de Vendas</Label>
-                  <Select value={negFunilId} onValueChange={handleFunilChange}>
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue placeholder="Selecione o funil..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {funis.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.nome_funil}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {negFunilId && (
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Etapa Atual</Label>
-                  <Select value={negEtapa} onValueChange={setNegEtapa}>
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {funis
-                        .find((f) => f.id === negFunilId)
-                        ?.etapas_ordenadas?.map((etapa) => (
-                          <SelectItem key={etapa} value={etapa}>
-                            {etapa}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Organização</Label>
-                  <Select
-                    value={negOrgId}
-                    onValueChange={(v) => setNegOrgId(v === 'none' ? '' : v)}
-                  >
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      {organizacoes.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>
-                          {o.razao_social}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Pessoa (Contato)</Label>
-                  <Select
-                    value={negPessoaId}
-                    onValueChange={(v) => setNegPessoaId(v === 'none' ? '' : v)}
-                  >
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      {pessoas.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.nome_completo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-600">
-                  Documento Fiscal de Faturamento
-                </Label>
-                <Select
-                  value={negDocFaturamento}
-                  onValueChange={(v) => setNegDocFaturamento(v as typeof negDocFaturamento)}
-                >
-                  <SelectTrigger className="h-9 text-xs rounded-xl">
-                    <SelectValue placeholder="A definir no fechamento" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="CPF">Pessoa Física (CPF)</SelectItem>
-                    <SelectItem value="CNPJ">Organização (CNPJ)</SelectItem>
-                    <SelectItem value="AMBOS">Ambos (CPF e CNPJ)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Trava Obrigatória de Follow-up */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-slate-800">
-                    Trava de Follow-up Obrigatória <span className="text-red-500">*</span>
-                  </Label>
-                  <span className="text-[10px] text-slate-500">Próxima Ação</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="date"
-                    required
-                    value={negProxData}
-                    onChange={(e) => setNegProxData(e.target.value)}
-                    className="h-9 text-xs rounded-xl bg-white"
-                  />
-                  <Input
-                    required
-                    placeholder="Descrição da próxima ação"
-                    value={negProxDesc}
-                    onChange={(e) => setNegProxDesc(e.target.value)}
-                    className="h-9 text-xs rounded-xl bg-white"
-                  />
                 </div>
               </div>
             </>
