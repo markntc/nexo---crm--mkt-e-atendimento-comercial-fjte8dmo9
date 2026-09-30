@@ -148,7 +148,7 @@ export default function Layout() {
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-[#1C2833] leading-none truncate">Nexo</h2>
-            <p className="text-[11px] text-[#5D6D7E] mt-1 font-medium truncate">NTC COMPANT</p>
+            <p className="text-[11px] text-[#5D6D7E] mt-1 font-medium truncate">NTC COMPANY</p>
           </div>
         </div>
 
