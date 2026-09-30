@@ -1,0 +1,947 @@
+{
+  "generatedAt": "2026-09-30T12:39:11.136Z",
+  "collections": [
+    {
+      "name": "users",
+      "type": "auth",
+      "apiRules": {
+        "list": "id = @request.auth.id",
+        "view": "id = @request.auth.id",
+        "create": "",
+        "update": "id = @request.auth.id",
+        "delete": "id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "avatar",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
+        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''"
+      ]
+    },
+    {
+      "name": "marcas",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cor_destaque",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_marcas_slug ON marcas (slug)"]
+    },
+    {
+      "name": "equipes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "nome_equipe",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "lider_usuario_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_equipes_marca ON equipes (marca_id)"]
+    },
+    {
+      "name": "funis",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "equipe_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "equipes"
+        },
+        {
+          "name": "nome_funil",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "etapas_ordenadas",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_funis_marca ON funis (marca_id)"]
+    },
+    {
+      "name": "clientes_b2b",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cnpj",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "razao_social",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nome_fantasia",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "inscricao_estadual",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "endereco_corporativo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "email_principal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "marca_captura_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "origem_sistema",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_criacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "id_origem_externa",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criado_por_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_clientes_b2b_cnpj ON clientes_b2b (cnpj)",
+        "CREATE INDEX idx_clientes_b2b_marca ON clientes_b2b (marca_captura_id)"
+      ]
+    },
+    {
+      "name": "clientes_b2c",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nome_completo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "email_principal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "marca_captura_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "origem_sistema",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_criacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "id_origem_externa",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criado_por_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_clientes_b2c_cpf ON clientes_b2c (cpf)",
+        "CREATE INDEX idx_clientes_b2c_marca ON clientes_b2c (marca_captura_id)"
+      ]
+    },
+    {
+      "name": "contatos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cliente_b2b_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "consumidor_b2c_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "cargo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "departamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_contatos_b2b ON contatos (cliente_b2b_id)",
+        "CREATE INDEX idx_contatos_b2c ON contatos (consumidor_b2c_id)"
+      ]
+    },
+    {
+      "name": "leads",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "origem",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "Formulário Web",
+            "Landing Page",
+            "Indicação",
+            "WhatsApp",
+            "Feira",
+            "Importação",
+            "Outro"
+          ]
+        },
+        {
+          "name": "dados_contato",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status_qualificacao",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Novo", "Qualificado", "Desqualificado", "Convertido"]
+        },
+        {
+          "name": "cliente_b2b_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "cliente_b2c_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "criado_por_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_leads_marca ON leads (marca_id)",
+        "CREATE INDEX idx_leads_status ON leads (status_qualificacao)"
+      ]
+    },
+    {
+      "name": "oportunidades",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "funil_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "funis"
+        },
+        {
+          "name": "equipe_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "equipes"
+        },
+        {
+          "name": "cliente_b2b_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "cliente_b2c_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "titulo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_estimado",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "etapa_atual",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "vendedor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "proxima_acao_data",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "proxima_acao_descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "campos_exportacao",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_oportunidades_marca ON oportunidades (marca_id)",
+        "CREATE INDEX idx_oportunidades_funil ON oportunidades (funil_id)",
+        "CREATE INDEX idx_oportunidades_etapa ON oportunidades (etapa_atual)"
+      ]
+    },
+    {
+      "name": "atividades",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "oportunidade_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "oportunidades"
+        },
+        {
+          "name": "responsavel_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "tipo",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Ligação", "Reunião", "Visita", "E-mail", "WhatsApp", "Outro"]
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_vencimento",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "concluida",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_atividades_marca ON atividades (marca_id)",
+        "CREATE INDEX idx_atividades_oportunidade ON atividades (oportunidade_id)",
+        "CREATE INDEX idx_atividades_vencimento ON atividades (data_vencimento)"
+      ]
+    },
+    {
+      "name": "preferencias_comunicacao",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cliente_b2b_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "cliente_b2c_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "canal",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["E-mail", "WhatsApp", "Telefone", "SMS"]
+        },
+        {
+          "name": "status_consentimento",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Opt-in", "Opt-out"]
+        },
+        {
+          "name": "data_atualizacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pref_marca ON preferencias_comunicacao (marca_id)",
+        "CREATE INDEX idx_pref_b2b ON preferencias_comunicacao (cliente_b2b_id)",
+        "CREATE INDEX idx_pref_b2c ON preferencias_comunicacao (cliente_b2c_id)"
+      ]
+    },
+    {
+      "name": "duplicidades",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "cliente_b2b_id_1",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "cliente_b2c_id_1",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "cliente_b2b_id_2",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2b"
+        },
+        {
+          "name": "cliente_b2c_id_2",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes_b2c"
+        },
+        {
+          "name": "tipo_divergencia",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["CNPJ Similar", "CPF Similar", "Homonímia", "E-mail Duplicado", "Outro"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Aberta", "Em Revisão", "Resolvida", "Bloqueada"]
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_duplicidades_status ON duplicidades (status)"]
+    },
+    {
+      "name": "logs_auditoria",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "usuario_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "entidade",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "entidade_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "dados_anteriores",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dados_novos",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "timestamp",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_logs_entidade ON logs_auditoria (entidade, entidade_id)"]
+    }
+  ]
+}
