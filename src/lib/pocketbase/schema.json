@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T14:23:55.267Z",
+  "generatedAt": "2026-09-30T19:52:31.641Z",
   "collections": [
     {
       "name": "users",
@@ -199,7 +199,7 @@
       "indexes": ["CREATE INDEX idx_funis_marca ON funis (marca_id)"]
     },
     {
-      "name": "clientes_b2b",
+      "name": "organizacoes",
       "type": "base",
       "apiRules": {
         "list": "@request.auth.id != ''",
@@ -299,12 +299,12 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX idx_clientes_b2b_cnpj ON clientes_b2b (cnpj)",
-        "CREATE INDEX idx_clientes_b2b_marca ON clientes_b2b (marca_captura_id)"
+        "CREATE UNIQUE INDEX `idx_clientes_b2b_cnpj` ON `organizacoes` (`cnpj`)",
+        "CREATE INDEX `idx_clientes_b2b_marca` ON `organizacoes` (`marca_captura_id`)"
       ]
     },
     {
-      "name": "clientes_b2c",
+      "name": "pessoas",
       "type": "base",
       "apiRules": {
         "list": "@request.auth.id != ''",
@@ -383,37 +383,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
-        }
-      ],
-      "indexes": [
-        "CREATE UNIQUE INDEX idx_clientes_b2c_cpf ON clientes_b2c (cpf)",
-        "CREATE INDEX idx_clientes_b2c_marca ON clientes_b2c (marca_captura_id)"
-      ]
-    },
-    {
-      "name": "contatos",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "cliente_b2b_id",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "clientes_b2b"
         },
         {
-          "name": "consumidor_b2c_id",
+          "name": "organizacao_id",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cargo",
@@ -426,25 +402,11 @@
           "type": "text",
           "required": false,
           "system": false
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
-        "CREATE INDEX idx_contatos_b2b ON contatos (cliente_b2b_id)",
-        "CREATE INDEX idx_contatos_b2c ON contatos (consumidor_b2c_id)"
+        "CREATE UNIQUE INDEX `idx_clientes_b2c_cpf` ON `pessoas` (`cpf`)",
+        "CREATE INDEX `idx_clientes_b2c_marca` ON `pessoas` (`marca_captura_id`)"
       ]
     },
     {
@@ -498,14 +460,14 @@
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2b"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cliente_b2c_id",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "pessoas"
         },
         {
           "name": "criado_por_id",
@@ -571,14 +533,14 @@
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2b"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cliente_b2c_id",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "pessoas"
         },
         {
           "name": "titulo",
@@ -636,6 +598,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "documento_faturamento",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["CPF", "CNPJ", "AMBOS"]
         }
       ],
       "indexes": [
@@ -738,14 +707,14 @@
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2b"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cliente_b2c_id",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "pessoas"
         },
         {
           "name": "marca_id",
@@ -811,28 +780,28 @@
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2b"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cliente_b2c_id_1",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "pessoas"
         },
         {
           "name": "cliente_b2b_id_2",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2b"
+          "collectionRef": "organizacoes"
         },
         {
           "name": "cliente_b2c_id_2",
           "type": "relation",
           "required": false,
           "system": false,
-          "collectionRef": "clientes_b2c"
+          "collectionRef": "pessoas"
         },
         {
           "name": "tipo_divergencia",

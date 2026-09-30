@@ -66,6 +66,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [valorEstimado, setValorEstimado] = useState<number>(0)
   const [proximaAcaoData, setProximaAcaoData] = useState('')
   const [proximaAcaoDescricao, setProximaAcaoDescricao] = useState('')
+  const [documentoFaturamento, setDocumentoFaturamento] = useState<'CPF' | 'CNPJ' | 'AMBOS' | ''>(
+    '',
+  )
 
   // Modal Nova Atividade
   const [newAtivOpen, setNewAtivOpen] = useState(false)
@@ -88,10 +91,10 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       })
       setOpportunity(opp)
       setTitulo(opp.titulo)
-      setValorEstimado(opp.valor_estimado || 0)
+      setValorEstimado(opp.valor_estimado)
       setProximaAcaoData(opp.proxima_acao_data ? opp.proxima_acao_data.split('T')[0] : '')
       setProximaAcaoDescricao(opp.proxima_acao_descricao || '')
-
+      setDocumentoFaturamento(opp.documento_faturamento || '')
       // Atividades associadas
       const ativList = await pb.collection('atividades').getFullList<Atividade>({
         filter: `oportunidade_id = "${id}"`,
@@ -142,6 +145,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       await pb.collection('oportunidades').update(opportunity.id, {
         titulo,
         valor_estimado: Number(valorEstimado),
+        documento_faturamento: documentoFaturamento || null,
         proxima_acao_data: proximaAcaoData ? new Date(proximaAcaoData).toISOString() : null,
         proxima_acao_descricao: proximaAcaoDescricao,
       })
@@ -412,6 +416,30 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
                         <div className="space-y-1">
                           <Label className="text-xs font-medium text-[#1C2833]">
+                            Documento Fiscal para Fechamento / Faturamento
+                          </Label>
+                          <Select
+                            value={documentoFaturamento}
+                            onValueChange={(v) =>
+                              setDocumentoFaturamento(v as 'CPF' | 'CNPJ' | 'AMBOS' | '')
+                            }
+                          >
+                            <SelectTrigger className="h-9 text-xs bg-white">
+                              <SelectValue placeholder="Selecione o documento de fechamento..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CPF">Pessoa Física (CPF)</SelectItem>
+                              <SelectItem value="CNPJ">Organização (CNPJ)</SelectItem>
+                              <SelectItem value="AMBOS">Ambos vinculados (CPF e CNPJ)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-slate-500">
+                            A decisão do documento fiscal ocorre no fechamento da negociação.
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium text-[#1C2833]">
                             Próxima Ação - Data
                           </Label>
                           <Input
@@ -457,6 +485,20 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                           </p>
                           <p className="text-sm font-semibold text-[#1C2833] mt-0.5 truncate">
                             {opportunity.expand?.vendedor_id?.name || 'Administrador NTC'}
+                          </p>
+                        </div>
+                        <div className="col-span-2 p-3 bg-slate-50 rounded-lg border border-[#D5DBDB]/60">
+                          <p className="text-[10px] uppercase font-bold text-[#5D6D7E]">
+                            Decisão Fiscal de Faturamento
+                          </p>
+                          <p className="text-xs font-semibold text-[#1C2833] mt-0.5">
+                            {opportunity.documento_faturamento === 'CPF'
+                              ? 'Emitir por Pessoa Física (CPF)'
+                              : opportunity.documento_faturamento === 'CNPJ'
+                                ? 'Emitir por Organização (CNPJ)'
+                                : opportunity.documento_faturamento === 'AMBOS'
+                                  ? 'Emitir referenciando Ambos (Pessoa + Organização)'
+                                  : 'A definir no fechamento da transação'}
                           </p>
                         </div>
                         <div className="col-span-2 p-3 bg-slate-50 rounded-lg border border-[#D5DBDB]/60">

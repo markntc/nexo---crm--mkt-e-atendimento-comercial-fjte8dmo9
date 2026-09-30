@@ -36,7 +36,8 @@ export interface Funil {
   }
 }
 
-export interface ClienteB2B {
+// Entidade de Relacionamento B2B
+export interface Organizacao {
   id: string
   cnpj: string
   razao_social: string
@@ -54,10 +55,15 @@ export interface ClienteB2B {
   updated: string
   expand?: {
     marca_captura_id?: Marca
+    criado_por_id?: { id: string; name: string; email: string }
   }
 }
 
-export interface ClienteB2C {
+// Retrocompatibilidade temporária de tipo
+export type ClienteB2B = Organizacao
+
+// Entidade de Relacionamento B2C / Pessoa de Contato
+export interface Pessoa {
   id: string
   cpf: string
   nome_completo: string
@@ -68,26 +74,23 @@ export interface ClienteB2C {
   data_criacao?: string
   id_origem_externa?: string
   criado_por_id?: string
-  created: string
-  updated: string
-  expand?: {
-    marca_captura_id?: Marca
-  }
-}
-
-export interface Contato {
-  id: string
-  cliente_b2b_id?: string
-  consumidor_b2c_id?: string
+  organizacao_id?: string
   cargo?: string
   departamento?: string
   created: string
   updated: string
   expand?: {
-    cliente_b2b_id?: ClienteB2B
-    consumidor_b2c_id?: ClienteB2C
+    marca_captura_id?: Marca
+    organizacao_id?: Organizacao
+    criado_por_id?: { id: string; name: string; email: string }
   }
 }
+
+// Retrocompatibilidade temporária de tipo
+export type ClienteB2C = Pessoa
+
+// Tipo derivado de status de relacionamento comercial (FRENTE 3)
+export type StatusRelacionamento = 'Cliente' | 'Prospect'
 
 export interface Lead {
   id: string
@@ -109,10 +112,12 @@ export interface Lead {
   updated: string
   expand?: {
     marca_id?: Marca
-    cliente_b2b_id?: ClienteB2B
-    cliente_b2c_id?: ClienteB2C
+    cliente_b2b_id?: Organizacao
+    cliente_b2c_id?: Pessoa
   }
 }
+
+export type DocumentoFaturamento = 'CPF' | 'CNPJ' | 'AMBOS'
 
 export interface Oportunidade {
   id: string
@@ -127,6 +132,8 @@ export interface Oportunidade {
   vendedor_id: string
   proxima_acao_data?: string
   proxima_acao_descricao?: string
+  documento_faturamento?: DocumentoFaturamento
+  lead_origem_id?: string
   campos_exportacao?: {
     moeda?: string
     incoterm?: string
@@ -139,9 +146,10 @@ export interface Oportunidade {
     marca_id?: Marca
     funil_id?: Funil
     equipe_id?: Equipe
-    cliente_b2b_id?: ClienteB2B
-    cliente_b2c_id?: ClienteB2C
+    cliente_b2b_id?: Organizacao
+    cliente_b2c_id?: Pessoa
     vendedor_id?: { id: string; name: string; email: string }
+    lead_origem_id?: Lead
   }
 }
 
@@ -175,8 +183,8 @@ export interface PreferenciaComunicacao {
   updated: string
   expand?: {
     marca_id?: Marca
-    cliente_b2b_id?: ClienteB2B
-    cliente_b2c_id?: ClienteB2C
+    cliente_b2b_id?: Organizacao
+    cliente_b2c_id?: Pessoa
   }
 }
 
@@ -192,10 +200,10 @@ export interface Duplicidade {
   created: string
   updated: string
   expand?: {
-    cliente_b2b_id_1?: ClienteB2B
-    cliente_b2c_id_1?: ClienteB2C
-    cliente_b2b_id_2?: ClienteB2B
-    cliente_b2c_id_2?: ClienteB2C
+    cliente_b2b_id_1?: Organizacao
+    cliente_b2c_id_1?: Pessoa
+    cliente_b2b_id_2?: Organizacao
+    cliente_b2c_id_2?: Pessoa
   }
 }
 

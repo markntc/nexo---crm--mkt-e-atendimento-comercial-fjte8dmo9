@@ -90,8 +90,10 @@ export default function Pipelines() {
   const [newValor, setNewValor] = useState<number>(0)
   const [newFunilId, setNewFunilId] = useState('')
   const [newEtapa, setNewEtapa] = useState('')
-  const [newClienteTipo, setNewClienteTipo] = useState<'b2b' | 'b2c'>('b2b')
+  const [newClienteTipo, setNewClienteTipo] = useState<'b2b' | 'b2c' | 'ambos'>('b2b')
   const [newClienteId, setNewClienteId] = useState('')
+  const [newPessoaId, setNewPessoaId] = useState('')
+  const [newDocFaturamento, setNewDocFaturamento] = useState<'CPF' | 'CNPJ' | 'AMBOS' | ''>('')
   const [newFollowUpData, setNewFollowUpData] = useState(
     new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
   )
@@ -196,8 +198,8 @@ export default function Pipelines() {
   const loadClientesOptions = async () => {
     try {
       const [b2b, b2c] = await Promise.all([
-        pb.collection('clientes_b2b').getFullList<ClienteB2B>({ sort: 'razao_social' }),
-        pb.collection('clientes_b2c').getFullList<ClienteB2C>({ sort: 'nome_completo' }),
+        pb.collection('organizacoes').getFullList<ClienteB2B>({ sort: 'razao_social' }),
+        pb.collection('pessoas').getFullList<ClienteB2C>({ sort: 'nome_completo' }),
       ])
       setClientesB2BList(b2b)
       setClientesB2CList(b2c)
@@ -343,6 +345,18 @@ export default function Pipelines() {
       const targetFunil = funis.find((f) => f.id === newFunilId)
       const marcaId = targetFunil ? targetFunil.marca_id : activeBrand?.id
 
+      let b2bFinal: string | null = null
+      let b2cFinal: string | null = null
+
+      if (newClienteTipo === 'b2b') {
+        b2bFinal = newClienteId || null
+      } else if (newClienteTipo === 'b2c') {
+        b2cFinal = newClienteId || null
+      } else if (newClienteTipo === 'ambos') {
+        b2bFinal = newClienteId || null
+        b2cFinal = newPessoaId || null
+      }
+
       await pb.collection('oportunidades').create({
         marca_id: marcaId,
         funil_id: newFunilId,
@@ -350,8 +364,9 @@ export default function Pipelines() {
         valor_estimado: Number(newValor),
         etapa_atual: newEtapa,
         vendedor_id: pb.authStore.record?.id,
-        cliente_b2b_id: newClienteTipo === 'b2b' && newClienteId ? newClienteId : null,
-        cliente_b2c_id: newClienteTipo === 'b2c' && newClienteId ? newClienteId : null,
+        cliente_b2b_id: b2bFinal,
+        cliente_b2c_id: b2cFinal,
+        documento_faturamento: newDocFaturamento || null,
         proxima_acao_data: newFollowUpData ? new Date(newFollowUpData).toISOString() : null,
         proxima_acao_descricao: newFollowUpDesc,
       })
@@ -1123,62 +1138,142 @@ export default function Pipelines() {
               </div>
             </div>
 
-            {/* Vínculo de Contato: B2B vs B2C */}
-            <div className="space-y-1.5 p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl">
+            {/* Vínculo de Contato: B2B vs B2C vs Ambos */}
+            <div className="space-y-2 p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-900">Contato Vinculado</Label>
-                <div className="flex items-center space-x-1.5 text-xs">
+                <Label className="text-xs font-semibold text-slate-900">Entidade Envolvida</Label>
+                <div className="flex items-center space-x-1 text-xs">
                   <button
                     type="button"
                     onClick={() => setNewClienteTipo('b2b')}
                     className={cn(
-                      'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all',
+                      'px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all',
                       newClienteTipo === 'b2b'
                         ? 'bg-[#017848] text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-[#E3E7EB]',
                     )}
                   >
-                    Organização (B2B)
+                    Organização
                   </button>
                   <button
                     type="button"
                     onClick={() => setNewClienteTipo('b2c')}
                     className={cn(
-                      'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all',
+                      'px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all',
                       newClienteTipo === 'b2c'
                         ? 'bg-[#017848] text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-[#E3E7EB]',
                     )}
                   >
-                    Pessoa (B2C)
+                    Pessoa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewClienteTipo('ambos')}
+                    className={cn(
+                      'px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all',
+                      newClienteTipo === 'ambos'
+                        ? 'bg-[#017848] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-[#E3E7EB]',
+                    )}
+                  >
+                    Ambos
                   </button>
                 </div>
               </div>
 
-              <Select value={newClienteId} onValueChange={setNewClienteId}>
-                <SelectTrigger className="h-9 text-xs bg-white rounded-xl">
-                  <SelectValue
-                    placeholder={
-                      newClienteTipo === 'b2b'
-                        ? 'Selecione uma organização B2B...'
-                        : 'Selecione uma pessoa B2C...'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {newClienteTipo === 'b2b'
-                    ? clientesB2BList.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.razao_social} ({c.cnpj})
-                        </SelectItem>
-                      ))
-                    : clientesB2CList.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.nome_completo} ({c.cpf})
-                        </SelectItem>
-                      ))}
-                </SelectContent>
-              </Select>
+              {newClienteTipo === 'b2b' && (
+                <Select value={newClienteId} onValueChange={setNewClienteId}>
+                  <SelectTrigger className="h-9 text-xs bg-white rounded-xl">
+                    <SelectValue placeholder="Selecione uma organização (CNPJ)..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {clientesB2BList.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.razao_social} ({c.cnpj})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {newClienteTipo === 'b2c' && (
+                <Select value={newClienteId} onValueChange={setNewClienteId}>
+                  <SelectTrigger className="h-9 text-xs bg-white rounded-xl">
+                    <SelectValue placeholder="Selecione uma pessoa (CPF)..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {clientesB2CList.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome_completo} ({c.cpf})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {newClienteTipo === 'ambos' && (
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-[10px] font-semibold text-slate-600">
+                      Organização (Compradora)
+                    </Label>
+                    <Select value={newClienteId} onValueChange={setNewClienteId}>
+                      <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                        <SelectValue placeholder="Selecione a organização..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {clientesB2BList.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.razao_social} ({c.cnpj})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] font-semibold text-slate-600">
+                      Pessoa (Contato / Solicitante)
+                    </Label>
+                    <Select value={newPessoaId} onValueChange={setNewPessoaId}>
+                      <SelectTrigger className="h-8 text-xs bg-white rounded-lg">
+                        <SelectValue placeholder="Selecione a pessoa física..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {clientesB2CList.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome_completo} ({c.cpf})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Decisão do Documento Fiscal no Fechamento */}
+              <div className="pt-2 border-t border-[#E3E7EB]/70">
+                <Label className="text-[10px] font-semibold text-slate-600">
+                  Documento Fiscal para Fechamento (Decisão de Transação)
+                </Label>
+                <Select
+                  value={newDocFaturamento}
+                  onValueChange={(v) => setNewDocFaturamento(v as 'CPF' | 'CNPJ' | 'AMBOS' | '')}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-white rounded-lg mt-1">
+                    <SelectValue placeholder="Escolher agora ou definir no fechamento..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="CNPJ">Emitir por CNPJ (Organização)</SelectItem>
+                    <SelectItem value="CPF">Emitir por CPF (Pessoa Física)</SelectItem>
+                    <SelectItem value="AMBOS">Referenciar Ambos no Faturamento</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[9px] text-slate-500 mt-0.5">
+                  Identificação inicial por relacionamento; a emissão fiscal pode ser alterada no
+                  fechamento.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-1">

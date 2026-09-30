@@ -68,11 +68,11 @@ export default function Layout() {
           })
           .catch(() => ({ totalItems: 0 })),
         pb
-          .collection('clientes_b2b')
+          .collection('organizacoes')
           .getList(1, 1)
           .catch(() => ({ totalItems: 0 })),
         pb
-          .collection('clientes_b2c')
+          .collection('pessoas')
           .getList(1, 1)
           .catch(() => ({ totalItems: 0 })),
       ])

@@ -50,9 +50,9 @@ export const GlobalSearch: React.FC = () => {
         const cleanQ = query.trim().replace(/['"]/g, '')
         const res: SearchResult[] = []
 
-        // 1. Clientes B2B
+        // 1. Organizações (B2B)
         try {
-          const b2bList = await pb.collection('clientes_b2b').getList(1, 4, {
+          const b2bList = await pb.collection('organizacoes').getList(1, 4, {
             filter: `razao_social ~ "${cleanQ}" || cnpj ~ "${cleanQ}" || nome_fantasia ~ "${cleanQ}"`,
           })
           b2bList.items.forEach((item) => {
@@ -61,7 +61,7 @@ export const GlobalSearch: React.FC = () => {
               id: item.id,
               title: item.razao_social,
               subtitle: `CNPJ: ${item.cnpj} • ${item.email_principal || 'Sem e-mail'}`,
-              badge: 'Conta B2B',
+              badge: 'Organização',
               link: `/contatos?sub=organizacoes&search=${encodeURIComponent(item.razao_social)}`,
             })
           })
@@ -69,9 +69,9 @@ export const GlobalSearch: React.FC = () => {
           /* intentionally ignored */
         }
 
-        // 2. Clientes B2C
+        // 2. Pessoas (B2C / Contatos)
         try {
-          const b2cList = await pb.collection('clientes_b2c').getList(1, 4, {
+          const b2cList = await pb.collection('pessoas').getList(1, 4, {
             filter: `nome_completo ~ "${cleanQ}" || cpf ~ "${cleanQ}"`,
           })
           b2cList.items.forEach((item) => {
@@ -80,7 +80,7 @@ export const GlobalSearch: React.FC = () => {
               id: item.id,
               title: item.nome_completo,
               subtitle: `CPF: ${item.cpf} • ${item.email_principal || 'Sem e-mail'}`,
-              badge: 'Consumidor B2C',
+              badge: 'Pessoa',
               link: `/contatos?sub=pessoas&search=${encodeURIComponent(item.nome_completo)}`,
             })
           })

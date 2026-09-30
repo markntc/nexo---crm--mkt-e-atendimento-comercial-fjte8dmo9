@@ -1,6 +1,6 @@
 // pocketbase/hooks/auditoria_log.js
 // Grava logs imutáveis na collection logs_auditoria para entidades sensíveis:
-// clientes_b2b, clientes_b2c, oportunidades, preferencias_comunicacao
+// organizacoes, pessoas, oportunidades, preferencias_comunicacao
 
 onRecordAfterCreateSuccess(
   (e) => {
@@ -38,8 +38,8 @@ onRecordAfterCreateSuccess(
 
     return e.next()
   },
-  'clientes_b2b',
-  'clientes_b2c',
+  'organizacoes',
+  'pessoas',
   'oportunidades',
   'preferencias_comunicacao',
 )
@@ -83,8 +83,8 @@ onRecordAfterUpdateSuccess(
 
     return e.next()
   },
-  'clientes_b2b',
-  'clientes_b2c',
+  'organizacoes',
+  'pessoas',
   'oportunidades',
   'preferencias_comunicacao',
 )
@@ -117,8 +117,8 @@ onRecordAfterDeleteSuccess(
 
     return e.next()
   },
-  'clientes_b2b',
-  'clientes_b2c',
+  'organizacoes',
+  'pessoas',
   'oportunidades',
   'preferencias_comunicacao',
 )

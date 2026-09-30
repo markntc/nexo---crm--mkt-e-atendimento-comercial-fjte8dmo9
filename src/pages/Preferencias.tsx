@@ -104,8 +104,8 @@ export default function Preferencias() {
   const loadClientes = async () => {
     try {
       const [b2b, b2c] = await Promise.all([
-        pb.collection('clientes_b2b').getFullList<ClienteB2B>({ sort: 'razao_social' }),
-        pb.collection('clientes_b2c').getFullList<ClienteB2C>({ sort: 'nome_completo' }),
+        pb.collection('organizacoes').getFullList<ClienteB2B>({ sort: 'razao_social' }),
+        pb.collection('pessoas').getFullList<ClienteB2C>({ sort: 'nome_completo' }),
       ])
       setClientesB2BList(b2b)
       setClientesB2CList(b2c)

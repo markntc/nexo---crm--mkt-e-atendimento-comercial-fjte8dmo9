@@ -251,10 +251,10 @@ export default function Importacao() {
 
         if (targetType === 'b2b') {
           payload.cnpj = maskCNPJ(payload.cnpj || '')
-          await pb.collection('clientes_b2b').create(payload)
+          await pb.collection('organizacoes').create(payload)
         } else {
           payload.cpf = maskCPF(payload.cpf || '')
-          await pb.collection('clientes_b2c').create(payload)
+          await pb.collection('pessoas').create(payload)
         }
 
         imported++
