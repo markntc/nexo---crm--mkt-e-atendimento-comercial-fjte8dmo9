@@ -1,13 +1,8 @@
 // src/components/OpportunityDrawer.tsx
 import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
-import type {
-  Oportunidade,
-  Atividade,
-  PreferenciaComunicacao,
-  ClienteB2B,
-  ClienteB2C,
-} from '@/types'
+import type { Oportunidade, Atividade, PreferenciaComunicacao, Organizacao, Pessoa } from '@/types'
+import { getClientStatusSets } from '@/lib/relationshipStatus'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -58,6 +53,8 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [opportunity, setOpportunity] = useState<Oportunidade | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [preferencias, setPreferencias] = useState<PreferenciaComunicacao[]>([])
+  const [wonOrgIds, setWonOrgIds] = useState<Set<string>>(new Set())
+  const [wonPessoaIds, setWonPessoaIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
 
   // Edição inline dos dados da oportunidade
@@ -86,9 +83,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const fetchDetail = async (id: string) => {
     setIsLoading(true)
     try {
-      const opp = await pb.collection('oportunidades').getOne<Oportunidade>(id, {
-        expand: 'marca_id,funil_id,equipe_id,cliente_b2b_id,cliente_b2c_id,vendedor_id',
-      })
+      const [opp, statusSets] = await Promise.all([
+        pb.collection('oportunidades').getOne<Oportunidade>(id, {
+          expand: 'marca_id,funil_id,equipe_id,cliente_b2b_id,cliente_b2c_id,vendedor_id',
+        }),
+        getClientStatusSets(),
+      ])
+      setWonOrgIds(statusSets.wonOrgIds)
+      setWonPessoaIds(statusSets.wonPessoaIds)
       setOpportunity(opp)
       setTitulo(opp.titulo)
       setValorEstimado(opp.valor_estimado)
@@ -535,9 +537,32 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
                     {/* Dados do Cliente Vinculado */}
                     <div className="pt-2 border-t border-[#D5DBDB]/60">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
-                        Ficha do Cliente
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                          Ficha do Contato / Organização
+                        </span>
+                        {clienteB2B &&
+                          (wonOrgIds.has(clienteB2B.id) ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                              Cliente
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                              Prospect
+                            </Badge>
+                          ))}
+                        {clienteB2C &&
+                          !clienteB2B &&
+                          (wonPessoaIds.has(clienteB2C.id) ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                              Cliente
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                              Prospect
+                            </Badge>
+                          ))}
+                      </div>
                       <div className="mt-2 p-3 rounded-lg border border-[#D5DBDB] bg-white space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-[#5D6D7E]">Nome/Razão Social:</span>

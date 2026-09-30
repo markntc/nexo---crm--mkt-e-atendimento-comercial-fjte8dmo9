@@ -32,15 +32,31 @@ import {
   Layers,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
+  PinOff,
+  Plus,
+  Briefcase,
+  Building2,
+  User,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { QuickActionModal, type QuickActionType } from './QuickActionModal'
 
 export default function Layout() {
   const { user, logout } = useAuth()
   const { marcas, activeBrand, isConsolidated, setActiveBrandId, currentBrandColor } = useBrand()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isSidebarPinned, setIsSidebarPinned] = useState(false)
-  const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+  // Pin no localStorage — se pin ativado, fica aberto (240px); se pin desativado, fica recolhido (68px) e NÃO abre no hover
+  const [isSidebarPinned, setIsSidebarPinned] = useState<boolean>(() => {
+    const saved = localStorage.getItem('ntc_sidebar_pinned')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [quickAction, setQuickAction] = useState<QuickActionType>(null)
+
+  useEffect(() => {
+    localStorage.setItem('ntc_sidebar_pinned', String(isSidebarPinned))
+  }, [isSidebarPinned])
 
   // Badges em tempo real
   const [tarefasVencidasCount, setTarefasVencidasCount] = useState<number>(0)
@@ -91,7 +107,8 @@ export default function Layout() {
     return () => clearInterval(timer)
   }, [activeBrand])
 
-  const isExpanded = isSidebarPinned || isSidebarHovered
+  // Quando o pin está desativado, o menu NÃO expande no hover: só abre com pin ativado
+  const isExpanded = isSidebarPinned
 
   // Menu principal do CRM conforme Pipedrive
   // Item unificado de "Negócios" no lugar de separar Pipelines e Oportunidades
@@ -245,8 +262,6 @@ export default function Layout() {
         Ao passar o mouse ou clicar em pin, expande para 240px com transição suave.
       */}
       <aside
-        onMouseEnter={() => setIsSidebarHovered(true)}
-        onMouseLeave={() => setIsSidebarHovered(false)}
         className={cn(
           'hidden lg:flex flex-col bg-[#201A29] text-white shrink-0 sticky top-0 h-screen z-40 transition-all duration-200 ease-in-out border-r border-[#2C243B] select-none',
           isExpanded ? 'w-[240px] shadow-2xl' : 'w-[68px]',
@@ -270,21 +285,6 @@ export default function Layout() {
               </div>
             )}
           </div>
-
-          {isExpanded && (
-            <button
-              type="button"
-              onClick={() => setIsSidebarPinned(!isSidebarPinned)}
-              title={isSidebarPinned ? 'Desafixar menu' : 'Fixar menu aberto'}
-              className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              {isSidebarPinned ? (
-                <PanelLeftClose className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <PanelLeftOpen className="w-4 h-4" />
-              )}
-            </button>
-          )}
         </div>
 
         {/* Brand Selector */}
@@ -372,7 +372,40 @@ export default function Layout() {
           })}
         </div>
 
-        {/* Footer: User profile */}
+        {/* Footer: Fixador do Menu Lateral como a ÚLTIMA opção fixa do menu (base da sidebar) */}
+        <div className="p-2 border-t border-[#2C243B]">
+          {isExpanded ? (
+            <button
+              type="button"
+              onClick={() => setIsSidebarPinned(false)}
+              className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 transition-colors text-left"
+              title="Desafixar menu (recolher barra lateral)"
+            >
+              <PinOff className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="truncate">Desafixar Menu</span>
+            </button>
+          ) : (
+            <Tooltip delayDuration={150}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarPinned(true)}
+                  className="w-11 h-11 mx-auto flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Fixar menu lateral"
+                >
+                  <Pin className="w-5 h-5 text-emerald-400" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                sideOffset={12}
+                className="bg-[#0B0C10] text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xl border border-white/10"
+              >
+                <span>Fixar menu aberto</span>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </aside>
 
       {/* MOBILE DRAWER */}
@@ -475,9 +508,77 @@ export default function Layout() {
             </div>
           </div>
 
-          {/* Global Search centralizado estilo Pipedrive ("Pesquisar no Pipedrive") */}
-          <div className="flex-1 max-w-xs sm:max-w-md mx-2 sm:mx-6">
-            <GlobalSearch />
+          {/* Global Search centralizado + Botão '+' de Ação Rápida estilo Pipedrive */}
+          <div className="flex-1 max-w-xs sm:max-w-md mx-2 sm:mx-6 flex items-center space-x-2">
+            <div className="flex-1 min-w-0">
+              <GlobalSearch />
+            </div>
+
+            {/* BOTÃO '+' DE AÇÃO RÁPIDA ESTILO PIPEDRIVE */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  className="h-9 w-9 rounded-xl bg-[#017848] hover:bg-[#01653c] text-white shadow-xs shrink-0 font-bold transition-transform active:scale-95"
+                  title="Criação Rápida (+)"
+                  aria-label="Adicionar item rapidamente"
+                >
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-52 rounded-xl shadow-xl border-slate-200 p-1"
+              >
+                <DropdownMenuLabel className="text-[10px] uppercase font-bold tracking-wider text-slate-500 px-2 py-1">
+                  Criação Rápida {activeBrand ? `• ${activeBrand.nome}` : ''}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-slate-100" />
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('lead')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <Target className="w-4 h-4 mr-2.5 text-amber-500" />
+                  <span>Lead</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('negocio')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <Briefcase className="w-4 h-4 mr-2.5 text-emerald-600" />
+                  <span>Negócio</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('pessoa')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <User className="w-4 h-4 mr-2.5 text-blue-600" />
+                  <span>Pessoa</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('organizacao')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <Building2 className="w-4 h-4 mr-2.5 text-sky-600" />
+                  <span>Organização</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-slate-100" />
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('nota')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <FileText className="w-4 h-4 mr-2.5 text-purple-600" />
+                  <span>Nota</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setQuickAction('tarefa')}
+                  className="text-xs font-semibold py-2 px-2.5 rounded-lg cursor-pointer text-slate-800 hover:bg-slate-100"
+                >
+                  <CheckSquare className="w-4 h-4 mr-2.5 text-rose-500" />
+                  <span>Tarefa</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Right Header Actions */}
@@ -581,6 +682,15 @@ export default function Layout() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-[1700px] w-full mx-auto animate-fade-in">
           <Outlet />
         </main>
+
+        {/* Modal de Ação Rápida */}
+        <QuickActionModal
+          type={quickAction}
+          onClose={() => setQuickAction(null)}
+          onSuccess={() => {
+            fetchSidebarCounts()
+          }}
+        />
       </div>
     </div>
   )

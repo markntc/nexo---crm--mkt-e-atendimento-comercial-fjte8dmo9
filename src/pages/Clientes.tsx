@@ -9,13 +9,15 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import type {
+  Organizacao,
+  Pessoa,
   ClienteB2B,
   ClienteB2C,
-  Contato,
   Oportunidade,
   PreferenciaComunicacao,
   Atividade,
 } from '@/types'
+import { getClientStatusSets } from '@/lib/relationshipStatus'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -87,10 +89,16 @@ export default function Clientes() {
   const [timelineAtividades, setTimelineAtividades] = useState<Atividade[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // Sets de IDs com negócio ganho (Status: Cliente vs Prospect)
+  const [wonOrgIds, setWonOrgIds] = useState<Set<string>>(new Set())
+  const [wonPessoaIds, setWonPessoaIds] = useState<Set<string>>(new Set())
+  // Filtro de status de relacionamento comercial (Todos, Cliente, Prospect)
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'cliente' | 'prospect'>('todos')
+
   // Detail View State (Drawer)
   const [selectedB2B, setSelectedB2B] = useState<ClienteB2B | null>(null)
   const [selectedB2C, setSelectedB2C] = useState<ClienteB2C | null>(null)
-  const [linkedContatos, setLinkedContatos] = useState<Contato[]>([])
+  const [linkedPessoas, setLinkedPessoas] = useState<Pessoa[]>([])
   const [clientOpps, setClientOpps] = useState<Oportunidade[]>([])
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
 
@@ -107,10 +115,13 @@ export default function Clientes() {
   const [newEmail, setNewEmail] = useState('')
   const [newTelefone, setNewTelefone] = useState('')
   const [newMarcaCapturaId, setNewMarcaCapturaId] = useState('')
+  const [newOrganizacaoId, setNewOrganizacaoId] = useState<string>('')
+  const [newCargo, setNewCargo] = useState('')
+  const [newDepartamento, setNewDepartamento] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Modal Adicionar Contato Vinculado (B2B <-> B2C)
+  // Modal Vincular Pessoa a esta Organização
   const [isAddContatoOpen, setIsAddContatoOpen] = useState(false)
   const [selectedB2CCandidateId, setSelectedB2CCandidateId] = useState('')
   const [contatoCargo, setContatoCargo] = useState('')
@@ -141,15 +152,15 @@ export default function Clientes() {
         filterB2C = filterB2C ? `(${filterB2C}) && (${qB2C})` : qB2C
       }
 
-      const [b2bList, b2cList, ativList] = await Promise.all([
-        pb.collection('clientes_b2b').getFullList<ClienteB2B>({
+      const [b2bList, b2cList, ativList, statusSets] = await Promise.all([
+        pb.collection('organizacoes').getFullList<Organizacao>({
           filter: filterB2B || undefined,
           expand: 'marca_captura_id',
           sort: 'razao_social',
         }),
-        pb.collection('clientes_b2c').getFullList<ClienteB2C>({
+        pb.collection('pessoas').getFullList<Pessoa>({
           filter: filterB2C || undefined,
-          expand: 'marca_captura_id',
+          expand: 'marca_captura_id,organizacao_id',
           sort: 'nome_completo',
         }),
         pb
@@ -160,8 +171,11 @@ export default function Clientes() {
             limit: 50,
           })
           .catch(() => []),
+        getClientStatusSets(),
       ])
 
+      setWonOrgIds(statusSets.wonOrgIds)
+      setWonPessoaIds(statusSets.wonPessoaIds)
       setClientesB2B(b2bList)
       setClientesB2C(b2cList)
       setTimelineAtividades(ativList)
@@ -190,10 +204,10 @@ export default function Clientes() {
   const loadClientDetails = async (b2bId?: string, b2cId?: string) => {
     try {
       if (b2bId) {
-        const [contatosRes, oppsRes, prefsRes] = await Promise.all([
-          pb.collection('contatos').getFullList<Contato>({
-            filter: `cliente_b2b_id = "${b2bId}"`,
-            expand: 'consumidor_b2c_id',
+        const [pessoasRes, oppsRes, prefsRes] = await Promise.all([
+          pb.collection('pessoas').getFullList<Pessoa>({
+            filter: `organizacao_id = "${b2bId}"`,
+            sort: 'nome_completo',
           }),
           pb.collection('oportunidades').getFullList<Oportunidade>({
             filter: `cliente_b2b_id = "${b2bId}"`,
@@ -204,7 +218,7 @@ export default function Clientes() {
             expand: 'marca_id',
           }),
         ])
-        setLinkedContatos(contatosRes)
+        setLinkedPessoas(pessoasRes)
         setClientOpps(oppsRes)
         setClientPrefs(prefsRes)
       } else if (b2cId) {
@@ -218,7 +232,7 @@ export default function Clientes() {
             expand: 'marca_id',
           }),
         ])
-        setLinkedContatos([])
+        setLinkedPessoas([])
         setClientOpps(oppsRes)
         setClientPrefs(prefsRes)
       }
@@ -262,7 +276,7 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
-        await pb.collection('clientes_b2b').create({
+        await pb.collection('organizacoes').create({
           cnpj: maskCNPJ(newCnpj),
           razao_social: newRazao.trim(),
           nome_fantasia: newFantasia.trim(),
@@ -290,7 +304,7 @@ export default function Clientes() {
         setIsSubmitting(false)
       }
     } else {
-      // B2C
+      // B2C / Pessoa
       if (!isValidCPF(newCpf)) {
         setValidationError('O CPF informado possui dígitos verificadores inválidos.')
         return
@@ -302,7 +316,7 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
-        await pb.collection('clientes_b2c').create({
+        await pb.collection('pessoas').create({
           cpf: maskCPF(newCpf),
           nome_completo: newNomeCompleto.trim(),
           email_principal: newEmail.trim(),
@@ -311,11 +325,14 @@ export default function Clientes() {
           origem_sistema: 'Cadastro Manual Pipedrive NTC',
           data_criacao: new Date().toISOString(),
           criado_por_id: pb.authStore.record?.id,
+          organizacao_id: newOrganizacaoId || null,
+          cargo: newCargo.trim() || null,
+          departamento: newDepartamento.trim() || null,
         })
 
         toast({
           title: 'Pessoa cadastrada',
-          description: 'Registro pessoa física incluído na base mestre de contatos.',
+          description: 'Registro de pessoa física incluído na base mestre de contatos.',
         })
         setIsNewContactOpen(false)
         resetForm()
@@ -339,6 +356,9 @@ export default function Clientes() {
     setNewNomeCompleto('')
     setNewEmail('')
     setNewTelefone('')
+    setNewOrganizacaoId('')
+    setNewCargo('')
+    setNewDepartamento('')
     setValidationError(null)
   }
 
@@ -349,28 +369,28 @@ export default function Clientes() {
     setIsNewContactOpen(true)
   }
 
-  // Vínculo B2B <-> B2C: Adicionar Contato Técnico
+  // Vínculo Pessoa -> Organização (atualiza diretamente o registro da Pessoa com organizacao_id + cargo)
   const handleAddContato = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedB2B || !selectedB2CCandidateId) return
 
     try {
-      await pb.collection('contatos').create({
-        cliente_b2b_id: selectedB2B.id,
-        consumidor_b2c_id: selectedB2CCandidateId,
-        cargo: contatoCargo,
-        departamento: contatoDepto,
+      await pb.collection('pessoas').update(selectedB2CCandidateId, {
+        organizacao_id: selectedB2B.id,
+        cargo: contatoCargo.trim() || null,
+        departamento: contatoDepto.trim() || null,
       })
 
       toast({
-        title: 'Contato corporativo vinculado',
-        description: 'Vínculo da pessoa física à organização estabelecido.',
+        title: 'Pessoa vinculada à organização',
+        description: 'Vínculo e cargo estabelecidos com sucesso na base mestre.',
       })
       setIsAddContatoOpen(false)
       setSelectedB2CCandidateId('')
       setContatoCargo('')
       setContatoDepto('')
       loadClientDetails(selectedB2B.id, undefined)
+      fetchContatos()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha ao vincular contato'
       toast({
@@ -378,6 +398,27 @@ export default function Clientes() {
         title: 'Erro de vínculo',
         description: msg,
       })
+    }
+  }
+
+  // Desvincular Pessoa da Organização
+  const handleUnlinkPessoa = async (pessoaId: string) => {
+    try {
+      await pb.collection('pessoas').update(pessoaId, {
+        organizacao_id: null,
+        cargo: null,
+        departamento: null,
+      })
+      toast({
+        title: 'Pessoa desvinculada',
+        description: 'O vínculo com a organização foi removido.',
+      })
+      if (selectedB2B) {
+        loadClientDetails(selectedB2B.id, undefined)
+      }
+      fetchContatos()
+    } catch (err) {
+      console.error('Erro ao desvincular pessoa:', err)
     }
   }
 
@@ -546,8 +587,52 @@ export default function Clientes() {
           </div>
 
           {/* Busca e Filtro */}
-          <div className="flex items-center space-x-2">
-            <div className="relative w-full sm:w-72">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Seletor de Filtro por Status Comercial (Cliente / Prospect / Todos) */}
+            {(activeSubNav === 'pessoas' || activeSubNav === 'organizacoes') && (
+              <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('todos')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg font-semibold transition-all',
+                    statusFilter === 'todos'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900',
+                  )}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('cliente')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center space-x-1',
+                    statusFilter === 'cliente'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-emerald-700 hover:bg-emerald-50',
+                  )}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                  <span>Clientes</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('prospect')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center space-x-1',
+                    statusFilter === 'prospect'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-blue-700 hover:bg-blue-50',
+                  )}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-300" />
+                  <span>Prospects</span>
+                </button>
+              </div>
+            )}
+
+            <div className="relative w-full sm:w-64">
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <Input
                 type="text"
@@ -571,13 +656,15 @@ export default function Clientes() {
             Carregando contatos corporativos...
           </div>
         ) : activeSubNav === 'pessoas' ? (
-          /* TABELA DE PESSOAS (B2C) */
+          /* TABELA DE PESSOAS */
           <Card className="border-[#E3E7EB] bg-white rounded-2xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#F8F9FA] border-b border-[#E3E7EB] text-[10px] uppercase font-bold tracking-wider text-slate-600">
                   <tr>
                     <th className="px-4 py-3">Nome da Pessoa</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Organização Vinculada</th>
                     <th className="px-4 py-3">CPF</th>
                     <th className="px-4 py-3">E-mail Principal</th>
                     <th className="px-4 py-3">Telefone</th>
@@ -586,80 +673,126 @@ export default function Clientes() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E3E7EB]/60">
-                  {clientesB2C.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <Users2 className="w-8 h-8 text-slate-300" />
-                          <p className="font-semibold text-slate-700">
-                            Nenhuma pessoa adicionada ainda
-                          </p>
-                          <Button
-                            size="sm"
-                            onClick={() => openNewContactModal('b2c')}
-                            className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
-                          >
-                            <Plus className="w-3.5 h-3.5 mr-1" />+ Pessoa
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    clientesB2C.map((c) => (
-                      <tr
-                        key={c.id}
-                        onClick={() => handleOpenB2C(c)}
-                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                      >
-                        <td className="px-4 py-3 font-bold text-slate-900 flex items-center space-x-2">
-                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {c.nome_completo.slice(0, 2).toUpperCase()}
-                          </div>
-                          <span className="truncate">{c.nome_completo}</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-700">{c.cpf}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
-                        <td className="px-4 py-3">
-                          {c.expand?.marca_captura_id ? (
-                            <Badge
-                              className="text-[10px] text-white rounded-full font-semibold"
-                              style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                  {(() => {
+                    const filteredPessoas = clientesB2C.filter((c) => {
+                      const isCliente = wonPessoaIds.has(c.id)
+                      if (statusFilter === 'cliente') return isCliente
+                      if (statusFilter === 'prospect') return !isCliente
+                      return true
+                    })
+
+                    if (filteredPessoas.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                            <div className="flex flex-col items-center justify-center space-y-2">
+                              <Users2 className="w-8 h-8 text-slate-300" />
+                              <p className="font-semibold text-slate-700">
+                                {statusFilter !== 'todos'
+                                  ? `Nenhuma pessoa com status "${statusFilter === 'cliente' ? 'Cliente' : 'Prospect'}" encontrada.`
+                                  : 'Nenhuma pessoa adicionada ainda'}
+                              </p>
+                              {statusFilter === 'todos' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => openNewContactModal('b2c')}
+                                  className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
+                                >
+                                  <Plus className="w-3.5 h-3.5 mr-1" />+ Pessoa
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    }
+
+                    return filteredPessoas.map((c) => {
+                      const isCliente = wonPessoaIds.has(c.id)
+                      const orgVinculada = c.expand?.organizacao_id
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => handleOpenB2C(c)}
+                          className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3 font-bold text-slate-900 flex items-center space-x-2">
+                            <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                              {c.nome_completo.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="truncate">{c.nome_completo}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {isCliente ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                Cliente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                                Prospect
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {orgVinculada ? (
+                              <div className="flex items-center space-x-1.5 text-slate-800 font-medium truncate max-w-[200px]">
+                                <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                <span className="truncate">{orgVinculada.razao_social}</span>
+                                {c.cargo && (
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    ({c.cargo})
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-700">{c.cpf}</td>
+                          <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
+                          <td className="px-4 py-3">
+                            {c.expand?.marca_captura_id ? (
+                              <Badge
+                                className="text-[10px] text-white rounded-full font-semibold"
+                                style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                              >
+                                {c.expand.marca_captura_id.nome}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-500">NTC Geral</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenB2C(c)
+                              }}
                             >
-                              {c.expand.marca_captura_id.nome}
-                            </Badge>
-                          ) : (
-                            <span className="text-slate-500">NTC Geral</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleOpenB2C(c)
-                            }}
-                          >
-                            Ver Ficha
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                              Ver Ficha
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
           </Card>
         ) : activeSubNav === 'organizacoes' ? (
-          /* TABELA DE ORGANIZAÇÕES (B2B) */
+          /* TABELA DE ORGANIZAÇÕES */
           <Card className="border-[#E3E7EB] bg-white rounded-2xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#F8F9FA] border-b border-[#E3E7EB] text-[10px] uppercase font-bold tracking-wider text-slate-600">
                   <tr>
                     <th className="px-4 py-3">Razão Social / Nome Fantasia</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">CNPJ</th>
                     <th className="px-4 py-3">E-mail Corporativo</th>
                     <th className="px-4 py-3">Telefone</th>
@@ -668,77 +801,108 @@ export default function Clientes() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E3E7EB]/60">
-                  {clientesB2B.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <Building2 className="w-8 h-8 text-slate-300" />
-                          <p className="font-semibold text-slate-700">
-                            Nenhuma organização adicionada ainda
-                          </p>
-                          <Button
-                            size="sm"
-                            onClick={() => openNewContactModal('b2b')}
-                            className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
-                          >
-                            <Plus className="w-3.5 h-3.5 mr-1" />+ Organização
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    clientesB2B.map((c) => (
-                      <tr
-                        key={c.id}
-                        onClick={() => handleOpenB2B(c)}
-                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center text-[10px] font-bold shrink-0">
-                              <Building2 className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 truncate">{c.razao_social}</p>
-                              {c.nome_fantasia && (
-                                <p className="text-[11px] text-slate-500 truncate">
-                                  {c.nome_fantasia}
-                                </p>
+                  {(() => {
+                    const filteredOrgs = clientesB2B.filter((c) => {
+                      const isCliente = wonOrgIds.has(c.id)
+                      if (statusFilter === 'cliente') return isCliente
+                      if (statusFilter === 'prospect') return !isCliente
+                      return true
+                    })
+
+                    if (filteredOrgs.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                            <div className="flex flex-col items-center justify-center space-y-2">
+                              <Building2 className="w-8 h-8 text-slate-300" />
+                              <p className="font-semibold text-slate-700">
+                                {statusFilter !== 'todos'
+                                  ? `Nenhuma organização com status "${statusFilter === 'cliente' ? 'Cliente' : 'Prospect'}" encontrada.`
+                                  : 'Nenhuma organização adicionada ainda'}
+                              </p>
+                              {statusFilter === 'todos' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => openNewContactModal('b2b')}
+                                  className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
+                                >
+                                  <Plus className="w-3.5 h-3.5 mr-1" />+ Organização
+                                </Button>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-700">{c.cnpj}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
-                        <td className="px-4 py-3">
-                          {c.expand?.marca_captura_id ? (
-                            <Badge
-                              className="text-[10px] text-white rounded-full font-semibold"
-                              style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                          </td>
+                        </tr>
+                      )
+                    }
+
+                    return filteredOrgs.map((c) => {
+                      const isCliente = wonOrgIds.has(c.id)
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => handleOpenB2B(c)}
+                          className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                <Building2 className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 truncate">
+                                  {c.razao_social}
+                                </p>
+                                {c.nome_fantasia && (
+                                  <p className="text-[11px] text-slate-500 truncate">
+                                    {c.nome_fantasia}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {isCliente ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                Cliente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                                Prospect
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-700">{c.cnpj}</td>
+                          <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
+                          <td className="px-4 py-3">
+                            {c.expand?.marca_captura_id ? (
+                              <Badge
+                                className="text-[10px] text-white rounded-full font-semibold"
+                                style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                              >
+                                {c.expand.marca_captura_id.nome}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-500">NTC Geral</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenB2B(c)
+                              }}
                             >
-                              {c.expand.marca_captura_id.nome}
-                            </Badge>
-                          ) : (
-                            <span className="text-slate-500">NTC Geral</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleOpenB2B(c)
-                            }}
-                          >
-                            Ver Ficha
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                              Ver Ficha
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -812,14 +976,25 @@ export default function Clientes() {
             /* DETALHES ORGANIZAÇÃO B2B */
             <>
               <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
-                <div className="flex items-center space-x-2">
-                  <Building2 className="w-5 h-5 text-sky-600" />
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-bold border-slate-300 rounded-full"
-                  >
-                    Organização (B2B)
-                  </Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Building2 className="w-5 h-5 text-sky-600" />
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-bold border-slate-300 rounded-full"
+                    >
+                      Organização (B2B)
+                    </Badge>
+                  </div>
+                  {wonOrgIds.has(selectedB2B.id) ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                      Cliente
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                      Prospect
+                    </Badge>
+                  )}
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2B.razao_social}
@@ -869,12 +1044,12 @@ export default function Clientes() {
                   </div>
                 </div>
 
-                {/* CONTATOS VINCULADOS (PESSOAS FÍSICAS NA ORGANIZAÇÃO) */}
+                {/* PESSOAS VINCULADAS (PESSOAS FÍSICAS NA ORGANIZAÇÃO via pessoas.organizacao_id) */}
                 <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                        Pessoas Vinculadas ({linkedContatos.length})
+                        Pessoas Vinculadas ({linkedPessoas.length})
                       </span>
                       <p className="text-[11px] text-slate-500">
                         Compradores técnicos e contatos-chave desta organização
@@ -890,30 +1065,50 @@ export default function Clientes() {
                     </Button>
                   </div>
 
-                  {linkedContatos.length === 0 ? (
+                  {linkedPessoas.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
                       Nenhuma pessoa física vinculada a esta organização ainda.
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {linkedContatos.map((ct) => (
+                      {linkedPessoas.map((p) => (
                         <div
-                          key={ct.id}
+                          key={p.id}
                           className="p-3 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs shadow-xs"
                         >
-                          <div>
-                            <p className="font-bold text-slate-900">
-                              {ct.expand?.consumidor_b2c_id?.nome_completo || 'Contato Sem Nome'}
-                            </p>
+                          <div className="min-w-0 flex-1 mr-2">
+                            <div className="flex items-center space-x-2">
+                              <p className="font-bold text-slate-900 truncate">{p.nome_completo}</p>
+                              {wonPessoaIds.has(p.id) ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold">
+                                  Cliente
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] font-bold">
+                                  Prospect
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-[11px] text-slate-500 mt-0.5">
-                              Cargo: {ct.cargo || 'Não especificado'} • Depto:{' '}
-                              {ct.departamento || 'Geral'}
+                              Cargo:{' '}
+                              <strong className="text-slate-700">
+                                {p.cargo || 'Não especificado'}
+                              </strong>
+                              {p.departamento && ` • Depto: ${p.departamento}`}
                             </p>
-                            <p className="text-[10px] font-mono text-slate-500 mt-0.5">
-                              CPF: {ct.expand?.consumidor_b2c_id?.cpf} •{' '}
-                              {ct.expand?.consumidor_b2c_id?.email_principal}
+                            <p className="text-[10px] font-mono text-slate-500 mt-0.5 truncate">
+                              CPF: {p.cpf} • {p.email_principal || 'Sem e-mail'} •{' '}
+                              {p.telefone || 'Sem tel'}
                             </p>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnlinkPessoa(p.id)}
+                            className="text-[11px] text-red-600 hover:bg-red-50 h-7 rounded-lg shrink-0"
+                          >
+                            Desvincular
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -1008,14 +1203,25 @@ export default function Clientes() {
             /* DETALHES PESSOA B2C */
             <>
               <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
-                <div className="flex items-center space-x-2">
-                  <User className="w-5 h-5 text-emerald-600" />
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-bold border-slate-300 rounded-full"
-                  >
-                    Pessoa (B2C)
-                  </Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-5 h-5 text-emerald-600" />
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-bold border-slate-300 rounded-full"
+                    >
+                      Pessoa (B2C)
+                    </Badge>
+                  </div>
+                  {wonPessoaIds.has(selectedB2C.id) ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                      Cliente
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                      Prospect
+                    </Badge>
+                  )}
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2C.nome_completo}
@@ -1039,6 +1245,34 @@ export default function Clientes() {
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
                       <p className="font-semibold text-slate-900">{selectedB2C.telefone || '—'}</p>
+                    </div>
+                    {/* Organização Vinculada & Cargo */}
+                    <div className="col-span-2 pt-2 border-t border-slate-200">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">
+                        Organização Vinculada & Cargo
+                      </p>
+                      {selectedB2C.expand?.organizacao_id ? (
+                        <div className="mt-1 flex items-center space-x-2">
+                          <Building2 className="w-4 h-4 text-sky-600" />
+                          <span className="font-semibold text-slate-900">
+                            {selectedB2C.expand.organizacao_id.razao_social}
+                          </span>
+                          {selectedB2C.cargo && (
+                            <Badge variant="outline" className="text-[10px] rounded-full">
+                              {selectedB2C.cargo}
+                            </Badge>
+                          )}
+                          {selectedB2C.departamento && (
+                            <span className="text-[11px] text-slate-500">
+                              • {selectedB2C.departamento}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 text-xs italic mt-0.5">
+                          Atua de forma independente / sem vínculo a organização
+                        </p>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <p className="text-[10px] text-slate-500 uppercase font-bold">
@@ -1224,6 +1458,50 @@ export default function Clientes() {
                     className="h-9 text-xs rounded-xl"
                   />
                 </div>
+
+                {/* Vínculo opcional a Organização */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Vincular a uma Organização (Opcional)
+                  </Label>
+                  <Select
+                    value={newOrganizacaoId}
+                    onValueChange={(val) => setNewOrganizacaoId(val === 'none' ? '' : val)}
+                  >
+                    <SelectTrigger className="h-9 text-xs rounded-xl">
+                      <SelectValue placeholder="Sem vínculo (Pessoa independente)" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="none">Sem vínculo (Pessoa independente)</SelectItem>
+                      {clientesB2B.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.razao_social} (CNPJ: {b.cnpj})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-600">Cargo</Label>
+                    <Input
+                      placeholder="ex: Comprador Técnico"
+                      value={newCargo}
+                      onChange={(e) => setNewCargo(e.target.value)}
+                      className="h-9 text-xs rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-600">Departamento</Label>
+                    <Input
+                      placeholder="ex: Suprimentos"
+                      value={newDepartamento}
+                      onChange={(e) => setNewDepartamento(e.target.value)}
+                      className="h-9 text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
               </>
             ) : (
               /* CAMPOS ORGANIZAÇÃO */
@@ -1379,11 +1657,13 @@ export default function Clientes() {
                   <SelectValue placeholder="Selecione a pessoa..." />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {clientesB2C.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome_completo} (CPF: {c.cpf})
-                    </SelectItem>
-                  ))}
+                  {clientesB2C
+                    .filter((c) => c.organizacao_id !== selectedB2B?.id)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome_completo} (CPF: {c.cpf})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

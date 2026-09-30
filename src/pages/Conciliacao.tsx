@@ -1,7 +1,7 @@
 // src/pages/Conciliacao.tsx
 import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
-import type { Duplicidade, ClienteB2B, ClienteB2C } from '@/types'
+import type { Duplicidade, Organizacao, Pessoa } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

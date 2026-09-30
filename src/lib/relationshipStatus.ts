@@ -26,17 +26,20 @@ export async function getClientStatusSets(): Promise<{
   wonPessoaIds: Set<string>
 }> {
   try {
-    const opps = await pb.collection('oportunidades').getFullList({
-      fields: 'id,cliente_b2b_id,cliente_b2c_id,etapa_atual',
+    const opps = await pb.collection('oportunidades').getFullList<Record<string, unknown>>({
+      fields: 'id,cliente_b2b_id,cliente_b2c_id,organizacao_id,pessoa_id,etapa_atual',
     })
 
     const wonOrgIds = new Set<string>()
     const wonPessoaIds = new Set<string>()
 
     for (const op of opps) {
-      if (isWonStage(op.etapa_atual)) {
-        if (op.cliente_b2b_id) wonOrgIds.add(op.cliente_b2b_id)
-        if (op.cliente_b2c_id) wonPessoaIds.add(op.cliente_b2c_id)
+      const etapa = (op.etapa_atual as string) || ''
+      if (isWonStage(etapa)) {
+        const orgId = (op.cliente_b2b_id as string) || (op.organizacao_id as string)
+        const pessoaId = (op.cliente_b2c_id as string) || (op.pessoa_id as string)
+        if (orgId) wonOrgIds.add(orgId)
+        if (pessoaId) wonPessoaIds.add(pessoaId)
       }
     }
 
