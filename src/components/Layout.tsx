@@ -147,12 +147,8 @@ export default function Layout() {
             <Layers className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-[#1C2833] leading-none truncate">
-              NTC Sistema Integrado
-            </h2>
-            <p className="text-[11px] text-[#5D6D7E] mt-1 font-medium truncate">
-              Indústria de Plásticos
-            </p>
+            <h2 className="text-sm font-bold text-[#1C2833] leading-none truncate">Nexo</h2>
+            <p className="text-[11px] text-[#5D6D7E] mt-1 font-medium truncate">NTC COMPANT</p>
           </div>
         </div>
 
