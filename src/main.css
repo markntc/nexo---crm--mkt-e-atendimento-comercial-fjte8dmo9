@@ -41,7 +41,7 @@
     --ring: 156 98% 24%;
 
     /* Bordas mais arredondadas estilo Pipedrive */
-    --radius: 0.75rem;
+    --radius: 2rem;
 
     /* Pipedrive Dark Purple/Navy Sidebar: #241C35 / #1E192B */
     --sidebar-background: 256 32% 16%;
