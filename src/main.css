@@ -19,42 +19,42 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 84% 4.9%;
-    --primary-foreground: 210 40% 98%;
+    /* Pipedrive Primary Action Green: ~#017848 / hsl(156, 98%, 24%) */
+    --primary: 156 98% 24%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 98%;
-    --secondary-foreground: 222.2 84% 4.9%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 98%;
+    --muted: 210 20% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 98%;
-    --accent-foreground: 222.2 84% 4.9%;
+    /* Pipedrive Active / Selection soft blue: #E8F5FA */
+    --accent: 198 68% 95%;
+    --accent-foreground: 199 89% 32%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 214.3 25% 90%;
+    --input: 214.3 25% 90%;
+    --ring: 156 98% 24%;
 
-    --radius: 0.5rem;
+    /* Bordas mais arredondadas estilo Pipedrive */
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Pipedrive Dark Purple/Navy Sidebar: #241C35 / #1E192B */
+    --sidebar-background: 256 32% 16%;
+    --sidebar-foreground: 0 0% 96%;
 
-    --sidebar-foreground: 222.2 84% 4.9%;
-
-    --sidebar-primary: 222.2 84% 4.9%;
-
+    --sidebar-primary: 156 98% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
 
-    --sidebar-accent: 210 40% 98%;
+    --sidebar-accent: 256 30% 23%;
+    --sidebar-accent-foreground: 0 0% 100%;
 
-    --sidebar-accent-foreground: 222.2 84% 4.9%;
-
-    --sidebar-border: 214.3 31.8% 91.4%;
-
-    --sidebar-ring: 222.2 84% 4.9%;
+    --sidebar-border: 256 25% 22%;
+    --sidebar-ring: 156 98% 30%;
 
     --chart-1: 34 100% 44%;
     --chart-2: 189 100% 38%;

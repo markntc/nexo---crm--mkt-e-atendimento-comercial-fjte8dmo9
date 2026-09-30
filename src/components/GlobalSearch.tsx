@@ -62,7 +62,7 @@ export const GlobalSearch: React.FC = () => {
               title: item.razao_social,
               subtitle: `CNPJ: ${item.cnpj} • ${item.email_principal || 'Sem e-mail'}`,
               badge: 'Conta B2B',
-              link: `/clientes?tab=b2b&search=${encodeURIComponent(item.razao_social)}`,
+              link: `/contatos?sub=organizacoes&search=${encodeURIComponent(item.razao_social)}`,
             })
           })
         } catch {
@@ -81,7 +81,7 @@ export const GlobalSearch: React.FC = () => {
               title: item.nome_completo,
               subtitle: `CPF: ${item.cpf} • ${item.email_principal || 'Sem e-mail'}`,
               badge: 'Consumidor B2C',
-              link: `/clientes?tab=b2c&search=${encodeURIComponent(item.nome_completo)}`,
+              link: `/contatos?sub=pessoas&search=${encodeURIComponent(item.nome_completo)}`,
             })
           })
         } catch {
@@ -104,7 +104,7 @@ export const GlobalSearch: React.FC = () => {
               title: item.titulo,
               subtitle: `Etapa: ${item.etapa_atual} • ${formatCurrencyBRL(item.valor_estimado)}`,
               badge: 'Oportunidade',
-              link: `/pipelines?oppId=${item.id}`,
+              link: `/negocios?oppId=${item.id}`,
             })
           })
         } catch {
@@ -171,7 +171,7 @@ export const GlobalSearch: React.FC = () => {
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#5D6D7E]" />
         <Input
           type="text"
-          placeholder="Buscar CNPJ, CPF, cliente, oportunidade ou lead..."
+          placeholder="Pesquisar no CRM (Pipedrive)..."
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)

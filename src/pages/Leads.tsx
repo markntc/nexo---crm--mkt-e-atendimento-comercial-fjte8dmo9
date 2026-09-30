@@ -192,7 +192,7 @@ export default function Leads() {
 
       setSelectedLeadToConvert(null)
       fetchLeads()
-      navigate('/pipelines')
+      navigate('/negocios')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha ao converter lead'
       toast({

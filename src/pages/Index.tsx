@@ -189,10 +189,9 @@ export default function Index() {
             Importar
           </Button>
           <Button
-            onClick={() => navigate('/pipelines?action=new')}
+            onClick={() => navigate('/negocios?action=new')}
             size="sm"
-            className="text-xs h-9 font-semibold text-white shadow-xs"
-            style={{ backgroundColor: isConsolidated ? '#1B4F72' : currentBrandColor }}
+            className="text-xs h-9 font-bold text-white shadow-sm rounded-xl bg-[#017848] hover:bg-[#01653c]"
           >
             <Plus className="w-4 h-4 mr-1.5" />
             Nova Oportunidade
@@ -319,13 +318,13 @@ export default function Index() {
                 <Briefcase className="w-8 h-8 mb-2 stroke-1 text-slate-400" />
                 <p>Nenhuma oportunidade cadastrada para esta marca ainda.</p>
                 <Button
-                  onClick={() => navigate('/pipelines')}
+                  onClick={() => navigate('/negocios')}
                   variant="outline"
                   size="sm"
-                  className="mt-3 text-xs"
+                  className="text-xs border-[#E3E7EB] rounded-xl hover:bg-slate-50"
                 >
-                  Abrir Pipelines
-                </Button>
+                  Ver no Funil
+                </Button>{' '}
               </div>
             ) : (
               <div className="h-64 w-full">
@@ -473,7 +472,7 @@ export default function Index() {
                       return (
                         <tr
                           key={op.id}
-                          onClick={() => navigate(`/pipelines?oppId=${op.id}`)}
+                          onClick={() => navigate(`/negocios?oppId=${op.id}`)}
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                         >
                           <td className="px-4 py-3 font-semibold text-[#1C2833] max-w-[200px] truncate">

@@ -268,7 +268,7 @@ export default function Tarefas() {
               {at.expand?.oportunidade_id ? (
                 <button
                   type="button"
-                  onClick={() => navigate(`/pipelines?oppId=${at.expand?.oportunidade_id?.id}`)}
+                  onClick={() => navigate(`/negocios?oppId=${at.expand?.oportunidade_id?.id}`)}
                   className="font-medium text-[#1B4F72] hover:underline flex items-center truncate"
                 >
                   <Briefcase className="w-3 h-3 mr-1 inline shrink-0" />

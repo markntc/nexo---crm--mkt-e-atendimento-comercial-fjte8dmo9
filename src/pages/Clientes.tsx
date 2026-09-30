@@ -1,9 +1,21 @@
 // src/pages/Clientes.tsx
+// Seção Unificada de Contatos estilo Pipedrive (Imagem 2 de referência):
+// Menu secundário lateral interno: "Pessoas", "Organizações", "Linha do tempo de contatos", "Mesclar duplicatas"
+// Botão primário verde "+ Pessoa" ou "+ Organização"
+// Contador de contatos ("X pessoas", "Y organizações"), busca e filtro
+// Integrado com regras de unicidade e validação de CPF / CNPJ matematicamente
 import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
-import type { ClienteB2B, ClienteB2C, Contato, Oportunidade, PreferenciaComunicacao } from '@/types'
+import type {
+  ClienteB2B,
+  ClienteB2C,
+  Contato,
+  Oportunidade,
+  PreferenciaComunicacao,
+  Atividade,
+} from '@/types'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -13,12 +25,11 @@ import {
   maskCPF,
   maskPhone,
 } from '@/lib/formatters'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -39,30 +50,41 @@ import {
   User,
   Plus,
   Search,
-  ShieldCheck,
-  Briefcase,
   Users2,
   Link2,
   Loader2,
-  Trash2,
   AlertCircle,
   Phone,
   Mail,
-  MapPin,
+  Clock,
+  GitMerge,
+  Filter,
+  CheckCircle2,
+  ChevronRight,
+  ExternalLink,
+  ShieldCheck,
+  Calendar,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
+type ContactSubNav = 'pessoas' | 'organizacoes' | 'timeline' | 'duplicatas'
+
 export default function Clientes() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { marcas, activeBrand, isConsolidated } = useBrand()
 
-  const [activeTab, setActiveTab] = useState<'b2b' | 'b2c'>(
-    searchParams.get('tab') === 'b2c' ? 'b2c' : 'b2b',
+  // Subnavegação lateral estilo captura 2 do Pipedrive
+  const subnavParam = searchParams.get('sub') as ContactSubNav | null
+  const [activeSubNav, setActiveSubNav] = useState<ContactSubNav>(
+    subnavParam || (searchParams.get('tab') === 'b2c' ? 'pessoas' : 'pessoas'),
   )
+
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '')
   const [clientesB2B, setClientesB2B] = useState<ClienteB2B[]>([])
   const [clientesB2C, setClientesB2C] = useState<ClienteB2C[]>([])
+  const [timelineAtividades, setTimelineAtividades] = useState<Atividade[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Detail View State (Drawer)
@@ -72,9 +94,9 @@ export default function Clientes() {
   const [clientOpps, setClientOpps] = useState<Oportunidade[]>([])
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
 
-  // Modal Novo Cliente (B2B ou B2C)
-  const [isNewClientOpen, setIsNewClientOpen] = useState(false)
-  const [newTipo, setNewTipo] = useState<'b2b' | 'b2c'>('b2b')
+  // Modal Novo Contato (+ Pessoa ou + Organização)
+  const [isNewContactOpen, setIsNewContactOpen] = useState(false)
+  const [newTipo, setNewTipo] = useState<'b2b' | 'b2c'>('b2c')
   const [newCnpj, setNewCnpj] = useState('')
   const [newRazao, setNewRazao] = useState('')
   const [newFantasia, setNewFantasia] = useState('')
@@ -100,7 +122,7 @@ export default function Clientes() {
   const [prefCanal, setPrefCanal] = useState<'E-mail' | 'WhatsApp' | 'Telefone' | 'SMS'>('WhatsApp')
   const [prefStatus, setPrefStatus] = useState<'Opt-in' | 'Opt-out'>('Opt-in')
 
-  const fetchClientes = async () => {
+  const fetchContatos = async () => {
     setIsLoading(true)
     try {
       let filterB2B = ''
@@ -119,7 +141,7 @@ export default function Clientes() {
         filterB2C = filterB2C ? `(${filterB2C}) && (${qB2C})` : qB2C
       }
 
-      const [b2bList, b2cList] = await Promise.all([
+      const [b2bList, b2cList, ativList] = await Promise.all([
         pb.collection('clientes_b2b').getFullList<ClienteB2B>({
           filter: filterB2B || undefined,
           expand: 'marca_captura_id',
@@ -130,22 +152,41 @@ export default function Clientes() {
           expand: 'marca_captura_id',
           sort: 'nome_completo',
         }),
+        pb
+          .collection('atividades')
+          .getFullList<Atividade>({
+            expand: 'marca_id,oportunidade_id,responsavel_id',
+            sort: '-created',
+            limit: 50,
+          })
+          .catch(() => []),
       ])
 
       setClientesB2B(b2bList)
       setClientesB2C(b2cList)
+      setTimelineAtividades(ativList)
     } catch (err) {
-      console.error('Erro ao buscar clientes:', err)
+      console.error('Erro ao buscar contatos:', err)
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchClientes()
+    fetchContatos()
   }, [activeBrand, searchTerm])
 
-  // Carrega relacionamentos do cliente selecionado no Drawer
+  const handleSelectSubNav = (item: ContactSubNav) => {
+    if (item === 'duplicatas') {
+      navigate('/conciliacao')
+      return
+    }
+    setActiveSubNav(item)
+    searchParams.set('sub', item)
+    setSearchParams(searchParams)
+  }
+
+  // Carrega relacionamentos do contato selecionado no Drawer
   const loadClientDetails = async (b2bId?: string, b2cId?: string) => {
     try {
       if (b2bId) {
@@ -182,7 +223,7 @@ export default function Clientes() {
         setClientPrefs(prefsRes)
       }
     } catch (err) {
-      console.error('Erro ao carregar detalhes do cliente:', err)
+      console.error('Erro ao carregar detalhes do contato:', err)
     }
   }
 
@@ -198,8 +239,8 @@ export default function Clientes() {
     loadClientDetails(undefined, c.id)
   }
 
-  // Criação de Cliente com validação matemática de dígitos verificadores
-  const handleCreateClient = async (e: React.FormEvent) => {
+  // Criação de Contato com validação matemática de dígitos verificadores
+  const handleCreateContact = async (e: React.FormEvent) => {
     e.preventDefault()
     setValidationError(null)
 
@@ -230,20 +271,20 @@ export default function Clientes() {
           email_principal: newEmail.trim(),
           telefone: newTelefone ? maskPhone(newTelefone) : '',
           marca_captura_id: marcaId,
-          origem_sistema: 'Cadastro Manual NTC CRM',
+          origem_sistema: 'Cadastro Manual Pipedrive NTC',
           data_criacao: new Date().toISOString(),
           criado_por_id: pb.authStore.record?.id,
         })
 
         toast({
-          title: 'Conta B2B cadastrada',
-          description: 'Registro corporativo incluído na base mestre única.',
+          title: 'Organização cadastrada',
+          description: 'Registro de organização incluído na base mestre unificada.',
         })
-        setIsNewClientOpen(false)
+        setIsNewContactOpen(false)
         resetForm()
-        fetchClientes()
+        fetchContatos()
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao salvar cliente B2B'
+        const msg = err instanceof Error ? err.message : 'Falha ao salvar organização'
         setValidationError(msg)
       } finally {
         setIsSubmitting(false)
@@ -267,20 +308,20 @@ export default function Clientes() {
           email_principal: newEmail.trim(),
           telefone: newTelefone ? maskPhone(newTelefone) : '',
           marca_captura_id: marcaId,
-          origem_sistema: 'Cadastro Manual NTC CRM',
+          origem_sistema: 'Cadastro Manual Pipedrive NTC',
           data_criacao: new Date().toISOString(),
           criado_por_id: pb.authStore.record?.id,
         })
 
         toast({
-          title: 'Consumidor B2C cadastrado',
-          description: 'Registro pessoa física incluído na base corporativa unificada.',
+          title: 'Pessoa cadastrada',
+          description: 'Registro pessoa física incluído na base mestre de contatos.',
         })
-        setIsNewClientOpen(false)
+        setIsNewContactOpen(false)
         resetForm()
-        fetchClientes()
+        fetchContatos()
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao salvar cliente B2C'
+        const msg = err instanceof Error ? err.message : 'Falha ao salvar pessoa'
         setValidationError(msg)
       } finally {
         setIsSubmitting(false)
@@ -301,6 +342,13 @@ export default function Clientes() {
     setValidationError(null)
   }
 
+  const openNewContactModal = (tipo: 'b2b' | 'b2c') => {
+    resetForm()
+    setNewTipo(tipo)
+    setNewMarcaCapturaId(activeBrand?.id || (marcas[0]?.id ?? ''))
+    setIsNewContactOpen(true)
+  }
+
   // Vínculo B2B <-> B2C: Adicionar Contato Técnico
   const handleAddContato = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -316,7 +364,7 @@ export default function Clientes() {
 
       toast({
         title: 'Contato corporativo vinculado',
-        description: 'Vínculo da pessoa física à conta B2B estabelecido com integridade.',
+        description: 'Vínculo da pessoa física à organização estabelecido.',
       })
       setIsAddContatoOpen(false)
       setSelectedB2CCandidateId('')
@@ -333,7 +381,7 @@ export default function Clientes() {
     }
   }
 
-  // Adicionar Preferência LGPD para este cliente
+  // Adicionar Preferência LGPD para este contato
   const handleAddPreference = async (e: React.FormEvent) => {
     e.preventDefault()
     const clienteB2bId = selectedB2B ? selectedB2B.id : null
@@ -362,218 +410,391 @@ export default function Clientes() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* CABEÇALHO */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#D5DBDB]/60">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1C2833]">
-            Base Corporativa Unificada de Clientes
-          </h1>
-          <p className="text-xs sm:text-sm text-[#5D6D7E] mt-1">
-            Registro mestre único NTC: Contas B2B (CNPJ) e Consumidores B2C (CPF) vinculáveis
-          </p>
+    <div className="flex flex-col lg:flex-row gap-5 min-h-[calc(100vh-6.5rem)]">
+      {/*
+        SUB-MENU LATERAL ESTILO PIPEDRIVE (Captura 2):
+        Pessoas / Organizações / Linha do tempo de contatos / Mesclar duplicatas
+      */}
+      <aside className="w-full lg:w-64 bg-white border border-[#E3E7EB] rounded-2xl p-3 shrink-0 shadow-xs h-fit space-y-1">
+        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          Contatos
         </div>
 
-        <Button
-          onClick={() => {
-            resetForm()
-            setNewMarcaCapturaId(activeBrand?.id || (marcas[0]?.id ?? ''))
-            setIsNewClientOpen(true)
-          }}
-          size="sm"
-          className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white shadow-xs self-start sm:self-auto"
+        <button
+          type="button"
+          onClick={() => handleSelectSubNav('pessoas')}
+          className={cn(
+            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            activeSubNav === 'pessoas'
+              ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
+              : 'text-slate-700 hover:bg-slate-50',
+          )}
         >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Novo Cliente
-        </Button>
-      </div>
+          <div className="flex items-center space-x-2.5">
+            <User
+              className={cn(
+                'w-4 h-4',
+                activeSubNav === 'pessoas' ? 'text-[#0284C7]' : 'text-slate-500',
+              )}
+            />
+            <span>Pessoas (B2C)</span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
+            {clientesB2C.length}
+          </span>
+        </button>
 
-      {/* ABAS B2B E B2C + BARRA DE BUSCA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => {
-            setActiveTab(v as 'b2b' | 'b2c')
-            searchParams.set('tab', v)
-            setSearchParams(searchParams)
-          }}
-          className="w-auto"
+        <button
+          type="button"
+          onClick={() => handleSelectSubNav('organizacoes')}
+          className={cn(
+            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            activeSubNav === 'organizacoes'
+              ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
+              : 'text-slate-700 hover:bg-slate-50',
+          )}
         >
-          <TabsList className="bg-white border border-[#D5DBDB] p-1 h-10 shadow-xs">
-            <TabsTrigger
-              value="b2b"
-              className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white flex items-center space-x-2"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Contas B2B ({clientesB2B.length})</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="b2c"
-              className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white flex items-center space-x-2"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Consumidores B2C ({clientesB2C.length})</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <div className="flex items-center space-x-2.5">
+            <Building2
+              className={cn(
+                'w-4 h-4',
+                activeSubNav === 'organizacoes' ? 'text-[#0284C7]' : 'text-slate-500',
+              )}
+            />
+            <span>Organizações (B2B)</span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
+            {clientesB2B.length}
+          </span>
+        </button>
 
-        {/* Busca com Debounce */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-[#5D6D7E]" />
-          <Input
-            type="text"
-            placeholder="Buscar razão, nome, CNPJ, CPF ou e-mail..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-10 text-xs bg-white border-[#D5DBDB]"
-          />
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={() => handleSelectSubNav('timeline')}
+          className={cn(
+            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            activeSubNav === 'timeline'
+              ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
+              : 'text-slate-700 hover:bg-slate-50',
+          )}
+        >
+          <div className="flex items-center space-x-2.5">
+            <Clock
+              className={cn(
+                'w-4 h-4',
+                activeSubNav === 'timeline' ? 'text-[#0284C7]' : 'text-slate-500',
+              )}
+            />
+            <span>Linha do tempo de contatos</span>
+          </div>
+        </button>
 
-      {/* CONTEÚDO DA TABELA */}
-      {isLoading ? (
-        <div className="py-16 flex flex-col items-center justify-center text-xs text-[#5D6D7E]">
-          <Loader2 className="w-6 h-6 animate-spin text-[#1B4F72] mb-2" />
-          Carregando base de clientes...
+        <div className="pt-2 border-t border-[#E3E7EB]/80 my-1" />
+
+        <button
+          type="button"
+          onClick={() => handleSelectSubNav('duplicatas')}
+          className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all text-left group"
+        >
+          <div className="flex items-center space-x-2.5">
+            <GitMerge className="w-4 h-4 text-slate-500 group-hover:text-emerald-700" />
+            <span>Mesclar duplicatas</span>
+          </div>
+          <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
+        </button>
+      </aside>
+
+      {/* ÁREA PRINCIPAL DA LISTAGEM DE CONTATOS */}
+      <div className="flex-1 flex flex-col space-y-3.5 min-w-0">
+        {/* BARRA SUPERIOR ESTILO PIPEDRIVE (Captura 2):
+            - Botão Verde primário "+ Pessoa" ou "+ Organização"
+            - Contador: "X pessoas" / "Y organizações"
+            - Filtro
+            - Busca
+        */}
+        <div className="bg-white border border-[#E3E7EB] rounded-2xl p-2.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            {/* Botão Verde Primário estilo Pipedrive */}
+            {activeSubNav === 'pessoas' ? (
+              <Button
+                size="sm"
+                onClick={() => openNewContactModal('b2c')}
+                className="h-9 px-3.5 rounded-xl font-bold text-xs bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1"
+              >
+                <Plus className="w-4 h-4 mr-0.5" />
+                <span>Pessoa</span>
+              </Button>
+            ) : activeSubNav === 'organizacoes' ? (
+              <Button
+                size="sm"
+                onClick={() => openNewContactModal('b2b')}
+                className="h-9 px-3.5 rounded-xl font-bold text-xs bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1"
+              >
+                <Plus className="w-4 h-4 mr-0.5" />
+                <span>Organização</span>
+              </Button>
+            ) : null}
+
+            {/* Contador de Registros estilo Pipedrive ("0 pessoas" ou "12 pessoas") */}
+            <div className="flex items-center space-x-2 text-xs font-semibold text-slate-700 px-2 py-1 rounded-lg bg-slate-50 border border-[#E3E7EB]">
+              <span>
+                {activeSubNav === 'pessoas' && `${clientesB2C.length} pessoas`}
+                {activeSubNav === 'organizacoes' && `${clientesB2B.length} organizações`}
+                {activeSubNav === 'timeline' && `${timelineAtividades.length} atividades recentes`}
+              </span>
+            </div>
+          </div>
+
+          {/* Busca e Filtro */}
+          <div className="flex items-center space-x-2">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+              <Input
+                type="text"
+                placeholder={
+                  activeSubNav === 'pessoas'
+                    ? 'Buscar pessoa por nome, CPF ou e-mail...'
+                    : 'Buscar organização por razão, CNPJ...'
+                }
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 pl-9 pr-3 text-xs rounded-xl bg-white border-[#E3E7EB]"
+              />
+            </div>
+          </div>
         </div>
-      ) : activeTab === 'b2b' ? (
-        /* TABELA B2B */
-        <Card className="border-[#D5DBDB] bg-white shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-[#D5DBDB] text-[10px] uppercase font-bold tracking-wider text-[#5D6D7E]">
-                <tr>
-                  <th className="px-4 py-3">Razão Social / Nome Fantasia</th>
-                  <th className="px-4 py-3">CNPJ</th>
-                  <th className="px-4 py-3">E-mail Principal</th>
-                  <th className="px-4 py-3">Telefone</th>
-                  <th className="px-4 py-3">Marca de Captura</th>
-                  <th className="px-4 py-3 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#D5DBDB]/60">
-                {clientesB2B.length === 0 ? (
+
+        {/* CONTEÚDO PRINCIPAL (PESSOAS, ORGANIZAÇÕES OU TIMELINE) */}
+        {isLoading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-xs text-slate-500 bg-white rounded-2xl border border-[#E3E7EB]">
+            <Loader2 className="w-6 h-6 animate-spin text-[#017848] mb-2" />
+            Carregando contatos corporativos...
+          </div>
+        ) : activeSubNav === 'pessoas' ? (
+          /* TABELA DE PESSOAS (B2C) */
+          <Card className="border-[#E3E7EB] bg-white rounded-2xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F8F9FA] border-b border-[#E3E7EB] text-[10px] uppercase font-bold tracking-wider text-slate-600">
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[#5D6D7E]">
-                      Nenhuma conta B2B encontrada para os filtros atuais.
-                    </td>
+                    <th className="px-4 py-3">Nome da Pessoa</th>
+                    <th className="px-4 py-3">CPF</th>
+                    <th className="px-4 py-3">E-mail Principal</th>
+                    <th className="px-4 py-3">Telefone</th>
+                    <th className="px-4 py-3">Marca de Captura</th>
+                    <th className="px-4 py-3 text-right">Ação</th>
                   </tr>
-                ) : (
-                  clientesB2B.map((c) => (
-                    <tr
-                      key={c.id}
-                      onClick={() => handleOpenB2B(c)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-bold text-[#1C2833]">{c.razao_social}</p>
-                        {c.nome_fantasia && (
-                          <p className="text-[11px] text-[#5D6D7E]">{c.nome_fantasia}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[#1C2833]">{c.cnpj}</td>
-                      <td className="px-4 py-3 text-[#5D6D7E]">{c.email_principal || '—'}</td>
-                      <td className="px-4 py-3 text-[#5D6D7E]">{c.telefone || '—'}</td>
-                      <td className="px-4 py-3">
-                        {c.expand?.marca_captura_id ? (
-                          <Badge
-                            className="text-[10px] text-white"
-                            style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                </thead>
+                <tbody className="divide-y divide-[#E3E7EB]/60">
+                  {clientesB2C.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <Users2 className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-700">
+                            Nenhuma pessoa adicionada ainda
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => openNewContactModal('b2c')}
+                            className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
                           >
-                            {c.expand.marca_captura_id.nome}
-                          </Badge>
-                        ) : (
-                          <span className="text-[#5D6D7E]">NTC Geral</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-[#1B4F72] h-7"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleOpenB2B(c)
-                          }}
-                        >
-                          Ver Ficha
-                        </Button>
+                            <Plus className="w-3.5 h-3.5 mr-1" />+ Pessoa
+                          </Button>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : (
-        /* TABELA B2C */
-        <Card className="border-[#D5DBDB] bg-white shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-[#D5DBDB] text-[10px] uppercase font-bold tracking-wider text-[#5D6D7E]">
-                <tr>
-                  <th className="px-4 py-3">Nome Completo</th>
-                  <th className="px-4 py-3">CPF</th>
-                  <th className="px-4 py-3">E-mail Principal</th>
-                  <th className="px-4 py-3">Telefone</th>
-                  <th className="px-4 py-3">Marca de Captura</th>
-                  <th className="px-4 py-3 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#D5DBDB]/60">
-                {clientesB2C.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[#5D6D7E]">
-                      Nenhum consumidor B2C encontrado para os filtros atuais.
-                    </td>
-                  </tr>
-                ) : (
-                  clientesB2C.map((c) => (
-                    <tr
-                      key={c.id}
-                      onClick={() => handleOpenB2C(c)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3 font-bold text-[#1C2833]">{c.nome_completo}</td>
-                      <td className="px-4 py-3 font-mono text-[#1C2833]">{c.cpf}</td>
-                      <td className="px-4 py-3 text-[#5D6D7E]">{c.email_principal || '—'}</td>
-                      <td className="px-4 py-3 text-[#5D6D7E]">{c.telefone || '—'}</td>
-                      <td className="px-4 py-3">
-                        {c.expand?.marca_captura_id ? (
-                          <Badge
-                            className="text-[10px] text-white"
-                            style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                  ) : (
+                    clientesB2C.map((c) => (
+                      <tr
+                        key={c.id}
+                        onClick={() => handleOpenB2C(c)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      >
+                        <td className="px-4 py-3 font-bold text-slate-900 flex items-center space-x-2">
+                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {c.nome_completo.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="truncate">{c.nome_completo}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-700">{c.cpf}</td>
+                        <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
+                        <td className="px-4 py-3">
+                          {c.expand?.marca_captura_id ? (
+                            <Badge
+                              className="text-[10px] text-white rounded-full font-semibold"
+                              style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                            >
+                              {c.expand.marca_captura_id.nome}
+                            </Badge>
+                          ) : (
+                            <span className="text-slate-500">NTC Geral</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenB2C(c)
+                            }}
                           >
-                            {c.expand.marca_captura_id.nome}
-                          </Badge>
-                        ) : (
-                          <span className="text-[#5D6D7E]">NTC Geral</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-[#1B4F72] h-7"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleOpenB2C(c)
-                          }}
-                        >
-                          Ver Ficha
-                        </Button>
+                            Ver Ficha
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : activeSubNav === 'organizacoes' ? (
+          /* TABELA DE ORGANIZAÇÕES (B2B) */
+          <Card className="border-[#E3E7EB] bg-white rounded-2xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F8F9FA] border-b border-[#E3E7EB] text-[10px] uppercase font-bold tracking-wider text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3">Razão Social / Nome Fantasia</th>
+                    <th className="px-4 py-3">CNPJ</th>
+                    <th className="px-4 py-3">E-mail Corporativo</th>
+                    <th className="px-4 py-3">Telefone</th>
+                    <th className="px-4 py-3">Marca de Captura</th>
+                    <th className="px-4 py-3 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E3E7EB]/60">
+                  {clientesB2B.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <Building2 className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-700">
+                            Nenhuma organização adicionada ainda
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => openNewContactModal('b2b')}
+                            className="bg-[#017848] hover:bg-[#01653c] text-white text-xs font-bold rounded-xl mt-2"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" />+ Organização
+                          </Button>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+                  ) : (
+                    clientesB2B.map((c) => (
+                      <tr
+                        key={c.id}
+                        onClick={() => handleOpenB2B(c)}
+                        className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                              <Building2 className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 truncate">{c.razao_social}</p>
+                              {c.nome_fantasia && (
+                                <p className="text-[11px] text-slate-500 truncate">
+                                  {c.nome_fantasia}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-700">{c.cnpj}</td>
+                        <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
+                        <td className="px-4 py-3">
+                          {c.expand?.marca_captura_id ? (
+                            <Badge
+                              className="text-[10px] text-white rounded-full font-semibold"
+                              style={{ backgroundColor: c.expand.marca_captura_id.cor_destaque }}
+                            >
+                              {c.expand.marca_captura_id.nome}
+                            </Badge>
+                          ) : (
+                            <span className="text-slate-500">NTC Geral</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenB2B(c)
+                            }}
+                          >
+                            Ver Ficha
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : (
+          /* LINHA DO TEMPO DE CONTATOS */
+          <Card className="border-[#E3E7EB] bg-white rounded-2xl shadow-xs p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-[#017848]" />
+              <span>Linha do Tempo Recente de Interações</span>
+            </h3>
 
-      {/* DRAWER DE DETALHE DE CLIENTE (B2B ou B2C) */}
+            {timelineAtividades.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500">
+                Nenhuma interação recente registrada.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {timelineAtividades.map((at) => (
+                  <div
+                    key={at.id}
+                    className="p-3.5 rounded-xl border border-[#E3E7EB] bg-slate-50/60 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 rounded-xl bg-white border border-[#E3E7EB] text-[#017848] shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className="text-[10px] rounded-full">
+                            {at.tipo}
+                          </Badge>
+                          <span className="font-bold text-slate-900">{at.descricao}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Negócio:{' '}
+                          <span className="font-semibold text-slate-700">
+                            {at.expand?.oportunidade_id?.titulo || 'Negociação Geral'}
+                          </span>{' '}
+                          • Responsável: {at.expand?.responsavel_id?.name || 'Administrador'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="text-[11px] text-slate-500 font-medium shrink-0">
+                      {formatDateBR(at.data_vencimento || at.created)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* DRAWER DE DETALHES DE CONTATO (B2B ou B2C) */}
       <Sheet
         open={!!selectedB2B || !!selectedB2C}
         onOpenChange={(open) => {
@@ -585,108 +806,110 @@ export default function Clientes() {
       >
         <SheetContent
           side="right"
-          className="w-full sm:max-w-xl md:max-w-2xl p-0 flex flex-col bg-white border-l border-[#D5DBDB] shadow-2xl z-50"
+          className="w-full sm:max-w-xl md:max-w-2xl p-0 flex flex-col bg-white border-l border-[#E3E7EB] shadow-2xl z-50 rounded-l-3xl"
         >
           {selectedB2B ? (
-            /* DETALHES CONTA B2B */
+            /* DETALHES ORGANIZAÇÃO B2B */
             <>
-              <SheetHeader className="p-5 border-b border-[#D5DBDB] bg-slate-50/70 text-left">
+              <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
                 <div className="flex items-center space-x-2">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                  <Badge variant="outline" className="text-[10px] font-bold border-[#D5DBDB]">
-                    Conta Corporativa B2B
+                  <Building2 className="w-5 h-5 text-sky-600" />
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold border-slate-300 rounded-full"
+                  >
+                    Organização (B2B)
                   </Badge>
                 </div>
-                <SheetTitle className="text-lg font-bold text-[#1C2833] mt-2">
+                <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2B.razao_social}
                 </SheetTitle>
-                <p className="text-xs text-[#5D6D7E] font-mono">CNPJ: {selectedB2B.cnpj}</p>
+                <p className="text-xs text-slate-500 font-mono">CNPJ: {selectedB2B.cnpj}</p>
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
                 <div className="space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Dados Cadastrais Oficiais
                   </span>
-                  <div className="grid grid-cols-2 gap-3 text-xs p-3 bg-slate-50 rounded-lg border border-[#D5DBDB]/60">
+                  <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">
                         Nome Fantasia
                       </p>
-                      <p className="font-semibold text-[#1C2833]">
+                      <p className="font-semibold text-slate-900">
                         {selectedB2B.nome_fantasia || '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">
                         Inscrição Estadual
                       </p>
-                      <p className="font-semibold text-[#1C2833]">
+                      <p className="font-semibold text-slate-900">
                         {selectedB2B.inscricao_estadual || '—'}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">Endereço</p>
-                      <p className="font-semibold text-[#1C2833]">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Endereço</p>
+                      <p className="font-semibold text-slate-900">
                         {selectedB2B.endereco_corporativo || '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">E-mail</p>
-                      <p className="font-semibold text-[#1C2833]">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">E-mail</p>
+                      <p className="font-semibold text-slate-900">
                         {selectedB2B.email_principal || '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">Telefone</p>
-                      <p className="font-semibold text-[#1C2833]">{selectedB2B.telefone || '—'}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
+                      <p className="font-semibold text-slate-900">{selectedB2B.telefone || '—'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* CONTATOS VINCULADOS (B2B <-> B2C) */}
-                <div className="space-y-3 pt-3 border-t border-[#D5DBDB]/60">
+                {/* CONTATOS VINCULADOS (PESSOAS FÍSICAS NA ORGANIZAÇÃO) */}
+                <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#1C2833]">
-                        Contatos Vinculados (Pessoas Físicas)
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                        Pessoas Vinculadas ({linkedContatos.length})
                       </span>
-                      <p className="text-[11px] text-[#5D6D7E]">
-                        Permite que uma pessoa física (CPF) atue como comprador técnico sem duplicar
-                        cadastro
+                      <p className="text-[11px] text-slate-500">
+                        Compradores técnicos e contatos-chave desta organização
                       </p>
                     </div>
                     <Button
                       size="sm"
                       onClick={() => setIsAddContatoOpen(true)}
-                      className="text-xs h-7 bg-[#1B4F72] hover:bg-[#154360] text-white"
+                      className="text-xs h-8 bg-[#017848] hover:bg-[#01653c] text-white rounded-xl font-bold"
                     >
                       <Link2 className="w-3.5 h-3.5 mr-1" />
-                      Adicionar Contato
+                      Vincular Pessoa
                     </Button>
                   </div>
 
                   {linkedContatos.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
-                      Nenhum contato pessoa física vinculado a esta conta B2B ainda.
+                    <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
+                      Nenhuma pessoa física vinculada a esta organização ainda.
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {linkedContatos.map((ct) => (
                         <div
                           key={ct.id}
-                          className="p-3 rounded-lg border border-[#D5DBDB] bg-white flex items-center justify-between text-xs"
+                          className="p-3 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs shadow-xs"
                         >
                           <div>
-                            <p className="font-bold text-[#1C2833]">
+                            <p className="font-bold text-slate-900">
                               {ct.expand?.consumidor_b2c_id?.nome_completo || 'Contato Sem Nome'}
                             </p>
-                            <p className="text-[11px] text-[#5D6D7E] mt-0.5">
+                            <p className="text-[11px] text-slate-500 mt-0.5">
                               Cargo: {ct.cargo || 'Não especificado'} • Depto:{' '}
                               {ct.departamento || 'Geral'}
                             </p>
-                            <p className="text-[10px] font-mono text-[#5D6D7E] mt-0.5">
+                            <p className="text-[10px] font-mono text-slate-500 mt-0.5">
                               CPF: {ct.expand?.consumidor_b2c_id?.cpf} •{' '}
                               {ct.expand?.consumidor_b2c_id?.email_principal}
                             </p>
@@ -697,32 +920,32 @@ export default function Clientes() {
                   )}
                 </div>
 
-                {/* HISTÓRICO DE OPORTUNIDADES */}
-                <div className="space-y-3 pt-3 border-t border-[#D5DBDB]/60">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
-                    Histórico Comercial / Oportunidades ({clientOpps.length})
+                {/* HISTÓRICO DE NEGÓCIOS / OPORTUNIDADES */}
+                <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Histórico de Negócios ({clientOpps.length})
                   </span>
                   {clientOpps.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
-                      Nenhuma oportunidade registrada para este cliente.
+                    <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
+                      Nenhum negócio registrado para este contato.
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {clientOpps.map((op) => (
                         <div
                           key={op.id}
-                          className="p-3 rounded-lg border border-[#D5DBDB] bg-white flex items-center justify-between text-xs"
+                          className="p-3 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs shadow-xs"
                         >
                           <div>
-                            <p className="font-bold text-[#1C2833]">{op.titulo}</p>
-                            <p className="text-[11px] text-[#5D6D7E] mt-0.5">
+                            <p className="font-bold text-slate-900">{op.titulo}</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
                               Etapa:{' '}
-                              <Badge variant="outline" className="text-[10px]">
+                              <Badge variant="outline" className="text-[10px] rounded-full">
                                 {op.etapa_atual}
                               </Badge>
                             </p>
                           </div>
-                          <span className="font-bold text-[#1C2833]">
+                          <span className="font-black text-slate-900">
                             {formatCurrencyBRL(op.valor_estimado)}
                           </span>
                         </div>
@@ -732,23 +955,23 @@ export default function Clientes() {
                 </div>
 
                 {/* PAINEL LGPD */}
-                <div className="space-y-3 pt-3 border-t border-[#D5DBDB]/60">
+                <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Consentimento LGPD por Marca
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setIsAddPrefOpen(true)}
-                      className="text-xs h-7 border-[#D5DBDB]"
+                      className="text-xs h-7 rounded-lg border-[#E3E7EB]"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
                       Adicionar Preferência
                     </Button>
                   </div>
                   {clientPrefs.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
+                    <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
                       Nenhuma preferência cadastrada.
                     </div>
                   ) : (
@@ -756,17 +979,17 @@ export default function Clientes() {
                       {clientPrefs.map((pref) => (
                         <div
                           key={pref.id}
-                          className="p-2.5 rounded-lg border border-[#D5DBDB] bg-white flex items-center justify-between text-xs"
+                          className="p-2.5 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs"
                         >
                           <div>
-                            <span className="font-bold text-[#1C2833]">{pref.canal}</span>
-                            <span className="text-[#5D6D7E] text-[11px] ml-2">
+                            <span className="font-bold text-slate-900">{pref.canal}</span>
+                            <span className="text-slate-500 text-[11px] ml-2">
                               ({pref.expand?.marca_id?.nome})
                             </span>
                           </div>
                           <Badge
                             className={cn(
-                              'text-[10px]',
+                              'text-[10px] rounded-full',
                               pref.status_consentimento === 'Opt-in'
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                 : 'bg-red-50 text-red-700 border-red-200',
@@ -782,75 +1005,78 @@ export default function Clientes() {
               </div>
             </>
           ) : selectedB2C ? (
-            /* DETALHES CONSUMIDOR B2C */
+            /* DETALHES PESSOA B2C */
             <>
-              <SheetHeader className="p-5 border-b border-[#D5DBDB] bg-slate-50/70 text-left">
+              <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
                 <div className="flex items-center space-x-2">
                   <User className="w-5 h-5 text-emerald-600" />
-                  <Badge variant="outline" className="text-[10px] font-bold border-[#D5DBDB]">
-                    Consumidor B2C (Pessoa Física)
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold border-slate-300 rounded-full"
+                  >
+                    Pessoa (B2C)
                   </Badge>
                 </div>
-                <SheetTitle className="text-lg font-bold text-[#1C2833] mt-2">
+                <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2C.nome_completo}
                 </SheetTitle>
-                <p className="text-xs text-[#5D6D7E] font-mono">CPF: {selectedB2C.cpf}</p>
+                <p className="text-xs text-slate-500 font-mono">CPF: {selectedB2C.cpf}</p>
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
                 <div className="space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Dados Pessoais
                   </span>
-                  <div className="grid grid-cols-2 gap-3 text-xs p-3 bg-slate-50 rounded-lg border border-[#D5DBDB]/60">
+                  <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">E-mail</p>
-                      <p className="font-semibold text-[#1C2833]">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">E-mail</p>
+                      <p className="font-semibold text-slate-900">
                         {selectedB2C.email_principal || '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">Telefone</p>
-                      <p className="font-semibold text-[#1C2833]">{selectedB2C.telefone || '—'}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">Telefone</p>
+                      <p className="font-semibold text-slate-900">{selectedB2C.telefone || '—'}</p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[10px] text-[#5D6D7E] uppercase font-bold">
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">
                         Origem de Cadastro
                       </p>
-                      <p className="font-semibold text-[#1C2833]">
-                        {selectedB2C.origem_sistema || 'NTC'}
+                      <p className="font-semibold text-slate-900">
+                        {selectedB2C.origem_sistema || 'NTC Pipedrive'}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* HISTÓRICO DE OPORTUNIDADES */}
-                <div className="space-y-3 pt-3 border-t border-[#D5DBDB]/60">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
-                    Oportunidades Vinculadas ({clientOpps.length})
+                {/* HISTÓRICO DE NEGÓCIOS */}
+                <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Negócios Vinculados ({clientOpps.length})
                   </span>
                   {clientOpps.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
-                      Nenhuma compra ou negociação registrada.
+                    <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
+                      Nenhum negócio registrado para esta pessoa.
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {clientOpps.map((op) => (
                         <div
                           key={op.id}
-                          className="p-3 rounded-lg border border-[#D5DBDB] bg-white flex items-center justify-between text-xs"
+                          className="p-3 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs shadow-xs"
                         >
                           <div>
-                            <p className="font-bold text-[#1C2833]">{op.titulo}</p>
-                            <p className="text-[11px] text-[#5D6D7E] mt-0.5">
+                            <p className="font-bold text-slate-900">{op.titulo}</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
                               Etapa:{' '}
-                              <Badge variant="outline" className="text-[10px]">
+                              <Badge variant="outline" className="text-[10px] rounded-full">
                                 {op.etapa_atual}
                               </Badge>
                             </p>
                           </div>
-                          <span className="font-bold text-[#1C2833]">
+                          <span className="font-black text-slate-900">
                             {formatCurrencyBRL(op.valor_estimado)}
                           </span>
                         </div>
@@ -860,41 +1086,41 @@ export default function Clientes() {
                 </div>
 
                 {/* PAINEL LGPD */}
-                <div className="space-y-3 pt-3 border-t border-[#D5DBDB]/60">
+                <div className="space-y-3 pt-3 border-t border-[#E3E7EB]">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Consentimento LGPD
                     </span>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setIsAddPrefOpen(true)}
-                      className="text-xs h-7 border-[#D5DBDB]"
+                      className="text-xs h-7 rounded-lg border-[#E3E7EB]"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
                       Adicionar Preferência
                     </Button>
                   </div>
                   {clientPrefs.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
-                      Nenhuma autorização formal cadastrada.
+                    <div className="p-4 text-center text-xs text-slate-500 border border-dashed border-[#E3E7EB] rounded-xl">
+                      Nenhum consentimento formal cadastrado.
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {clientPrefs.map((pref) => (
                         <div
                           key={pref.id}
-                          className="p-2.5 rounded-lg border border-[#D5DBDB] bg-white flex items-center justify-between text-xs"
+                          className="p-2.5 rounded-xl border border-[#E3E7EB] bg-white flex items-center justify-between text-xs"
                         >
                           <div>
-                            <span className="font-bold text-[#1C2833]">{pref.canal}</span>
-                            <span className="text-[#5D6D7E] text-[11px] ml-2">
+                            <span className="font-bold text-slate-900">{pref.canal}</span>
+                            <span className="text-slate-500 text-[11px] ml-2">
                               ({pref.expand?.marca_id?.nome})
                             </span>
                           </div>
                           <Badge
                             className={cn(
-                              'text-[10px]',
+                              'text-[10px] rounded-full',
                               pref.status_consentimento === 'Opt-in'
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                 : 'bg-red-50 text-red-700 border-red-200',
@@ -913,39 +1139,25 @@ export default function Clientes() {
         </SheetContent>
       </Sheet>
 
-      {/* MODAL NOVO CLIENTE COM VALIDAÇÃO DE DÍGITOS VERIFICADORES NO INPUT */}
-      <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
-        <DialogContent className="sm:max-w-lg">
+      {/* MODAL NOVO CONTATO (+ PESSOA OU + ORGANIZAÇÃO) */}
+      <Dialog open={isNewContactOpen} onOpenChange={setIsNewContactOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1C2833]">
-              Cadastrar Novo Cliente Corporativo
+            <DialogTitle className="text-base font-bold text-slate-900">
+              {newTipo === 'b2c' ? 'Adicionar Nova Pessoa' : 'Adicionar Nova Organização'}
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleCreateClient} className="space-y-4">
+          <form onSubmit={handleCreateContact} className="space-y-4">
             {validationError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2 text-xs text-red-800">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-2 text-xs text-red-800">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                 <span>{validationError}</span>
               </div>
             )}
 
-            {/* Seletor de Tipo: B2B vs B2C */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewTipo('b2b')
-                  setValidationError(null)
-                }}
-                className={cn(
-                  'py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center justify-center space-x-2',
-                  newTipo === 'b2b' ? 'bg-white text-[#1B4F72] shadow-xs' : 'text-[#5D6D7E]',
-                )}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Conta B2B (CNPJ)</span>
-              </button>
+            {/* Alternância de Tipo de Contato */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
               <button
                 type="button"
                 onClick={() => {
@@ -953,93 +1165,35 @@ export default function Clientes() {
                   setValidationError(null)
                 }}
                 className={cn(
-                  'py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center justify-center space-x-2',
-                  newTipo === 'b2c' ? 'bg-white text-[#1B4F72] shadow-xs' : 'text-[#5D6D7E]',
+                  'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
+                  newTipo === 'b2c' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
                 )}
               >
                 <User className="w-3.5 h-3.5" />
-                <span>Consumidor B2C (CPF)</span>
+                <span>Pessoa (CPF)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTipo('b2b')
+                  setValidationError(null)
+                }}
+                className={cn(
+                  'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
+                  newTipo === 'b2b' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
+                )}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Organização (CNPJ)</span>
               </button>
             </div>
 
-            {newTipo === 'b2b' ? (
-              /* CAMPOS B2B */
+            {newTipo === 'b2c' ? (
+              /* CAMPOS PESSOA */
               <>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-[#5D6D7E]">CNPJ (Validado)</Label>
-                    {newCnpj && (
-                      <span
-                        className={cn(
-                          'text-[10px] font-bold',
-                          isValidCNPJ(newCnpj) ? 'text-emerald-600' : 'text-red-500',
-                        )}
-                      >
-                        {isValidCNPJ(newCnpj) ? 'Dígitos verificadores válidos' : 'CNPJ Inválido'}
-                      </span>
-                    )}
-                  </div>
-                  <Input
-                    required
-                    placeholder="00.000.000/0000-00"
-                    value={newCnpj}
-                    onChange={(e) => setNewCnpj(maskCNPJ(e.target.value))}
-                    className="h-9 text-xs font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-[#5D6D7E]">Razão Social</Label>
-                  <Input
-                    required
-                    placeholder="Nome empresarial formal"
-                    value={newRazao}
-                    onChange={(e) => setNewRazao(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-[#5D6D7E]">Nome Fantasia</Label>
-                    <Input
-                      placeholder="Nome comercial"
-                      value={newFantasia}
-                      onChange={(e) => setNewFantasia(e.target.value)}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-[#5D6D7E]">
-                      Inscrição Estadual
-                    </Label>
-                    <Input
-                      placeholder="IE"
-                      value={newIE}
-                      onChange={(e) => setNewIE(e.target.value)}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-[#5D6D7E]">
-                    Endereço Corporativo
-                  </Label>
-                  <Input
-                    placeholder="Logradouro, número, cidade - UF"
-                    value={newEndereco}
-                    onChange={(e) => setNewEndereco(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </>
-            ) : (
-              /* CAMPOS B2C */
-              <>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-[#5D6D7E]">CPF (Validado)</Label>
+                    <Label className="text-xs font-semibold text-slate-600">CPF (Validado)</Label>
                     {newCpf && (
                       <span
                         className={cn(
@@ -1056,18 +1210,90 @@ export default function Clientes() {
                     placeholder="000.000.000-00"
                     value={newCpf}
                     onChange={(e) => setNewCpf(maskCPF(e.target.value))}
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs font-mono rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-[#5D6D7E]">Nome Completo</Label>
+                  <Label className="text-xs font-semibold text-slate-600">Nome Completo</Label>
                   <Input
                     required
-                    placeholder="Nome da pessoa física"
+                    placeholder="Nome da pessoa"
                     value={newNomeCompleto}
                     onChange={(e) => setNewNomeCompleto(e.target.value)}
-                    className="h-9 text-xs"
+                    className="h-9 text-xs rounded-xl"
+                  />
+                </div>
+              </>
+            ) : (
+              /* CAMPOS ORGANIZAÇÃO */
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-slate-600">CNPJ (Validado)</Label>
+                    {newCnpj && (
+                      <span
+                        className={cn(
+                          'text-[10px] font-bold',
+                          isValidCNPJ(newCnpj) ? 'text-emerald-600' : 'text-red-500',
+                        )}
+                      >
+                        {isValidCNPJ(newCnpj) ? 'Dígitos verificadores válidos' : 'CNPJ Inválido'}
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    required
+                    placeholder="00.000.000/0000-00"
+                    value={newCnpj}
+                    onChange={(e) => setNewCnpj(maskCNPJ(e.target.value))}
+                    className="h-9 text-xs font-mono rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-600">Razão Social</Label>
+                  <Input
+                    required
+                    placeholder="Nome empresarial formal"
+                    value={newRazao}
+                    onChange={(e) => setNewRazao(e.target.value)}
+                    className="h-9 text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-600">Nome Fantasia</Label>
+                    <Input
+                      placeholder="Nome comercial"
+                      value={newFantasia}
+                      onChange={(e) => setNewFantasia(e.target.value)}
+                      className="h-9 text-xs rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-600">
+                      Inscrição Estadual
+                    </Label>
+                    <Input
+                      placeholder="IE"
+                      value={newIE}
+                      onChange={(e) => setNewIE(e.target.value)}
+                      className="h-9 text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Endereço Corporativo
+                  </Label>
+                  <Input
+                    placeholder="Logradouro, número, cidade - UF"
+                    value={newEndereco}
+                    onChange={(e) => setNewEndereco(e.target.value)}
+                    className="h-9 text-xs rounded-xl"
                   />
                 </div>
               </>
@@ -1076,34 +1302,34 @@ export default function Clientes() {
             {/* CAMPOS COMUNS */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">E-mail</Label>
+                <Label className="text-xs font-semibold text-slate-600">E-mail</Label>
                 <Input
                   type="email"
-                  placeholder="email@empresa.com.br"
+                  placeholder="contato@exemplo.com.br"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-xs rounded-xl"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Telefone</Label>
+                <Label className="text-xs font-semibold text-slate-600">Telefone</Label>
                 <Input
                   placeholder="(00) 00000-0000"
                   value={newTelefone}
                   onChange={(e) => setNewTelefone(maskPhone(e.target.value))}
-                  className="h-9 text-xs"
+                  className="h-9 text-xs rounded-xl"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Marca de Captura</Label>
+              <Label className="text-xs font-semibold text-slate-600">Marca de Captura</Label>
               <Select value={newMarcaCapturaId} onValueChange={setNewMarcaCapturaId}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-9 text-xs rounded-xl">
                   <SelectValue placeholder="Selecione a marca..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {marcas.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.nome}
@@ -1118,8 +1344,8 @@ export default function Clientes() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setIsNewClientOpen(false)}
-                className="text-xs border-[#D5DBDB]"
+                onClick={() => setIsNewContactOpen(false)}
+                className="text-xs rounded-xl border-[#E3E7EB]"
               >
                 Cancelar
               </Button>
@@ -1127,34 +1353,32 @@ export default function Clientes() {
                 type="submit"
                 size="sm"
                 disabled={isSubmitting}
-                className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white"
+                className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
               >
-                {isSubmitting ? 'Salvando...' : 'Salvar Cadastro'}
+                {isSubmitting ? 'Salvando...' : 'Salvar Contato'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL ADICIONAR CONTATO VINCULADO (B2B <-> B2C) */}
+      {/* MODAL ADICIONAR VÍNCULO B2B <-> B2C */}
       <Dialog open={isAddContatoOpen} onOpenChange={setIsAddContatoOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1C2833]">
-              Vincular Pessoa Física como Contato B2B
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Vincular Pessoa à Organização
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleAddContato} className="space-y-3.5">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">
-                Pessoa Física Existente (Consumidor B2C)
-              </Label>
+              <Label className="text-xs font-semibold text-slate-600">Pessoa Cadastrada</Label>
               <Select value={selectedB2CCandidateId} onValueChange={setSelectedB2CCandidateId}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Selecione a pessoa física..." />
+                <SelectTrigger className="h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Selecione a pessoa..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {clientesB2C.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome_completo} (CPF: {c.cpf})
@@ -1165,23 +1389,23 @@ export default function Clientes() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Cargo na Conta B2B</Label>
+              <Label className="text-xs font-semibold text-slate-600">Cargo na Organização</Label>
               <Input
                 required
                 placeholder="ex: Comprador Técnico, Gerente de Manutenção"
                 value={contatoCargo}
                 onChange={(e) => setContatoCargo(e.target.value)}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Departamento</Label>
+              <Label className="text-xs font-semibold text-slate-600">Departamento</Label>
               <Input
                 placeholder="ex: Suprimentos, Engenharia"
                 value={contatoDepto}
                 onChange={(e) => setContatoDepto(e.target.value)}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
@@ -1191,14 +1415,14 @@ export default function Clientes() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsAddContatoOpen(false)}
-                className="text-xs border-[#D5DBDB]"
+                className="text-xs rounded-xl border-[#E3E7EB]"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white"
+                className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
               >
                 Confirmar Vínculo
               </Button>
@@ -1209,21 +1433,21 @@ export default function Clientes() {
 
       {/* MODAL ADICIONAR PREFERÊNCIA LGPD */}
       <Dialog open={isAddPrefOpen} onOpenChange={setIsAddPrefOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1C2833]">
+            <DialogTitle className="text-base font-bold text-slate-900">
               Registrar Consentimento LGPD
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleAddPreference} className="space-y-3.5">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Marca Específica</Label>
+              <Label className="text-xs font-semibold text-slate-600">Marca Específica</Label>
               <Select value={prefMarcaId} onValueChange={setPrefMarcaId}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-9 text-xs rounded-xl">
                   <SelectValue placeholder="Selecione a marca..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {marcas.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.nome}
@@ -1235,15 +1459,15 @@ export default function Clientes() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Canal</Label>
+                <Label className="text-xs font-semibold text-slate-600">Canal</Label>
                 <Select
                   value={prefCanal}
                   onValueChange={(v) => setPrefCanal(v as PreferenciaComunicacao['canal'])}
                 >
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="E-mail">E-mail</SelectItem>
                     <SelectItem value="WhatsApp">WhatsApp</SelectItem>
                     <SelectItem value="Telefone">Telefone</SelectItem>
@@ -1253,17 +1477,17 @@ export default function Clientes() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Consentimento</Label>
+                <Label className="text-xs font-semibold text-slate-600">Consentimento</Label>
                 <Select
                   value={prefStatus}
                   onValueChange={(v) =>
                     setPrefStatus(v as PreferenciaComunicacao['status_consentimento'])
                   }
                 >
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="Opt-in">Opt-in (Autorizado)</SelectItem>
                     <SelectItem value="Opt-out">Opt-out (Revogado)</SelectItem>
                   </SelectContent>
@@ -1277,14 +1501,14 @@ export default function Clientes() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsAddPrefOpen(false)}
-                className="text-xs border-[#D5DBDB]"
+                className="text-xs rounded-xl border-[#E3E7EB]"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white"
+                className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
               >
                 Salvar Consentimento
               </Button>

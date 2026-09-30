@@ -1,4 +1,7 @@
 // src/pages/Pipelines.tsx
+// Tela Unificada de Negócios / Pipelines estilo Pipedrive (Imagem 1 de referência)
+// Barra de alternância: Kanban (ícone colunas), Lista (ícone lista), Tabela (ícone grade/planilha)
+// Botão verde primário "+ Negócio", seletor de Funil de vendas, ordenação e filtros rápidos
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
@@ -6,12 +9,11 @@ import { useBrand } from '@/contexts/BrandContext'
 import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C } from '@/types'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Plus,
   Search,
   AlertTriangle,
@@ -36,14 +46,28 @@ import {
   CheckCircle2,
   Loader2,
   Clock,
+  Kanban,
+  List,
+  Table as TableIcon,
+  ChevronDown,
+  ArrowUpDown,
   Sparkles,
+  Calendar,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
+type ViewMode = 'kanban' | 'list' | 'table'
+type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' | 'titulo'
+
 export default function Pipelines() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { marcas, activeBrand, isConsolidated, currentBrandColor } = useBrand()
+  const { activeBrand, isConsolidated } = useBrand()
+
+  // Modo de visualização (Kanban, Lista, Tabela)
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    (searchParams.get('view') as ViewMode) || 'kanban',
+  )
 
   const [funis, setFunis] = useState<Funil[]>([])
   const [activeFunilId, setActiveFunilId] = useState<string>('')
@@ -51,12 +75,16 @@ export default function Pipelines() {
   const [selectedEquipeFilter, setSelectedEquipeFilter] = useState<string>('all')
   const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
   const [searchFilter, setSearchFilter] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('proxima_acao')
   const [isLoading, setIsLoading] = useState(true)
+
+  // Filtro de status estilo Pipedrive ("Status é Aberto" / "Todos")
+  const [statusFilter, setStatusFilter] = useState<'aberto' | 'todos'>('aberto')
 
   // Deep linking para OpportunityDrawer
   const selectedOppId = searchParams.get('oppId')
 
-  // Modal Nova Oportunidade
+  // Modal Nova Oportunidade (+ Negócio)
   const [isNewOppModalOpen, setIsNewOppModalOpen] = useState(false)
   const [newTitulo, setNewTitulo] = useState('')
   const [newValor, setNewValor] = useState<number>(0)
@@ -111,7 +139,6 @@ export default function Pipelines() {
       setEquipes(equipesRes)
 
       if (funisRes.length > 0) {
-        // Se o funil ativo atual não estiver na nova lista, seleciona o primeiro
         if (!activeFunilId || !funisRes.some((f) => f.id === activeFunilId)) {
           setActiveFunilId(funisRes[0].id)
         }
@@ -152,7 +179,7 @@ export default function Pipelines() {
 
       const res = await pb.collection('oportunidades').getFullList<Oportunidade>({
         filter,
-        expand: 'marca_id,cliente_b2b_id,cliente_b2c_id,vendedor_id',
+        expand: 'marca_id,funil_id,equipe_id,cliente_b2b_id,cliente_b2c_id,vendedor_id',
         sort: '-created',
       })
       setOportunidades(res)
@@ -165,7 +192,7 @@ export default function Pipelines() {
     loadOportunidades()
   }, [activeFunilId, selectedEquipeFilter])
 
-  // Carrega lista de clientes para o modal de criação
+  // Carrega opções de clientes para o modal
   const loadClientesOptions = async () => {
     try {
       const [b2b, b2c] = await Promise.all([
@@ -175,7 +202,7 @@ export default function Pipelines() {
       setClientesB2BList(b2b)
       setClientesB2CList(b2c)
     } catch (err) {
-      console.error('Erro ao carregar opções de clientes:', err)
+      console.error('Erro ao carregar clientes:', err)
     }
   }
 
@@ -193,7 +220,14 @@ export default function Pipelines() {
   const activeFunil = funis.find((f) => f.id === activeFunilId)
   const etapas = activeFunil?.etapas_ordenadas || []
 
-  // Drag and Drop handlers
+  // Alterna view mode e sincroniza na URL
+  const handleChangeViewMode = (mode: ViewMode) => {
+    setViewMode(mode)
+    searchParams.set('view', mode)
+    setSearchParams(searchParams)
+  }
+
+  // Drag and Drop handlers (Kanban)
   const handleDragStart = (e: React.DragEvent, opp: Oportunidade) => {
     e.dataTransfer.setData('text/plain', opp.id)
   }
@@ -210,13 +244,11 @@ export default function Pipelines() {
 
     if (opp.etapa_atual === targetColEtapa) return
 
-    // TRAVA DE FOLLOW-UP (Padrão Pipedrive obrigatório pelo documento):
-    // Se a oportunidade não tiver proxima_acao_data cadastrada e estiver tentando avançar para uma etapa posterior
+    // TRAVA DE FOLLOW-UP (Padrão Pipedrive obrigatório)
     const currentIndex = etapas.indexOf(opp.etapa_atual)
     const targetIndex = etapas.indexOf(targetColEtapa)
 
     if (targetIndex > currentIndex && !opp.proxima_acao_data) {
-      // Bloqueia e faz o card tremer
       setShakingOppId(opp.id)
       setTimeout(() => setShakingOppId(null), 1000)
 
@@ -229,11 +261,37 @@ export default function Pipelines() {
       return
     }
 
-    // Abre modal de confirmação para reforçar a atualização de follow-up na nova etapa
     setDraggedOpportunity(opp)
     setTargetEtapa(targetColEtapa)
     setDragFollowUpDesc(
       opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${targetColEtapa}`,
+    )
+    setDragConfirmModalOpen(true)
+  }
+
+  // Avanço rápido via Lista/Tabela com verificação de trava
+  const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
+    if (opp.etapa_atual === newEtapaTarget) return
+    const currentIndex = etapas.indexOf(opp.etapa_atual)
+    const targetIndex = etapas.indexOf(newEtapaTarget)
+
+    if (targetIndex > currentIndex && !opp.proxima_acao_data) {
+      setShakingOppId(opp.id)
+      setTimeout(() => setShakingOppId(null), 1000)
+
+      toast({
+        variant: 'destructive',
+        title: 'Trava de Follow-up Ativa!',
+        description:
+          'Proibido avançar etapa sem follow-up agendado. Defina a data da próxima ação antes de mover.',
+      })
+      return
+    }
+
+    setDraggedOpportunity(opp)
+    setTargetEtapa(newEtapaTarget)
+    setDragFollowUpDesc(
+      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${newEtapaTarget}`,
     )
     setDragConfirmModalOpen(true)
   }
@@ -259,7 +317,7 @@ export default function Pipelines() {
 
       toast({
         title: 'Etapa atualizada com sucesso!',
-        description: `Oportunidade movida para "${targetEtapa}" com follow-up agendado.`,
+        description: `Negócio movido para "${targetEtapa}" com follow-up agendado.`,
       })
 
       setDragConfirmModalOpen(false)
@@ -299,8 +357,8 @@ export default function Pipelines() {
       })
 
       toast({
-        title: 'Oportunidade criada!',
-        description: 'Nova negociação adicionada com sucesso ao funil.',
+        title: 'Negócio adicionado!',
+        description: 'Nova negociação criada com sucesso no funil.',
       })
 
       setIsNewOppModalOpen(false)
@@ -309,7 +367,7 @@ export default function Pipelines() {
       setNewClienteId('')
       loadOportunidades()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar oportunidade'
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar negócio'
       toast({
         variant: 'destructive',
         title: 'Falha ao cadastrar',
@@ -330,233 +388,676 @@ export default function Pipelines() {
     return tituloMatch || b2bMatch || b2cMatch
   })
 
+  // Ordenação das oportunidades
+  const sortedOpps = [...filteredOpps].sort((a, b) => {
+    if (sortBy === 'proxima_acao') {
+      if (!a.proxima_acao_data) return 1
+      if (!b.proxima_acao_data) return -1
+      return new Date(a.proxima_acao_data).getTime() - new Date(b.proxima_acao_data).getTime()
+    }
+    if (sortBy === 'valor_desc') {
+      return (b.valor_estimado || 0) - (a.valor_estimado || 0)
+    }
+    if (sortBy === 'valor_asc') {
+      return (a.valor_estimado || 0) - (b.valor_estimado || 0)
+    }
+    if (sortBy === 'created_desc') {
+      return new Date(b.created).getTime() - new Date(a.created).getTime()
+    }
+    if (sortBy === 'titulo') {
+      return a.titulo.localeCompare(b.titulo)
+    }
+    return 0
+  })
+
+  const totalGeralValor = filteredOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
+
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)] space-y-4">
-      {/* BARRA SUPERIOR: SELETOR DE FUNIL EM ABAS + FILTRO EQUIPE + BUSCA + NOVA OPP */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+    <div className="flex flex-col h-[calc(100vh-6.5rem)] space-y-3.5">
+      {/*
+        BARRA DE FERRAMENTAS SUPERIOR ESTILO PIPEDRIVE (Captura 1):
+        - Alternância de visualização: Kanban (ícone colunas), Lista (ícone lista), Tabela (ícone grade)
+        - Botão verde Pipedrive "+ Negócio"
+        - Totalizador R$ do funil
+        - Seletor de "Funil de vendas"
+        - Filtro
+        - Ordenação ("Ordenar por: Próxima atividade")
+      */}
+      <div className="bg-white border border-[#E3E7EB] rounded-2xl p-2.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
-          {funis.length > 0 ? (
-            <Tabs value={activeFunilId} onValueChange={setActiveFunilId} className="w-auto">
-              <TabsList className="bg-white border border-[#D5DBDB] p-1 h-9 shadow-xs">
-                {funis.map((f) => (
-                  <TabsTrigger
-                    key={f.id}
-                    value={f.id}
-                    className="text-xs font-semibold px-3 py-1 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white rounded-md"
-                  >
-                    {f.nome_funil}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          ) : (
-            <span className="text-xs text-[#5D6D7E]">
-              Nenhum funil cadastrado para esta unidade comercial.
-            </span>
-          )}
-
-          {/* Filtro por Equipe */}
-          {equipes.length > 0 && (
-            <div className="flex items-center space-x-1.5 ml-2">
-              <Filter className="w-3.5 h-3.5 text-[#5D6D7E]" />
-              <Select value={selectedEquipeFilter} onValueChange={setSelectedEquipeFilter}>
-                <SelectTrigger className="h-8 text-xs w-44 bg-white border-[#D5DBDB]">
-                  <SelectValue placeholder="Todas as Equipes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Equipes</SelectItem>
-                  {equipes.map((eq) => (
-                    <SelectItem key={eq.id} value={eq.id}>
-                      {eq.nome_equipe}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center space-x-2.5">
-          {/* Busca Rápida no Board */}
-          <div className="relative w-48 sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#5D6D7E]" />
-            <Input
-              type="text"
-              placeholder="Filtrar por nome ou cliente..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="h-8 pl-8 pr-2 text-xs bg-white border-[#D5DBDB]"
-            />
+          {/* Alternância de Visualização */}
+          <div className="inline-flex items-center bg-[#F4F6F8] rounded-xl p-1 border border-[#E3E7EB]">
+            <button
+              type="button"
+              onClick={() => handleChangeViewMode('kanban')}
+              title="Visualização em Kanban"
+              className={cn(
+                'p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all',
+                viewMode === 'kanban'
+                  ? 'bg-white text-[#017848] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900',
+              )}
+            >
+              <Kanban className="w-4 h-4" />
+              <span className="hidden sm:inline">Kanban</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChangeViewMode('list')}
+              title="Visualização em Lista Compacta"
+              className={cn(
+                'p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all',
+                viewMode === 'list'
+                  ? 'bg-white text-[#017848] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900',
+              )}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChangeViewMode('table')}
+              title="Visualização em Tabela Detalhada"
+              className={cn(
+                'p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all',
+                viewMode === 'table'
+                  ? 'bg-white text-[#017848] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900',
+              )}
+            >
+              <TableIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Tabela</span>
+            </button>
           </div>
 
+          {/* Botão Primário Verde Pipedrive "+ Negócio" */}
           <Button
             size="sm"
             onClick={() => setIsNewOppModalOpen(true)}
-            className="h-8 text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white shadow-xs"
+            className="h-9 px-3.5 rounded-xl font-bold text-xs bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1 transition-all active:scale-95"
           >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            Nova Oportunidade
+            <Plus className="w-4 h-4 mr-0.5" />
+            <span>Negócio</span>
           </Button>
+
+          {/* Seletor de Funil de Vendas */}
+          {funis.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center space-x-2 transition-colors"
+                >
+                  <Kanban className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="max-w-[160px] truncate">
+                    {activeFunil?.nome_funil || 'Funil de vendas'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 rounded-xl border-[#E3E7EB]">
+                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Funis Disponíveis
+                </DropdownMenuLabel>
+                {funis.map((f) => (
+                  <DropdownMenuItem
+                    key={f.id}
+                    onClick={() => setActiveFunilId(f.id)}
+                    className={cn(
+                      'text-xs cursor-pointer font-medium rounded-lg',
+                      f.id === activeFunilId ? 'bg-emerald-50 text-[#017848] font-bold' : '',
+                    )}
+                  >
+                    {f.nome_funil}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Filtro de Equipe */}
+          {equipes.length > 0 && (
+            <Select value={selectedEquipeFilter} onValueChange={setSelectedEquipeFilter}>
+              <SelectTrigger className="h-9 text-xs w-36 rounded-xl bg-white border-[#E3E7EB]">
+                <SelectValue placeholder="Equipes" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todas as Equipes</SelectItem>
+                {equipes.map((eq) => (
+                  <SelectItem key={eq.id} value={eq.id}>
+                    {eq.nome_equipe}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Lado Direito da Barra: Total R$, Busca e Ordenação */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Totalizador Financeiro */}
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100/80 border border-[#E3E7EB] text-xs font-bold text-slate-800">
+            <span className="text-[11px] text-slate-500 font-normal mr-1">Total:</span>
+            {formatCurrencyBRL(totalGeralValor)}
+          </div>
+
+          {/* Busca Rápida */}
+          <div className="relative w-44 sm:w-56">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Pesquisar negócio..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="h-9 pl-8 pr-2 text-xs rounded-xl bg-white border-[#E3E7EB]"
+            />
+          </div>
+
+          {/* Ordenação estilo Pipedrive ("Ordenar por: Próxima atividade") */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center space-x-1.5 transition-colors"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline text-slate-500">Ordenar por:</span>
+                <span className="font-bold text-slate-800">
+                  {sortBy === 'proxima_acao' && 'Próxima atividade'}
+                  {sortBy === 'valor_desc' && 'Maior valor'}
+                  {sortBy === 'valor_asc' && 'Menor valor'}
+                  {sortBy === 'created_desc' && 'Recentes'}
+                  {sortBy === 'titulo' && 'Nome'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 rounded-xl border-[#E3E7EB]">
+              <DropdownMenuItem
+                onClick={() => setSortBy('proxima_acao')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                Próxima atividade (Follow-up)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setSortBy('valor_desc')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                Maior valor (R$)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setSortBy('valor_asc')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                Menor valor (R$)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setSortBy('created_desc')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                Mais recentes primeiro
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setSortBy('titulo')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                Título do negócio (A-Z)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* BOARD KANBAN (SCROLL HORIZONTAL COM COLUNAS DE MÍNIMO 280px) */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+      {/* Sub-barra de Filtros com Chips Pipedrive ("Status é Aberto" / "Adicionar condição") */}
+      <div className="flex items-center justify-between text-xs px-1 shrink-0">
+        <div className="flex items-center space-x-2">
+          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-800 text-[11px] font-semibold">
+            <span className="w-2 h-2 rounded-full bg-[#017848]" />
+            <span>Status é Aberto</span>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'aberto' ? 'todos' : 'aberto')}
+              className="ml-1 text-slate-500 hover:text-slate-800 font-bold"
+            >
+              ×
+            </button>
+          </div>
+          <span className="text-slate-400 text-[11px]">
+            {filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'} encontrados
+          </span>
+        </div>
+
+        <div className="text-[11px] text-slate-500">
+          Trava de follow-up: <strong className="text-emerald-700">Ativa</strong>
+        </div>
+      </div>
+
+      {/* ÁREA PRINCIPAL: KANBAN, LISTA OU TABELA */}
+      <div className="flex-1 overflow-hidden min-h-0">
         {isLoading ? (
-          <div className="h-full flex items-center justify-center text-xs text-[#5D6D7E]">
-            <Loader2 className="w-6 h-6 animate-spin text-[#1B4F72] mr-2" />
-            Carregando esteira de vendas...
+          <div className="h-full flex items-center justify-center text-xs text-slate-500 bg-white rounded-2xl border border-[#E3E7EB]">
+            <Loader2 className="w-6 h-6 animate-spin text-[#017848] mr-2" />
+            Carregando esteira de negócios...
           </div>
         ) : etapas.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center border border-dashed border-[#D5DBDB] rounded-xl bg-white p-8">
-            <p className="text-sm font-semibold text-[#1C2833]">Nenhum funil ativo selecionado.</p>
-            <p className="text-xs text-[#5D6D7E] mt-1">Selecione uma marca ou cadastre um funil.</p>
+          <div className="h-full flex flex-col items-center justify-center border border-dashed border-[#E3E7EB] rounded-2xl bg-white p-8">
+            <p className="text-sm font-semibold text-slate-800">Nenhum funil ativo selecionado.</p>
+            <p className="text-xs text-slate-500 mt-1">Selecione uma marca ou cadastre um funil.</p>
           </div>
-        ) : (
-          <div className="flex items-stretch space-x-3.5 h-full min-w-max">
-            {etapas.map((etapa, idx) => {
-              const colOpps = filteredOpps.filter((o) => o.etapa_atual === etapa)
-              const colTotalValor = colOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
-              const isFirstCol = idx === 0
+        ) : viewMode === 'kanban' ? (
+          /* ================= VISUALIZAÇÃO KANBAN ================= */
+          <div className="h-full overflow-x-auto overflow-y-hidden pb-2 scrollbar-thin">
+            <div className="flex items-stretch space-x-3.5 h-full min-w-max">
+              {etapas.map((etapa, idx) => {
+                const colOpps = sortedOpps.filter((o) => o.etapa_atual === etapa)
+                const colTotalValor = colOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
+                const isFirstCol = idx === 0
 
-              return (
-                <div
-                  key={etapa}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, etapa)}
-                  className={cn(
-                    'w-[290px] flex flex-col rounded-xl border border-[#D5DBDB] bg-[#F4F6F7]/60 shadow-xs select-none transition-colors',
-                    isFirstCol ? 'bg-slate-100/70 border-slate-300' : '',
-                  )}
-                >
-                  {/* Cabeçalho da Coluna */}
-                  <div className="p-3 border-b border-[#D5DBDB] bg-white rounded-t-xl flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-[#1C2833]">{etapa}</span>
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] h-4 px-1.5 font-bold bg-slate-100 text-[#5D6D7E]"
-                        >
-                          {colOpps.length}
-                        </Badge>
+                return (
+                  <div
+                    key={etapa}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, etapa)}
+                    className={cn(
+                      'w-[295px] flex flex-col rounded-2xl border border-[#E3E7EB] bg-[#F6F7F9] shadow-xs select-none transition-colors',
+                      isFirstCol ? 'bg-slate-100/70 border-slate-300' : '',
+                    )}
+                  >
+                    {/* Cabeçalho da Coluna estilo Pipedrive (Chevron estilizado/topo arredondado) */}
+                    <div className="p-3 border-b border-[#E3E7EB] bg-white rounded-t-2xl flex items-center justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-bold text-slate-800 truncate">{etapa}</span>
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
+                            {colOpps.length}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                          {formatCurrencyBRL(colTotalValor)}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-[#5D6D7E] mt-0.5 font-medium">
-                        {formatCurrencyBRL(colTotalValor)}
-                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewEtapa(etapa)
+                          setIsNewOppModalOpen(true)
+                        }}
+                        title={`Adicionar negócio em ${etapa}`}
+                        className="w-6 h-6 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Lista de Cards com Scroll Vertical */}
+                    <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 scrollbar-thin">
+                      {colOpps.map((opp) => {
+                        const clienteNome =
+                          opp.expand?.cliente_b2b_id?.razao_social ||
+                          opp.expand?.cliente_b2c_id?.nome_completo ||
+                          'Cliente Não Vinculado'
+                        const followStatus = getFollowUpStatus(opp.proxima_acao_data)
+                        const isShaking = shakingOppId === opp.id
+
+                        return (
+                          <div
+                            key={opp.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, opp)}
+                            onClick={() => {
+                              searchParams.set('oppId', opp.id)
+                              setSearchParams(searchParams)
+                            }}
+                            className={cn(
+                              'p-3.5 rounded-xl border bg-white shadow-xs hover:shadow-md cursor-grab active:cursor-grabbing transition-all relative group',
+                              isShaking
+                                ? 'animate-shake border-red-500 ring-2 ring-red-400 bg-red-50/20'
+                                : 'border-[#E3E7EB] hover:border-slate-400',
+                            )}
+                          >
+                            {/* Marca visual quando em consolidado */}
+                            {isConsolidated && opp.expand?.marca_id && (
+                              <span
+                                className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1.5 text-white"
+                                style={{ backgroundColor: opp.expand.marca_id.cor_destaque }}
+                              >
+                                {opp.expand.marca_id.nome}
+                              </span>
+                            )}
+
+                            <p className="text-xs font-bold text-slate-900 line-clamp-2 leading-tight">
+                              {opp.titulo}
+                            </p>
+
+                            <div className="flex items-center space-x-1.5 mt-1.5 text-[11px] text-slate-600 truncate">
+                              {opp.expand?.cliente_b2b_id ? (
+                                <Building2 className="w-3 h-3 text-sky-600 shrink-0" />
+                              ) : (
+                                <User className="w-3 h-3 text-emerald-600 shrink-0" />
+                              )}
+                              <span className="truncate">{clienteNome}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100">
+                              <span className="text-xs font-black text-slate-900">
+                                {formatCurrencyBRL(opp.valor_estimado)}
+                              </span>
+
+                              <div className="w-6 h-6 rounded-full bg-[#017848] text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                                {opp.expand?.vendedor_id?.name?.slice(0, 2).toUpperCase() || 'AD'}
+                              </div>
+                            </div>
+
+                            {/* BADGE DE FOLLOW-UP / TRAVA PIPEDRIVE */}
+                            <div className="mt-2.5">
+                              {followStatus === 'missing' && (
+                                <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
+                                  <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                                  <span className="truncate">Sem follow-up agendado</span>
+                                </div>
+                              )}
+                              {followStatus === 'overdue' && (
+                                <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-medium">
+                                  <Clock className="w-3 h-3 text-red-600 shrink-0" />
+                                  <span className="truncate">
+                                    Vencido: {formatDateBR(opp.proxima_acao_data)}
+                                  </span>
+                                </div>
+                              )}
+                              {followStatus === 'soon' && (
+                                <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-medium">
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate">
+                                    Em 48h ({formatDateBR(opp.proxima_acao_data)})
+                                  </span>
+                                </div>
+                              )}
+                              {followStatus === 'ok' && (
+                                <div className="text-[10px] text-slate-500 flex items-center space-x-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span className="truncate">
+                                    Follow-up: {formatDateBR(opp.proxima_acao_data)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {colOpps.length === 0 && (
+                        <div className="h-28 flex flex-col items-center justify-center text-[11px] text-slate-400 border border-dashed border-[#E3E7EB] rounded-xl bg-white/50">
+                          <span>Nenhum negócio aqui</span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            Arraste cards para cá
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : viewMode === 'list' ? (
+          /* ================= VISUALIZAÇÃO EM LISTA ================= */
+          <Card className="h-full overflow-y-auto border-[#E3E7EB] bg-white rounded-2xl shadow-xs p-3">
+            <div className="space-y-2">
+              {sortedOpps.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  Nenhum negócio encontrado com os filtros atuais.
+                </div>
+              ) : (
+                sortedOpps.map((opp) => {
+                  const clienteNome =
+                    opp.expand?.cliente_b2b_id?.razao_social ||
+                    opp.expand?.cliente_b2c_id?.nome_completo ||
+                    'Cliente Não Vinculado'
+                  const followStatus = getFollowUpStatus(opp.proxima_acao_data)
+                  const isShaking = shakingOppId === opp.id
 
-                  {/* Lista de Cards com Scroll Vertical */}
-                  <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
-                    {colOpps.map((opp) => {
-                      const clienteNome =
-                        opp.expand?.cliente_b2b_id?.razao_social ||
-                        opp.expand?.cliente_b2c_id?.nome_completo ||
-                        'Cliente Não Vinculado'
-                      const followStatus = getFollowUpStatus(opp.proxima_acao_data)
-                      const isShaking = shakingOppId === opp.id
-
-                      return (
-                        <div
-                          key={opp.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, opp)}
-                          onClick={() => {
-                            searchParams.set('oppId', opp.id)
-                            setSearchParams(searchParams)
-                          }}
-                          className={cn(
-                            'p-3.5 rounded-lg border bg-white shadow-xs hover:shadow-md cursor-grab active:cursor-grabbing transition-all relative group',
-                            isShaking
-                              ? 'animate-shake border-red-500 ring-2 ring-red-400 bg-red-50/20'
-                              : 'border-[#D5DBDB] hover:border-slate-400',
-                          )}
-                        >
-                          {/* Marca visual quando em consolidado */}
-                          {isConsolidated && opp.expand?.marca_id && (
-                            <span
-                              className="inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded mb-1.5 text-white"
-                              style={{ backgroundColor: opp.expand.marca_id.cor_destaque }}
-                            >
-                              {opp.expand.marca_id.nome}
-                            </span>
-                          )}
-
-                          <p className="text-xs font-bold text-[#1C2833] line-clamp-2 leading-tight">
-                            {opp.titulo}
-                          </p>
-
-                          <div className="flex items-center space-x-1.5 mt-1.5 text-[11px] text-[#5D6D7E] truncate">
+                  return (
+                    <div
+                      key={opp.id}
+                      onClick={() => {
+                        searchParams.set('oppId', opp.id)
+                        setSearchParams(searchParams)
+                      }}
+                      className={cn(
+                        'p-3.5 rounded-xl border border-[#E3E7EB] hover:border-slate-400 bg-white hover:bg-slate-50/60 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer',
+                        isShaking &&
+                          'animate-shake border-red-500 ring-2 ring-red-400 bg-red-50/20',
+                      )}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-[#017848]/10 text-[#017848] flex items-center justify-center shrink-0">
+                          <Kanban className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-bold text-xs text-slate-900 truncate">
+                              {opp.titulo}
+                            </p>
+                            {isConsolidated && opp.expand?.marca_id && (
+                              <span
+                                className="text-[9px] font-bold px-2 py-0.2 rounded-full text-white shrink-0"
+                                style={{ backgroundColor: opp.expand.marca_id.cor_destaque }}
+                              >
+                                {opp.expand.marca_id.nome}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-0.5 truncate">
                             {opp.expand?.cliente_b2b_id ? (
-                              <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+                              <Building2 className="w-3 h-3 text-sky-600 shrink-0" />
                             ) : (
                               <User className="w-3 h-3 text-emerald-600 shrink-0" />
                             )}
                             <span className="truncate">{clienteNome}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#D5DBDB]/50">
-                            <span className="text-xs font-bold text-[#1C2833]">
-                              {formatCurrencyBRL(opp.valor_estimado)}
-                            </span>
-
-                            <div className="w-6 h-6 rounded-full bg-[#1B4F72] text-white flex items-center justify-center text-[10px] font-bold">
-                              {opp.expand?.vendedor_id?.name?.slice(0, 2).toUpperCase() || 'AD'}
-                            </div>
-                          </div>
-
-                          {/* BADGE DE FOLLOW-UP / TRAVA PIPEDRIVE */}
-                          <div className="mt-2.5">
-                            {followStatus === 'missing' && (
-                              <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
-                                <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
-                                <span className="truncate">Sem follow-up agendado</span>
-                              </div>
-                            )}
-                            {followStatus === 'overdue' && (
-                              <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-700 text-[10px] font-medium">
-                                <Clock className="w-3 h-3 text-red-600 shrink-0" />
-                                <span className="truncate">
-                                  Vencido: {formatDateBR(opp.proxima_acao_data)}
-                                </span>
-                              </div>
-                            )}
-                            {followStatus === 'soon' && (
-                              <div className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-medium">
-                                <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span className="truncate">
-                                  Em 48h ({formatDateBR(opp.proxima_acao_data)})
-                                </span>
-                              </div>
-                            )}
-                            {followStatus === 'ok' && (
-                              <div className="text-[10px] text-[#5D6D7E] flex items-center space-x-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                <span className="truncate">
-                                  Follow-up: {formatDateBR(opp.proxima_acao_data)}
-                                </span>
-                              </div>
-                            )}
+                            <span>•</span>
+                            <span>Resp: {opp.expand?.vendedor_id?.name || 'Administrador'}</span>
                           </div>
                         </div>
-                      )
-                    })}
-
-                    {colOpps.length === 0 && (
-                      <div className="h-24 flex items-center justify-center text-[11px] text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
-                        Arraste cards para cá
                       </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+
+                      {/* Ações e Etapa da Lista */}
+                      <div className="flex items-center space-x-4 shrink-0 justify-between md:justify-end">
+                        {/* Seletor rápido de Etapa */}
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center space-x-1.5"
+                        >
+                          <span className="text-[10px] text-slate-400 font-medium">Etapa:</span>
+                          <Select
+                            value={opp.etapa_atual}
+                            onValueChange={(val) => handleQuickChangeEtapa(opp, val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              {etapas.map((et) => (
+                                <SelectItem key={et} value={et}>
+                                  {et}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Status de Follow-up */}
+                        <div className="w-36 text-right">
+                          {followStatus === 'missing' && (
+                            <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                              Sem follow-up
+                            </Badge>
+                          )}
+                          {followStatus === 'overdue' && (
+                            <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                              Vencido ({formatDateBR(opp.proxima_acao_data)})
+                            </Badge>
+                          )}
+                          {followStatus === 'soon' && (
+                            <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[10px] rounded-full">
+                              Em 48h ({formatDateBR(opp.proxima_acao_data)})
+                            </Badge>
+                          )}
+                          {followStatus === 'ok' && (
+                            <span className="text-[11px] text-slate-600 font-medium">
+                              {formatDateBR(opp.proxima_acao_data)}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Valor Estimado */}
+                        <span className="font-black text-xs text-slate-900 w-28 text-right">
+                          {formatCurrencyBRL(opp.valor_estimado)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </Card>
+        ) : (
+          /* ================= VISUALIZAÇÃO EM TABELA ================= */
+          <Card className="h-full overflow-hidden border-[#E3E7EB] bg-white rounded-2xl shadow-xs flex flex-col">
+            <div className="flex-1 overflow-x-auto overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F8F9FA] border-b border-[#E3E7EB] text-[10px] uppercase font-bold tracking-wider text-slate-600 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-3">Negócio</th>
+                    <th className="px-4 py-3">Contato / Organização</th>
+                    <th className="px-4 py-3">Etapa Atual</th>
+                    <th className="px-4 py-3 text-right">Valor Estimado</th>
+                    <th className="px-4 py-3">Vendedor</th>
+                    <th className="px-4 py-3">Próximo Follow-up</th>
+                    <th className="px-4 py-3 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E3E7EB]/60">
+                  {sortedOpps.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                        Nenhum negócio cadastrado com estes filtros.
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedOpps.map((op) => {
+                      const clienteNome =
+                        op.expand?.cliente_b2b_id?.razao_social ||
+                        op.expand?.cliente_b2c_id?.nome_completo ||
+                        'Cliente Não Vinculado'
+                      const followStatus = getFollowUpStatus(op.proxima_acao_data)
+                      const isShaking = shakingOppId === op.id
+
+                      return (
+                        <tr
+                          key={op.id}
+                          onClick={() => {
+                            searchParams.set('oppId', op.id)
+                            setSearchParams(searchParams)
+                          }}
+                          className={cn(
+                            'hover:bg-slate-50/80 cursor-pointer transition-colors',
+                            isShaking && 'bg-red-50/40',
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <p className="font-bold text-slate-900">{op.titulo}</p>
+                            {isConsolidated && op.expand?.marca_id && (
+                              <span
+                                className="text-[10px] font-semibold"
+                                style={{ color: op.expand.marca_id.cor_destaque }}
+                              >
+                                {op.expand.marca_id.nome}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <div className="flex items-center space-x-1.5 truncate">
+                              {op.expand?.cliente_b2b_id ? (
+                                <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                              ) : (
+                                <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              )}
+                              <span className="truncate">{clienteNome}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={op.etapa_atual}
+                              onValueChange={(val) => handleQuickChangeEtapa(op, val)}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl">
+                                {etapas.map((et) => (
+                                  <SelectItem key={et} value={et}>
+                                    {et}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-4 py-3 text-right font-black text-slate-900">
+                            {formatCurrencyBRL(op.valor_estimado)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {op.expand?.vendedor_id?.name || 'Administrador NTC'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {followStatus === 'missing' && (
+                              <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                                Sem follow-up
+                              </Badge>
+                            )}
+                            {followStatus === 'overdue' && (
+                              <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                                Vencido ({formatDateBR(op.proxima_acao_data)})
+                              </Badge>
+                            )}
+                            {followStatus === 'soon' && (
+                              <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[10px] rounded-full">
+                                Em 48h ({formatDateBR(op.proxima_acao_data)})
+                              </Badge>
+                            )}
+                            {followStatus === 'ok' && (
+                              <span className="text-[11px] text-slate-600">
+                                {formatDateBR(op.proxima_acao_data)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                searchParams.set('oppId', op.id)
+                                setSearchParams(searchParams)
+                              }}
+                            >
+                              Ver Ficha
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
       </div>
 
-      {/* DRAWER DE DETALHES DE OPORTUNIDADE (DEEP LINK VIA QUERY STRING) */}
+      {/* DRAWER DE DETALHES DE OPORTUNIDADE COMPARTILHADO */}
       <OpportunityDrawer
         opportunityId={selectedOppId}
         onClose={() => {
@@ -566,34 +1067,34 @@ export default function Pipelines() {
         onUpdate={loadOportunidades}
       />
 
-      {/* MODAL NOVA OPORTUNIDADE */}
+      {/* MODAL NOVO NEGÓCIO (+ NEGÓCIO estilo Pipedrive) */}
       <Dialog open={isNewOppModalOpen} onOpenChange={setIsNewOppModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1C2833]">
-              Nova Oportunidade de Venda
+            <DialogTitle className="text-base font-bold text-slate-900">
+              Adicionar Novo Negócio
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateNewOpp} className="space-y-3.5">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Título da Negociação</Label>
+              <Label className="text-xs font-semibold text-slate-600">Título do Negócio</Label>
               <Input
                 required
                 value={newTitulo}
                 onChange={(e) => setNewTitulo(e.target.value)}
                 placeholder="ex: Fornecimento de 5.000 caixas geológicas ou Pier 24m"
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Funil / Pipeline</Label>
+                <Label className="text-xs font-semibold text-slate-600">Funil de Vendas</Label>
                 <Select value={newFunilId} onValueChange={setNewFunilId}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     {funis.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.nome_funil}
@@ -604,12 +1105,12 @@ export default function Pipelines() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Etapa Inicial</Label>
+                <Label className="text-xs font-semibold text-slate-600">Etapa Inicial</Label>
                 <Select value={newEtapa} onValueChange={setNewEtapa}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     {funis
                       .find((f) => f.id === newFunilId)
                       ?.etapas_ordenadas?.map((et) => (
@@ -622,49 +1123,49 @@ export default function Pipelines() {
               </div>
             </div>
 
-            {/* Vínculo de Cliente B2B ou B2C */}
-            <div className="space-y-1.5 p-3 bg-slate-50 border border-[#D5DBDB] rounded-lg">
+            {/* Vínculo de Contato: B2B vs B2C */}
+            <div className="space-y-1.5 p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-[#1C2833]">Cliente Relacionado</Label>
-                <div className="flex items-center space-x-2 text-xs">
+                <Label className="text-xs font-semibold text-slate-900">Contato Vinculado</Label>
+                <div className="flex items-center space-x-1.5 text-xs">
                   <button
                     type="button"
                     onClick={() => setNewClienteTipo('b2b')}
                     className={cn(
-                      'px-2 py-0.5 rounded text-[11px] font-semibold',
+                      'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all',
                       newClienteTipo === 'b2b'
-                        ? 'bg-[#1B4F72] text-white'
-                        : 'bg-white text-[#5D6D7E] border border-[#D5DBDB]',
+                        ? 'bg-[#017848] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-[#E3E7EB]',
                     )}
                   >
-                    Conta B2B (CNPJ)
+                    Organização (B2B)
                   </button>
                   <button
                     type="button"
                     onClick={() => setNewClienteTipo('b2c')}
                     className={cn(
-                      'px-2 py-0.5 rounded text-[11px] font-semibold',
+                      'px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all',
                       newClienteTipo === 'b2c'
-                        ? 'bg-[#1B4F72] text-white'
-                        : 'bg-white text-[#5D6D7E] border border-[#D5DBDB]',
+                        ? 'bg-[#017848] text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-[#E3E7EB]',
                     )}
                   >
-                    Consumidor B2C (CPF)
+                    Pessoa (B2C)
                   </button>
                 </div>
               </div>
 
               <Select value={newClienteId} onValueChange={setNewClienteId}>
-                <SelectTrigger className="h-9 text-xs bg-white">
+                <SelectTrigger className="h-9 text-xs bg-white rounded-xl">
                   <SelectValue
                     placeholder={
                       newClienteTipo === 'b2b'
-                        ? 'Selecione uma conta B2B...'
-                        : 'Selecione um consumidor B2C...'
+                        ? 'Selecione uma organização B2B...'
+                        : 'Selecione uma pessoa B2C...'
                     }
                   />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {newClienteTipo === 'b2b'
                     ? clientesB2BList.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
@@ -681,40 +1182,40 @@ export default function Pipelines() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Valor Estimado (R$)</Label>
+              <Label className="text-xs font-semibold text-slate-600">Valor Estimado (R$)</Label>
               <Input
                 type="number"
                 required
                 value={newValor}
                 onChange={(e) => setNewValor(Number(e.target.value))}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
             {/* Follow-up Inicial Obrigatório */}
-            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
               <div className="flex items-center space-x-1.5 text-amber-900 text-xs font-bold">
                 <Clock className="w-3.5 h-3.5 text-amber-600" />
                 <span>Próxima Ação de Follow-up (Exigido pelo CRM)</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px] font-semibold text-[#5D6D7E]">Data</Label>
+                  <Label className="text-[10px] font-semibold text-slate-600">Data</Label>
                   <Input
                     type="date"
                     required
                     value={newFollowUpData}
                     onChange={(e) => setNewFollowUpData(e.target.value)}
-                    className="h-8 text-xs bg-white"
+                    className="h-8 text-xs bg-white rounded-lg"
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-semibold text-[#5D6D7E]">Ação Prevista</Label>
+                  <Label className="text-[10px] font-semibold text-slate-600">Ação Prevista</Label>
                   <Input
                     required
                     value={newFollowUpDesc}
                     onChange={(e) => setNewFollowUpDesc(e.target.value)}
-                    className="h-8 text-xs bg-white"
+                    className="h-8 text-xs bg-white rounded-lg"
                   />
                 </div>
               </div>
@@ -726,7 +1227,7 @@ export default function Pipelines() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsNewOppModalOpen(false)}
-                className="text-xs border-[#D5DBDB]"
+                className="text-xs rounded-xl border-[#E3E7EB]"
               >
                 Cancelar
               </Button>
@@ -734,34 +1235,36 @@ export default function Pipelines() {
                 type="submit"
                 size="sm"
                 disabled={isSubmittingNewOpp}
-                className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white"
+                className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
               >
-                {isSubmittingNewOpp ? 'Criando...' : 'Cadastrar Oportunidade'}
+                {isSubmittingNewOpp ? 'Criando...' : 'Adicionar Negócio'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE CONFIRMAÇÃO DE DRAG & DROP (GARANTIA DE PRÓXIMO FOLLOW-UP) */}
+      {/* MODAL DE CONFIRMAÇÃO DE AVANÇO DE ETAPA COM PRÓXIMO FOLLOW-UP OBRIGATÓRIO */}
       <Dialog open={dragConfirmModalOpen} onOpenChange={setDragConfirmModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1C2833]">
+            <DialogTitle className="text-base font-bold text-slate-900">
               Confirmar Avanço de Etapa
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
-            <p className="text-[#5D6D7E]">
+            <p className="text-slate-600">
               Movendo <strong>{draggedOpportunity?.titulo}</strong> para a etapa:{' '}
-              <Badge className="bg-[#1B4F72] text-white text-[11px] ml-1">{targetEtapa}</Badge>
+              <Badge className="bg-[#017848] text-white text-[11px] ml-1 rounded-full">
+                {targetEtapa}
+              </Badge>
             </p>
 
-            <div className="p-3 bg-slate-50 border border-[#D5DBDB] rounded-lg space-y-2">
-              <p className="font-bold text-[#1C2833]">Agendar Próxima Ação (Follow-up)</p>
+            <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-2">
+              <p className="font-bold text-slate-900">Agendar Próxima Ação (Follow-up)</p>
               <div>
-                <Label className="text-[10px] font-semibold text-[#5D6D7E]">
+                <Label className="text-[10px] font-semibold text-slate-600">
                   Data da Próxima Interação
                 </Label>
                 <Input
@@ -769,11 +1272,11 @@ export default function Pipelines() {
                   required
                   value={dragFollowUpData}
                   onChange={(e) => setDragFollowUpData(e.target.value)}
-                  className="h-8 text-xs bg-white"
+                  className="h-8 text-xs bg-white rounded-lg"
                 />
               </div>
               <div>
-                <Label className="text-[10px] font-semibold text-[#5D6D7E]">
+                <Label className="text-[10px] font-semibold text-slate-600">
                   Descrição da Ação
                 </Label>
                 <Input
@@ -781,7 +1284,7 @@ export default function Pipelines() {
                   value={dragFollowUpDesc}
                   onChange={(e) => setDragFollowUpDesc(e.target.value)}
                   placeholder="ex: Enviar minuta contratual ou agendar reunião técnica"
-                  className="h-8 text-xs bg-white"
+                  className="h-8 text-xs bg-white rounded-lg"
                 />
               </div>
             </div>
@@ -792,14 +1295,14 @@ export default function Pipelines() {
               variant="outline"
               size="sm"
               onClick={() => setDragConfirmModalOpen(false)}
-              className="text-xs border-[#D5DBDB]"
+              className="text-xs rounded-xl border-[#E3E7EB]"
             >
               Cancelar
             </Button>
             <Button
               size="sm"
               onClick={confirmMoveEtapa}
-              className="text-xs font-semibold bg-[#1B4F72] hover:bg-[#154360] text-white"
+              className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
             >
               Confirmar & Salvar Follow-up
             </Button>
