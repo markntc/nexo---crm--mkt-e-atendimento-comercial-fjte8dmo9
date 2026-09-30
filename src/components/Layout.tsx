@@ -373,52 +373,6 @@ export default function Layout() {
         </div>
 
         {/* Footer: User profile */}
-        <div className="p-2 border-t border-[#2C243B]">
-          {isExpanded ? (
-            <div className="p-2 rounded-xl bg-white/5 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-[#017848] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white truncate">
-                    {user?.name || 'Administrador'}
-                  </p>
-                  <p className="text-[10px] text-slate-300 truncate">{user?.email}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                title="Sair do sistema"
-                className="p-1.5 rounded-lg text-slate-300 hover:text-red-400 hover:bg-white/10 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <Tooltip delayDuration={150}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-11 h-11 rounded-xl mx-auto flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-white/10 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#017848] text-white flex items-center justify-center text-xs font-bold">
-                    {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}
-                  </div>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="right"
-                sideOffset={12}
-                className="bg-[#0B0C10] text-white text-xs"
-              >
-                Sair ({user?.name || 'Usuário'})
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </div>
       </aside>
 
       {/* MOBILE DRAWER */}
