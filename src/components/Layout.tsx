@@ -287,12 +287,7 @@ export default function Layout() {
             </div>
             {isExpanded && (
               <div className="min-w-0 flex-1 animate-fade-in flex flex-col justify-center">
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[13px] font-black text-white leading-none tracking-tight">
-                    NTC
-                  </span>
-                  <span className="text-[11px] font-bold text-slate-300 leading-none">COMPANY</span>
-                </div>
+                <div className="flex items-center space-x-1.5"></div>
                 <div className="flex items-center space-x-1.5 mt-1">
                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
                     Nexo CRM
