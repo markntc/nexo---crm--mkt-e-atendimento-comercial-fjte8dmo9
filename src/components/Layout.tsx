@@ -18,12 +18,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   LayoutDashboard,
-  KanbanSquare,
+  Funnel,
   Users2,
   Target,
   CheckSquare,
   GitCompare,
   FileSpreadsheet,
+  Settings,
   ShieldCheck,
   BarChart3,
   Menu,
@@ -124,7 +125,7 @@ export default function Layout() {
     {
       label: 'Negócios',
       path: '/negocios',
-      icon: KanbanSquare,
+      icon: Funnel,
       badge: null,
       activeMatches: ['/negocios', '/pipelines', '/oportunidades'],
     },
@@ -148,8 +149,8 @@ export default function Layout() {
       badge: duplicidadesCount > 0 ? duplicidadesCount : null,
     },
     { label: 'Importação', path: '/importacao', icon: FileSpreadsheet, badge: null },
-    { label: 'Privacidade LGPD', path: '/preferencias', icon: ShieldCheck, badge: null },
     { label: 'Painéis & Relatórios', path: '/relatorios', icon: BarChart3, badge: null },
+    { label: 'Preferências', path: '/preferencias', icon: Settings, badge: null },
   ]
 
   const handleLogout = () => {
@@ -524,7 +525,7 @@ export default function Layout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
-                  className="h-9 w-9 rounded-xl bg-[#017848] hover:bg-[#01653c] text-white shadow-xs shrink-0 font-bold transition-transform active:scale-95"
+                  className="h-9 w-9 rounded-full bg-[#017848] hover:bg-[#01653c] text-white shadow-xs shrink-0 font-bold transition-transform active:scale-95"
                   title="Criação Rápida (+)"
                   aria-label="Adicionar item rapidamente"
                 >
@@ -617,8 +618,8 @@ export default function Layout() {
                   onClick={() => navigate('/preferencias')}
                   className="text-xs cursor-pointer rounded-lg"
                 >
-                  <ShieldCheck className="w-4 h-4 mr-2 text-slate-500" />
-                  Privacidade & LGPD
+                  <Settings className="w-4 h-4 mr-2 text-slate-500" />
+                  Preferências
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => navigate('/relatorios')}
