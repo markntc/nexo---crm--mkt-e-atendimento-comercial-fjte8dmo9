@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useBrand } from '@/contexts/BrandContext'
 import pb from '@/lib/pocketbase/client'
 import { GlobalSearch } from './GlobalSearch'
+import { NtcLogo } from './NtcLogo'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -275,19 +276,29 @@ export default function Layout() {
       >
         {/* Top Logo / Pipedrive 'P' or 'N' Icon */}
         <div className="h-14 px-3 flex items-center justify-between border-b border-[#2C243B]">
-          <div className="flex items-center space-x-3 overflow-hidden">
-            {/* Logo Icon */}
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#017848] to-[#015835] text-white flex items-center justify-center font-black text-lg shadow-md shrink-0">
-              N
+          <div className="flex items-center space-x-3 overflow-hidden w-full">
+            {/* Logo NTC Oficial (Ícone com 3 paralelogramos vermelhos ou completo) */}
+            <div className="relative shrink-0 flex items-center justify-center">
+              <NtcLogo
+                variant="icon"
+                className="w-10 h-10 rounded-xl shadow-md ring-1 ring-white/10 hover:ring-white/20 transition-all cursor-pointer"
+                alt="NTC Company"
+              />
             </div>
             {isExpanded && (
-              <div className="min-w-0 flex-1 animate-fade-in">
-                <h2 className="text-sm font-bold text-white leading-none truncate tracking-tight">
-                  NEXO NTC
-                </h2>
-                <p className="text-[10px] text-slate-300 font-medium tracking-wider uppercase mt-1 truncate">
-                  Multimarca
-                </p>
+              <div className="min-w-0 flex-1 animate-fade-in flex flex-col justify-center">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[13px] font-black text-white leading-none tracking-tight">
+                    NTC
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300 leading-none">COMPANY</span>
+                </div>
+                <div className="flex items-center space-x-1.5 mt-1">
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                    Nexo CRM
+                  </span>
+                  <span className="text-[9px] text-slate-400">| Multimarca</span>
+                </div>
               </div>
             )}
           </div>
@@ -421,12 +432,18 @@ export default function Layout() {
           className="w-[280px] p-0 flex flex-col bg-[#201A29] text-white border-r border-[#2C243B]"
         >
           <SheetHeader className="p-4 border-b border-[#2C243B] text-left flex flex-row items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#017848] to-[#015835] text-white flex items-center justify-center font-bold text-base shadow-sm">
-              N
-            </div>
+            <NtcLogo
+              variant="icon"
+              className="w-10 h-10 rounded-xl shadow-sm ring-1 ring-white/10"
+              alt="NTC Company"
+            />
             <div>
-              <SheetTitle className="text-sm font-bold text-white">CRM NTC</SheetTitle>
-              <p className="text-[11px] text-slate-300">Pipedrive Edition</p>
+              <div className="flex items-center space-x-1.5">
+                <SheetTitle className="text-sm font-black text-white leading-none">
+                  NTC COMPANY
+                </SheetTitle>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">Nexo CRM • Pipedrive Edition</p>
             </div>
           </SheetHeader>
 

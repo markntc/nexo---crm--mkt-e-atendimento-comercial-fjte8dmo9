@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, CheckCircle2, XCircle, Layers } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { NtcLogo } from '@/components/NtcLogo'
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
@@ -43,13 +44,17 @@ export default function VerifyEmail() {
     <div className="min-h-screen bg-[#F4F6F7] flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1B4F72] text-white shadow-md mb-3">
-            <Layers className="w-8 h-8" />
+          <div className="flex justify-center mb-4">
+            <NtcLogo
+              variant="full"
+              className="w-20 h-20 rounded-2xl shadow-lg ring-1 ring-black/10 p-1.5"
+              alt="NTC Company"
+            />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1C2833]">
-            NTC Sistema Integrado
-          </h1>
-          <p className="text-sm text-[#5D6D7E] mt-1">Confirmação de Conta</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#060950]">NTC COMPANY</h1>
+          <p className="text-xs font-semibold text-[#017848] uppercase tracking-wider mt-0.5">
+            Confirmação de Conta Corporativa
+          </p>
         </div>
 
         <Card className="shadow-sm border-[#D5DBDB] bg-white">

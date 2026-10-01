@@ -14,7 +14,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, ShieldCheck, Layers } from 'lucide-react'
+import { Loader2, ShieldCheck } from 'lucide-react'
+import { NtcLogo } from '@/components/NtcLogo'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -47,12 +48,19 @@ export default function Login() {
     <div className="min-h-screen bg-[#F4F6F7] flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1B4F72] text-white shadow-md mb-3">
-            <Layers className="w-8 h-8" />
+          <div className="flex justify-center mb-4">
+            <NtcLogo
+              variant="full"
+              className="w-20 h-20 rounded-2xl shadow-lg ring-1 ring-black/10 p-1.5"
+              alt="NTC Company"
+            />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1C2833]">Nexo NTC</h1>
-          <p className="text-sm text-[#5D6D7E] mt-1">
-            Plataforma Multibrand de CRM, Vendas, Marketing &amp; Governança
+          <h1 className="text-2xl font-black tracking-tight text-[#060950]">NTC COMPANY</h1>
+          <p className="text-xs font-semibold text-[#017848] uppercase tracking-wider mt-0.5">
+            Nexo CRM • Plataforma Comercial &amp; Governança
+          </p>
+          <p className="text-xs text-[#5D6D7E] mt-1">
+            Gestão Multimarca unificada para indústria e distribuição
           </p>
         </div>
 
