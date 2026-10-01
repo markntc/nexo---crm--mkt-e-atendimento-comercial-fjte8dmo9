@@ -759,7 +759,7 @@ export default function Clientes() {
                 activeSubNav === 'pessoas' ? 'text-[#0284C7]' : 'text-slate-500',
               )}
             />
-            <span>Pessoas (B2C)</span>
+            <span>Pessoas</span>
           </div>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
             {clientesB2C.length}
@@ -783,7 +783,7 @@ export default function Clientes() {
                 activeSubNav === 'organizacoes' ? 'text-[#0284C7]' : 'text-slate-500',
               )}
             />
-            <span>Organizações (B2B)</span>
+            <span>Organizações</span>
           </div>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
             {clientesB2B.length}
@@ -807,7 +807,7 @@ export default function Clientes() {
                 activeSubNav === 'leads' ? 'text-[#0284C7]' : 'text-slate-500',
               )}
             />
-            <span>Leads (Entrada)</span>
+            <span>Leads</span>
           </div>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#017848] text-white">
             {leadsList.length}
