@@ -50,11 +50,9 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#1B4F72] text-white shadow-md mb-3">
             <Layers className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1C2833]">
-            NTC Sistema Integrado
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#1C2833]">Nexo NTC</h1>
           <p className="text-sm text-[#5D6D7E] mt-1">
-            Plataforma Multibrand de CRM, Vendas & Governança
+            Plataforma Multibrand de CRM, Vendas, Marketing &amp; Governança
           </p>
         </div>
 
