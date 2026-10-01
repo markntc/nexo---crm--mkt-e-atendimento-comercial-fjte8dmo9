@@ -5,6 +5,7 @@ import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import type { Lead, Funil, ClienteB2B, ClienteB2C } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
+import { getEtapaNome } from '@/lib/relationshipStatus'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -119,7 +120,7 @@ export default function Leads() {
       if (res.length > 0) {
         setConvFunilId(res[0].id)
         if (res[0].etapas_ordenadas?.length > 0) {
-          setConvEtapa(res[0].etapas_ordenadas[0])
+          setConvEtapa(getEtapaNome(res[0].etapas_ordenadas[0]))
         }
       }
     } catch (err) {
@@ -553,11 +554,14 @@ export default function Leads() {
                   <SelectContent>
                     {funis
                       .find((f) => f.id === convFunilId)
-                      ?.etapas_ordenadas?.map((et) => (
-                        <SelectItem key={et} value={et}>
-                          {et}
-                        </SelectItem>
-                      ))}
+                      ?.etapas_ordenadas?.map((etItem) => {
+                        const nome = getEtapaNome(etItem)
+                        return (
+                          <SelectItem key={nome} value={nome}>
+                            {nome}
+                          </SelectItem>
+                        )
+                      })}
                   </SelectContent>
                 </Select>
               </div>

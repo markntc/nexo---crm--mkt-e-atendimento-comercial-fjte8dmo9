@@ -33,7 +33,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { maskPhone } from '@/lib/formatters'
-import type { Funil, ClienteB2B, ClienteB2C } from '@/types'
+import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
+import { getEtapaNome } from '@/lib/relationshipStatus'
 
 export interface AddDealModalProps {
   open: boolean
@@ -191,7 +192,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           setFunilId(initialFunil.id)
           const etapasList = initialFunil.etapas_ordenadas || []
           if (etapasList.length > 0) {
-            setEtapaAtual(etapasList[0])
+            setEtapaAtual(getEtapaNome(etapasList[0]))
           }
         }
       } catch (err) {
@@ -209,8 +210,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     if (!funilId) return
     const f = funis.find((x) => x.id === funilId)
     if (f && f.etapas_ordenadas && f.etapas_ordenadas.length > 0) {
-      if (!f.etapas_ordenadas.includes(etapaAtual)) {
-        setEtapaAtual(f.etapas_ordenadas[0])
+      const nomes = f.etapas_ordenadas.map(getEtapaNome)
+      if (!nomes.includes(etapaAtual)) {
+        setEtapaAtual(nomes[0])
       }
     }
   }, [funilId, funis])
@@ -320,13 +322,19 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
-  // Adicionar nova etapa inline ao funil ativo
+  // Adicionar nova etapa inline ao funil ativo mantendo compatibilidade com EtapaConfig
   const handleSaveNewEtapa = async () => {
     if (!novaEtapaNome.trim() || !funilId) return
     const activeF = funis.find((f) => f.id === funilId)
     if (!activeF) return
 
-    const novasEtapas = [...(activeF.etapas_ordenadas || []), novaEtapaNome.trim()]
+    const novaEtapaObj: EtapaConfig = {
+      nome: novaEtapaNome.trim(),
+      valor_referencia: 0,
+      is_won: false,
+      is_lost: false,
+    }
+    const novasEtapas: EtapaItem[] = [...(activeF.etapas_ordenadas || []), novaEtapaObj]
     try {
       await pb.collection('funis').update(activeF.id, {
         etapas_ordenadas: novasEtapas,
@@ -477,9 +485,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
-  // Funil ativo e suas etapas
+  // Funil ativo e suas etapas normalizadas para string
   const activeFunil = funis.find((f) => f.id === funilId)
-  const etapasList = activeFunil?.etapas_ordenadas || []
+  const etapasList = (activeFunil?.etapas_ordenadas || []).map(getEtapaNome)
   const currentEtapaIndex = etapasList.indexOf(etapaAtual)
 
   // Filtros de busca inline para Pessoa e Organização

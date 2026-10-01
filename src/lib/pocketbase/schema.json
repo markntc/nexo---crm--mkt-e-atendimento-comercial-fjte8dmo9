@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-09-30T20:19:17.245Z",
+  "generatedAt": "2026-10-01T15:00:10.048Z",
   "collections": [
     {
       "name": "users",
       "type": "auth",
       "apiRules": {
-        "list": "id = @request.auth.id",
-        "view": "id = @request.auth.id",
-        "create": "",
-        "update": "id = @request.auth.id",
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
         "delete": "id = @request.auth.id"
       },
       "fields": [
@@ -37,6 +37,25 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "perfil_global",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria"]
+        },
+        {
+          "name": "permissoes",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -918,6 +937,76 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_logs_entidade ON logs_auditoria (entidade, entidade_id)"]
+    },
+    {
+      "name": "convites_usuarios",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "email",
+          "type": "email",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "perfil_global",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria"]
+        },
+        {
+          "name": "permissoes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Pendente", "Aceito", "Cancelado"]
+        },
+        {
+          "name": "convidado_por_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_convites_email ON convites_usuarios (email)",
+        "CREATE INDEX idx_convites_status ON convites_usuarios (status)"
+      ]
     }
   ]
 }

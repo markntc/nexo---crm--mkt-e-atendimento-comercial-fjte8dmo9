@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from '@/hooks/use-toast'
 import { isValidCPF, isValidCNPJ, maskCPF, maskCNPJ, maskPhone } from '@/lib/formatters'
+import { getEtapaNome } from '@/lib/relationshipStatus'
 import type { Funil, Organizacao, Pessoa, Oportunidade } from '@/types'
 import { AddDealModal } from '@/components/AddDealModal'
 
@@ -172,7 +173,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
         if (funisRes.length > 0) {
           setNegFunilId(funisRes[0].id)
           if (funisRes[0].etapas_ordenadas && funisRes[0].etapas_ordenadas.length > 0) {
-            setNegEtapa(funisRes[0].etapas_ordenadas[0])
+            setNegEtapa(getEtapaNome(funisRes[0].etapas_ordenadas[0]))
           }
         }
         if (oppsRes.length > 0) {
@@ -192,7 +193,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
     setNegFunilId(fId)
     const sel = funis.find((f) => f.id === fId)
     if (sel && sel.etapas_ordenadas?.length) {
-      setNegEtapa(sel.etapas_ordenadas[0])
+      setNegEtapa(getEtapaNome(sel.etapas_ordenadas[0]))
     }
   }
 

@@ -6,6 +6,7 @@ import type { AuthRecord } from 'pocketbase'
 export interface AuthContextType {
   user: AuthRecord | null
   isAuthenticated: boolean
+  isAdmin: boolean
   isLoading: boolean
   login: (email: string, pass: string) => Promise<void>
   logout: () => void
@@ -78,11 +79,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
   }
 
+  const isAdmin =
+    user?.perfil_global === 'Administrador' ||
+    user?.email === 'skip.adm@ntc.ind.br' ||
+    user?.name?.toLowerCase().includes('administrador') ||
+    false
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isAuthenticated: !!user && pb.authStore.isValid,
+        isAdmin,
         isLoading,
         login,
         logout,

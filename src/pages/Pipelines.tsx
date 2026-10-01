@@ -6,7 +6,9 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
-import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
+import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C, EtapaConfig } from '@/types'
+import { getEtapaNome } from '@/lib/relationshipStatus'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { AddDealModal } from '@/components/AddDealModal'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
@@ -64,6 +66,7 @@ type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' |
 export default function Pipelines() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { activeBrand, isConsolidated } = useBrand()
+  const { isAdmin } = useAuth()
 
   // Modo de visualização (Kanban, Lista, Tabela)
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -195,6 +198,63 @@ export default function Pipelines() {
     loadOportunidades()
   }, [activeFunilId, selectedEquipeFilter])
 
+  // Estado para inline "+ Adicionar nova etapa" no fim do Kanban (Admin Only)
+  const [isAddingKanbanStage, setIsAddingKanbanStage] = useState(false)
+  const [kanbanStageNome, setKanbanStageNome] = useState('')
+  const [kanbanStageValor, setKanbanStageValor] = useState<string>('')
+  const [isSavingKanbanStage, setIsSavingKanbanStage] = useState(false)
+
+  // Salvar nova etapa inline no fim do Kanban
+  const handleSaveKanbanStageInline = async () => {
+    const trimmed = kanbanStageNome.trim()
+    if (!trimmed || !activeFunilId) return
+
+    const activeF = funis.find((f) => f.id === activeFunilId)
+    if (!activeF) return
+
+    setIsSavingKanbanStage(true)
+    try {
+      const numValor = parseFloat(kanbanStageValor) || 0
+      const currentEtapas = (activeF.etapas_ordenadas || []).map((item) => {
+        if (typeof item === 'string') return item
+        return item
+      })
+
+      const novaEtapaObj: EtapaConfig = {
+        nome: trimmed,
+        valor_referencia: numValor,
+        is_won: false,
+        is_lost: false,
+      }
+
+      const novasEtapas = [...currentEtapas, novaEtapaObj]
+
+      const updatedF = await pb.collection('funis').update<Funil>(activeF.id, {
+        etapas_ordenadas: novasEtapas,
+      })
+
+      // Atualiza lista de funis em memória
+      setFunis((prev) => prev.map((f) => (f.id === updatedF.id ? updatedF : f)))
+      setIsAddingKanbanStage(false)
+      setKanbanStageNome('')
+      setKanbanStageValor('')
+
+      toast({
+        title: 'Nova etapa adicionada!',
+        description: `"${trimmed}" agora faz parte do funil "${updatedF.nome_funil}".`,
+      })
+    } catch (err) {
+      console.error('Erro ao adicionar etapa no Kanban:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível adicionar a nova etapa.',
+      })
+    } finally {
+      setIsSavingKanbanStage(false)
+    }
+  }
+
   // Carrega opções de clientes para o modal
   const loadClientesOptions = async () => {
     try {
@@ -215,13 +275,13 @@ export default function Pipelines() {
       setNewFunilId(activeFunilId)
       const currFunil = funis.find((f) => f.id === activeFunilId)
       if (currFunil && currFunil.etapas_ordenadas?.length > 0) {
-        setNewEtapa(currFunil.etapas_ordenadas[0])
+        setNewEtapa(getEtapaNome(currFunil.etapas_ordenadas[0]))
       }
     }
   }, [isNewOppModalOpen])
 
   const activeFunil = funis.find((f) => f.id === activeFunilId)
-  const etapas = activeFunil?.etapas_ordenadas || []
+  const etapas = (activeFunil?.etapas_ordenadas || []).map(getEtapaNome)
 
   // Alterna view mode e sincroniza na URL
   const handleChangeViewMode = (mode: ViewMode) => {
@@ -815,6 +875,96 @@ export default function Pipelines() {
                   </div>
                 )
               })}
+
+              {/* FRENTE 2: BOTÃO DISCRETO NO FIM DA ÚLTIMA COLUNA "+ Adicionar nova etapa" (ADMIN ONLY) */}
+              {isAdmin && (
+                <div className="w-[280px] shrink-0 select-none flex flex-col justify-start">
+                  {!isAddingKanbanStage ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingKanbanStage(true)}
+                      className="w-full h-12 rounded-2xl border-2 border-dashed border-[#D5DBDB] hover:border-[#017848] bg-white/50 hover:bg-emerald-50/40 text-slate-600 hover:text-[#017848] text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-2xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Adicionar nova etapa</span>
+                    </button>
+                  ) : (
+                    <div className="p-3.5 bg-white border border-[#E3E7EB] rounded-2xl shadow-md space-y-2.5 animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-800">
+                          Nova Etapa do Funil
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingKanbanStage(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          Nome da Etapa
+                        </Label>
+                        <Input
+                          autoFocus
+                          value={kanbanStageNome}
+                          onChange={(e) => setKanbanStageNome(e.target.value)}
+                          placeholder="ex: Envio de Amostra"
+                          className="h-8 text-xs rounded-lg mt-0.5"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveKanbanStageInline()
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] font-semibold text-slate-600">
+                          Valor de Referência (R$)
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={kanbanStageValor}
+                          onChange={(e) => setKanbanStageValor(e.target.value)}
+                          placeholder="0,00"
+                          className="h-8 text-xs rounded-lg mt-0.5"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveKanbanStageInline()
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-1.5 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsAddingKanbanStage(false)}
+                          className="h-7 text-xs text-slate-500 rounded-lg px-2"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isSavingKanbanStage || !kanbanStageNome.trim()}
+                          onClick={handleSaveKanbanStageInline}
+                          className="h-7 text-xs font-bold rounded-lg bg-[#017848] hover:bg-[#01653c] text-white px-3"
+                        >
+                          {isSavingKanbanStage ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Salvar'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : viewMode === 'list' ? (

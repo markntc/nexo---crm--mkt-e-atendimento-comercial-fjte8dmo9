@@ -17,7 +17,7 @@ import type {
   PreferenciaComunicacao,
   Atividade,
 } from '@/types'
-import { getClientStatusSets } from '@/lib/relationshipStatus'
+import { getClientStatusSets, getEtapaNome } from '@/lib/relationshipStatus'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -643,7 +643,7 @@ export default function Clientes() {
     if (funis.length > 0) {
       setConvFunilId(funis[0].id)
       if (funis[0].etapas_ordenadas && funis[0].etapas_ordenadas.length > 0) {
-        setConvEtapa(funis[0].etapas_ordenadas[0])
+        setConvEtapa(getEtapaNome(funis[0].etapas_ordenadas[0]))
       }
     }
   }
@@ -2566,7 +2566,7 @@ export default function Clientes() {
                       setConvFunilId(val)
                       const f = funis.find((x) => x.id === val)
                       if (f && f.etapas_ordenadas && f.etapas_ordenadas.length > 0) {
-                        setConvEtapa(f.etapas_ordenadas[0])
+                        setConvEtapa(getEtapaNome(f.etapas_ordenadas[0]))
                       }
                     }}
                   >
@@ -2591,11 +2591,14 @@ export default function Clientes() {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       {(funis.find((f) => f.id === convFunilId)?.etapas_ordenadas || []).map(
-                        (et) => (
-                          <SelectItem key={et} value={et}>
-                            {et}
-                          </SelectItem>
-                        ),
+                        (etItem) => {
+                          const nome = getEtapaNome(etItem)
+                          return (
+                            <SelectItem key={nome} value={nome}>
+                              {nome}
+                            </SelectItem>
+                          )
+                        },
                       )}
                     </SelectContent>
                   </Select>

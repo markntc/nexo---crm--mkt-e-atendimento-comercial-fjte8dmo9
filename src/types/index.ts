@@ -22,17 +22,64 @@ export interface Equipe {
   }
 }
 
+export interface EtapaConfig {
+  nome: string
+  valor_referencia?: number
+  is_won?: boolean
+  is_lost?: boolean
+}
+
+export type EtapaItem = string | EtapaConfig
+
 export interface Funil {
   id: string
   marca_id: string
   equipe_id?: string
   nome_funil: string
-  etapas_ordenadas: string[]
+  etapas_ordenadas: EtapaItem[]
   created: string
   updated: string
   expand?: {
     marca_id?: Marca
     equipe_id?: Equipe
+  }
+}
+
+export type PerfilGlobal = 'Administrador' | 'Supervisor' | 'Vendedor' | 'Diretoria'
+export type PapelMarca = 'Vendedor' | 'Supervisor' | 'Administrador de marca' | 'Diretoria'
+
+export interface PermissoesUsuario {
+  marcas_permitidas?: string[]
+  papeis_por_marca?: Record<string, PapelMarca>
+  escopo_visibilidade?: 'proprios' | 'equipe' | 'marca_inteira'
+  pode_conciliar?: boolean
+  pode_importar?: boolean
+}
+
+export interface Usuario {
+  id: string
+  email: string
+  name: string
+  avatar?: string
+  ativo?: boolean
+  perfil_global?: PerfilGlobal
+  permissoes?: PermissoesUsuario
+  created: string
+  updated: string
+}
+
+export interface ConviteUsuario {
+  id: string
+  nome: string
+  email: string
+  perfil_global: PerfilGlobal
+  permissoes?: PermissoesUsuario
+  status: 'Pendente' | 'Aceito' | 'Cancelado'
+  convidado_por_id?: string
+  created: string
+  updated: string
+  expand?: {
+    convidado_por_id?: Usuario
   }
 }
 
