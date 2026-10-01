@@ -282,7 +282,7 @@ export default function Layout() {
             {isExpanded && (
               <div className="min-w-0 flex-1 animate-fade-in">
                 <h2 className="text-sm font-bold text-white leading-none truncate tracking-tight">
-                  CRM NTC
+                  NEXUS NTC
                 </h2>
                 <p className="text-[10px] text-slate-300 font-medium tracking-wider uppercase mt-1 truncate">
                   Multimarca
