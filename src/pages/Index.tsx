@@ -194,7 +194,7 @@ export default function Index() {
             className="text-xs h-9 font-bold text-white shadow-sm rounded-xl bg-[#017848] hover:bg-[#01653c]"
           >
             <Plus className="w-4 h-4 mr-1.5" />
-            Nova Negócio
+            Novo Negócio
           </Button>
         </div>
       </div>
