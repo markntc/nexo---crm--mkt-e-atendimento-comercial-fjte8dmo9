@@ -26,8 +26,11 @@ export const NtcLogo: React.FC<NtcLogoProps> = ({
   rounded = true,
 }) => {
   if (variant === 'icon') {
-    // Foca apenas no símbolo vermelho à esquerda (as 3 hastes inclinadas)
-    // No layout original: o símbolo está entre ~15% e 42% da largura horizontal e centrado verticalmente.
+    // Enquadra a imagem institucional da NTC Company focando no símbolo (ícone das 3 hastes vermelhas à esquerda).
+    // O logo institucional original tem o símbolo no terço esquerdo e o texto à direita sobre fundo azul-marinho #060950.
+    // Com container proporcional, object-cover e object-position ("left center"), o símbolo preenche perfeitamente
+    // e de forma estável o espaço 40x40px (ou qualquer dimensão de ícone), sem distorção, sem margens mágicas
+    // e mantendo as cores e a textura oficiais do arquivo original.
     return (
       <div
         className={cn(
@@ -41,14 +44,7 @@ export const NtcLogo: React.FC<NtcLogoProps> = ({
         <img
           src={logoNtc}
           alt={alt}
-          className="absolute max-w-none pointer-events-none select-none"
-          style={{
-            width: '275%',
-            height: '275%',
-            objectFit: 'cover',
-            left: '-44%',
-            top: '-87%',
-          }}
+          className="w-full h-full object-cover object-left pointer-events-none select-none p-1"
           loading="eager"
           decoding="async"
         />
