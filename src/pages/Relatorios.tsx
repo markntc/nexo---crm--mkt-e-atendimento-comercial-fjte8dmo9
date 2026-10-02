@@ -31,6 +31,9 @@ import {
   Layers,
   FileSpreadsheet,
   Loader2,
+  Repeat,
+  AlertOctagon,
+  UserCheck,
 } from 'lucide-react'
 
 export default function Relatorios() {
@@ -43,6 +46,8 @@ export default function Relatorios() {
     podeVerConsolidado,
   } = useBrand()
   const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
+  const isRepresentante =
+    (user as unknown as { perfil_global?: string })?.perfil_global === 'Representante'
 
   // Se o usuário não puder ver consolidado (Supervisor / Vendedor), aba SEMPRE é 'marca'
   const [activeTab, setActiveTab] = useState<'marca' | 'consolidado'>(
@@ -80,15 +85,16 @@ export default function Relatorios() {
 
       // 2. Escopo de visibilidade:
       // Supervisor: apenas a marca ativa (sem agregação multimarca) e escopo de equipe/marca
-      // Vendedor: apenas a marca ativa e somente seus próprios negócios/cadastros se escopo 'proprios'
+      // Vendedor e Representante: apenas a marca ativa e somente seus próprios negócios/cadastros se escopo 'proprios' ou Representante
       if (user && !isAdmin && !isDiretoria) {
-        if (isVendedor && escopoVisibilidade === 'proprios') {
+        if (
+          isRepresentante ||
+          (isVendedor && escopoVisibilidade === 'proprios') ||
+          escopoVisibilidade === 'proprios'
+        ) {
           oppFilters.push(`vendedor_id = "${user.id}"`)
           ativFilters.push(`responsavel_id = "${user.id}"`)
           leadFilters.push(`criado_por_id = "${user.id}"`)
-        } else if (escopoVisibilidade === 'proprios') {
-          oppFilters.push(`vendedor_id = "${user.id}"`)
-          ativFilters.push(`responsavel_id = "${user.id}"`)
         }
       }
 
@@ -138,9 +144,90 @@ export default function Relatorios() {
     (o) =>
       o.etapa_atual.toLowerCase().includes('ganho') ||
       o.etapa_atual.toLowerCase().includes('concluído'),
-  ).length
+  )
   const taxaConversao =
-    totalOportunidades > 0 ? ((oportunidadesGanhas / totalOportunidades) * 100).toFixed(1) : '0.0'
+    totalOportunidades > 0
+      ? ((oportunidadesGanhas.length / totalOportunidades) * 100).toFixed(1)
+      : '0.0'
+
+  // Mix de Receita: Cliente Novo x Recompra
+  let receitaClienteNovo = 0
+  let receitaRecompra = 0
+  let countClienteNovo = 0
+  let countRecompra = 0
+
+  oportunidades.forEach((o) => {
+    const val = o.valor_estimado || 0
+    if (o.tipo_cliente === 'Recompra') {
+      receitaRecompra += val
+      countRecompra += 1
+    } else {
+      receitaClienteNovo += val
+      countClienteNovo += 1
+    }
+  })
+
+  const receitaTotalMix = receitaClienteNovo + receitaRecompra
+  const percReceitaNovo =
+    receitaTotalMix > 0 ? Math.round((receitaClienteNovo / receitaTotalMix) * 100) : 0
+  const percReceitaRecompra =
+    receitaTotalMix > 0 ? Math.round((receitaRecompra / receitaTotalMix) * 100) : 0
+
+  const mixReceitaChartData = [
+    { name: 'Cliente Novo', valor: receitaClienteNovo, count: countClienteNovo, color: '#017848' },
+    { name: 'Recompra', valor: receitaRecompra, count: countRecompra, color: '#8E44AD' },
+  ].filter((d) => d.valor > 0 || d.count > 0)
+
+  // Indicador de Churn Leve: Clientes com negócio ganho anterior mas sem recompra há mais de 6 meses
+  // Agrupa negócios ganhos por cliente (b2b ou b2c)
+  const clientWonMap = new Map<
+    string,
+    { nome: string; tipo: 'B2B' | 'B2C'; lastWonDate: Date; wonDealsCount: number }
+  >()
+
+  oportunidadesGanhas.forEach((o) => {
+    const b2b = o.expand?.organizacao_id || o.expand?.cliente_b2b_id
+    const b2c = o.expand?.pessoa_id || o.expand?.cliente_b2c_id
+    const clientId = o.cliente_b2b_id || o.organizacao_id || o.cliente_b2c_id || o.pessoa_id
+    if (!clientId) return
+    const nome = b2b?.razao_social || b2c?.nome_completo || 'Cliente'
+    const tipo = b2b || o.cliente_b2b_id || o.organizacao_id ? 'B2B' : 'B2C'
+    const dealDate = new Date(o.created)
+
+    const existing = clientWonMap.get(clientId)
+    if (!existing) {
+      clientWonMap.set(clientId, { nome, tipo, lastWonDate: dealDate, wonDealsCount: 1 })
+    } else {
+      existing.wonDealsCount += 1
+      if (dealDate > existing.lastWonDate) {
+        existing.lastWonDate = dealDate
+      }
+    }
+  })
+
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+  const clientesSemRecompra6m: {
+    clientId: string
+    nome: string
+    tipo: 'B2B' | 'B2C'
+    lastWonDate: Date
+    diasSemCompra: number
+  }[] = []
+  clientWonMap.forEach((val, id) => {
+    if (val.lastWonDate < sixMonthsAgo) {
+      const diffMs = now.getTime() - val.lastWonDate.getTime()
+      const diasSemCompra = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      clientesSemRecompra6m.push({
+        clientId: id,
+        nome: val.nome,
+        tipo: val.tipo,
+        lastWonDate: val.lastWonDate,
+        diasSemCompra,
+      })
+    }
+  })
 
   // Tempo médio estimado de ciclo (fictício baseado em dias de abertura para este relatório)
   const cicloMedioDias = totalOportunidades > 0 ? 28 : 0
@@ -323,6 +410,166 @@ export default function Relatorios() {
               <span className="text-[10px] uppercase font-bold text-[#5D6D7E]">Ciclo Médio</span>
               <p className="text-2xl font-bold text-[#1C2833] mt-1">{cicloMedioDias} dias</p>
               <p className="text-[11px] text-[#5D6D7E]">Abertura até fechamento</p>
+            </Card>
+          </div>
+
+          {/* PAINEL ESPECIAL DE MIX DE RECEITA (NOVO X RECOMPRA) & CHURN LEVE (6+ MESES) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* CARD 1: Mix de Receita (Novo x Recompra) */}
+            <Card className="border-[#D5DBDB] bg-white shadow-xs lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-[#1C2833] flex items-center space-x-2">
+                      <Repeat className="w-4 h-4 text-[#017848]" />
+                      <span>Mix de Receita: Cliente Novo × Recompra</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs text-[#5D6D7E]">
+                      Participação do pipeline entre novas aquisições e recompra recorrente
+                    </CardDescription>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="text-xs border-emerald-200 bg-emerald-50 text-emerald-800"
+                  >
+                    Total: {formatCurrencyBRL(receitaTotalMix)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg border border-[#017848]/20 bg-emerald-50/50">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-emerald-900 flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#017848]" />
+                          <span>Cliente Novo</span>
+                        </span>
+                        <span className="font-bold text-emerald-800">{percReceitaNovo}%</span>
+                      </div>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <span className="text-base font-bold text-emerald-900">
+                          {formatCurrencyBRL(receitaClienteNovo)}
+                        </span>
+                        <span className="text-[11px] text-emerald-700">
+                          {countClienteNovo} negócio(s)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg border border-purple-200 bg-purple-50/50">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-purple-900 flex items-center space-x-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#8E44AD]" />
+                          <span>Recompra</span>
+                        </span>
+                        <span className="font-bold text-purple-800">{percReceitaRecompra}%</span>
+                      </div>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <span className="text-base font-bold text-purple-900">
+                          {formatCurrencyBRL(receitaRecompra)}
+                        </span>
+                        <span className="text-[11px] text-purple-700">
+                          {countRecompra} negócio(s)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-44 w-full">
+                    {mixReceitaChartData.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-xs text-[#5D6D7E]">
+                        Sem negócios no escopo
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={mixReceitaChartData}
+                            dataKey="valor"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={36}
+                            outerRadius={65}
+                            paddingAngle={4}
+                          >
+                            {mixReceitaChartData.map((entry, idx) => (
+                              <Cell key={`mix-cell-${idx}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val: number) => [formatCurrencyBRL(val), 'Volume']}
+                            contentStyle={{
+                              borderRadius: '8px',
+                              border: '1px solid #D5DBDB',
+                              fontSize: '12px',
+                            }}
+                          />
+                          <Legend
+                            formatter={(val) => (
+                              <span className="text-[11px] text-[#1C2833]">{val}</span>
+                            )}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* CARD 2: Indicador de Churn Leve (Clientes sem recompra há 6+ meses) */}
+            <Card className="border-[#D5DBDB] bg-white shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-[#1C2833] flex items-center space-x-2">
+                  <AlertOctagon className="w-4 h-4 text-amber-600" />
+                  <span>Clientes sem Recompra (6+ meses)</span>
+                </CardTitle>
+                <CardDescription className="text-xs text-[#5D6D7E]">
+                  Alerta preventivo de churn para reativação comercial
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="flex items-center space-x-3 mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <span className="text-2xl font-bold text-amber-700">
+                    {clientesSemRecompra6m.length}
+                  </span>
+                  <div className="text-xs text-amber-900 leading-tight">
+                    <strong>clientes inativos</strong> com negócio ganho há mais de 180 dias sem
+                    nova compra
+                  </div>
+                </div>
+
+                <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
+                  {clientesSemRecompra6m.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-emerald-700 bg-emerald-50/50 rounded border border-emerald-100">
+                      Nenhum cliente em risco de churn leve no momento!
+                    </div>
+                  ) : (
+                    clientesSemRecompra6m.slice(0, 5).map((c) => (
+                      <div
+                        key={c.clientId}
+                        className="p-2 rounded border border-slate-100 bg-slate-50 text-xs flex items-center justify-between"
+                      >
+                        <div className="truncate mr-2">
+                          <p className="font-semibold text-slate-800 truncate">{c.nome}</p>
+                          <p className="text-[10px] text-slate-500">
+                            Última compra: {c.lastWonDate.toLocaleDateString('pt-BR')} (
+                            {c.diasSemCompra} dias atrás)
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] shrink-0 text-amber-700 border-amber-300"
+                        >
+                          {c.tipo}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
             </Card>
           </div>
 

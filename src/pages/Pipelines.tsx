@@ -84,12 +84,28 @@ export default function Pipelines() {
 
   // Filtro de status estilo Pipedrive ("Status é Aberto" / "Todos")
   const [statusFilter, setStatusFilter] = useState<'aberto' | 'todos'>('aberto')
+  // Chip de filtro rápido de data esperada de fechamento: todos | 30d | 60d | 90d | atrasados
+  const [quickDateFilter, setQuickDateFilter] = useState<
+    'todos' | '30d' | '60d' | '90d' | 'atrasados'
+  >('todos')
 
   // Deep linking para OpportunityDrawer
   const selectedOppId = searchParams.get('oppId')
 
   // Modal Nova Oportunidade (+ Negócio)
   const [isNewOppModalOpen, setIsNewOppModalOpen] = useState(false)
+  const [dealModalInitialValues, setDealModalInitialValues] = useState<
+    | {
+        titulo?: string
+        valor?: number | string
+        cliente_b2b_id?: string
+        cliente_b2c_id?: string
+        documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
+        observacoes?: string
+        origem?: string
+      }
+    | undefined
+  >(undefined)
   const [newTitulo, setNewTitulo] = useState('')
   const [newValor, setNewValor] = useState<number>(0)
   const [newFunilId, setNewFunilId] = useState('')
@@ -190,11 +206,13 @@ export default function Pipelines() {
       }
 
       // Escopo de visibilidade:
-      // Vendedor com escopo 'proprios': vê apenas seus próprios negócios
+      // Vendedor e Representante: vê apenas seus próprios negócios
+      // Supervisor: vê a marca ativa (já aplicado via activeBrand)
+      // Admin/Diretoria: consolidado ou marca
+      const isRepresentante =
+        (user as unknown as { perfil_global?: string })?.perfil_global === 'Representante'
       if (user && !isAdmin && !isDiretoria) {
-        if (isVendedor && escopoVisibilidade === 'proprios') {
-          filters.push(`vendedor_id = "${user.id}"`)
-        } else if (escopoVisibilidade === 'proprios') {
+        if (isRepresentante || isVendedor || escopoVisibilidade === 'proprios') {
           filters.push(`vendedor_id = "${user.id}"`)
         }
       }
@@ -472,8 +490,50 @@ export default function Pipelines() {
     }
   }
 
-  // Filtra cards por busca rápida
+  // Filtra cards por busca rápida e por chip rápido de data_fechamento_esperada
   const filteredOpps = oportunidades.filter((op) => {
+    // 1. Filtro de status se ativo
+    if (statusFilter === 'aberto') {
+      const activeF = funis.find((f) => f.id === op.funil_id)
+      const isWon = isWonStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      const isLost = isLostStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      if (isWon || isLost) return false
+    }
+
+    // 2. Filtro de data esperada de fechamento (30d / 60d / 90d / atrasados)
+    if (quickDateFilter !== 'todos') {
+      const activeF = funis.find((f) => f.id === op.funil_id)
+      const isWon = isWonStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      const isLost = isLostStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      const rawDate = op.data_fechamento_esperada
+      if (!rawDate) return false
+
+      const closeDate = new Date(rawDate)
+      const now = new Date()
+      // Zerando horas para comparação de datas puras
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const targetDate = new Date(
+        closeDate.getFullYear(),
+        closeDate.getMonth(),
+        closeDate.getDate(),
+      )
+      const diffTime = targetDate.getTime() - today.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+      if (quickDateFilter === 'atrasados') {
+        // Negócios cuja data_fechamento_esperada já passou e NÃO estão ganhos/perdidos
+        if (isWon || isLost) return false
+        if (diffDays >= 0) return false
+      } else if (quickDateFilter === '30d') {
+        if (diffDays < 0 || diffDays > 30) return false
+      } else if (quickDateFilter === '60d') {
+        if (diffDays < 0 || diffDays > 60) return false
+      } else if (quickDateFilter === '90d') {
+        if (diffDays < 0 || diffDays > 90) return false
+      }
+    }
+
+    // 3. Busca em texto
     if (!searchFilter.trim()) return true
     const q = searchFilter.toLowerCase()
     const tituloMatch = op.titulo.toLowerCase().includes(q)
@@ -705,22 +765,109 @@ export default function Pipelines() {
         </div>
       </div>
 
-      {/* Sub-barra de Filtros com Chips Pipedrive ("Status é Aberto" / "Adicionar condição") */}
-      <div className="flex items-center justify-between text-xs px-1 shrink-0">
-        <div className="flex items-center space-x-2">
-          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-800 text-[11px] font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#017848]" />
-            <span>Status é Aberto</span>
-            <button
-              type="button"
-              onClick={() => setStatusFilter(statusFilter === 'aberto' ? 'todos' : 'aberto')}
-              className="ml-1 text-slate-500 hover:text-slate-800 font-bold"
-            >
-              ×
-            </button>
-          </div>
-          <span className="text-slate-400 text-[11px]">
-            {filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'} encontrados
+      {/* Sub-barra de Filtros com Chips Pipedrive ("Status é Aberto", Chips 30/60/90 dias e Atrasados) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Chip Status Aberto */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === 'aberto' ? 'todos' : 'aberto')}
+            className={cn(
+              'inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer',
+              statusFilter === 'aberto'
+                ? 'bg-emerald-100 text-[#017848] border border-emerald-300'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200',
+            )}
+          >
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full',
+                statusFilter === 'aberto' ? 'bg-[#017848]' : 'bg-slate-400',
+              )}
+            />
+            <span>{statusFilter === 'aberto' ? 'Status: Em aberto' : 'Status: Todos'}</span>
+          </button>
+
+          <span className="text-slate-300">|</span>
+          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            Fechamento:
+          </span>
+
+          {/* Chip Todos */}
+          <button
+            type="button"
+            onClick={() => setQuickDateFilter('todos')}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
+              quickDateFilter === 'todos'
+                ? 'bg-slate-900 text-white shadow-2xs'
+                : 'bg-white border border-[#E3E7EB] text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            Todos
+          </button>
+
+          {/* Chip Próximos 30 dias */}
+          <button
+            type="button"
+            onClick={() => setQuickDateFilter(quickDateFilter === '30d' ? 'todos' : '30d')}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
+              quickDateFilter === '30d'
+                ? 'bg-[#017848] text-white shadow-xs'
+                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
+            )}
+          >
+            <span>Próximos 30 dias</span>
+          </button>
+
+          {/* Chip 60 dias */}
+          <button
+            type="button"
+            onClick={() => setQuickDateFilter(quickDateFilter === '60d' ? 'todos' : '60d')}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
+              quickDateFilter === '60d'
+                ? 'bg-[#017848] text-white shadow-xs'
+                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
+            )}
+          >
+            60 dias
+          </button>
+
+          {/* Chip 90 dias */}
+          <button
+            type="button"
+            onClick={() => setQuickDateFilter(quickDateFilter === '90d' ? 'todos' : '90d')}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
+              quickDateFilter === '90d'
+                ? 'bg-[#017848] text-white shadow-xs'
+                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
+            )}
+          >
+            90 dias
+          </button>
+
+          {/* Chip Atrasados */}
+          <button
+            type="button"
+            onClick={() =>
+              setQuickDateFilter(quickDateFilter === 'atrasados' ? 'todos' : 'atrasados')
+            }
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
+              quickDateFilter === 'atrasados'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100',
+            )}
+          >
+            <Clock className="w-3 h-3" />
+            <span>Atrasados</span>
+          </button>
+
+          <span className="text-slate-400 text-[11px] ml-2">
+            ({filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'})
           </span>
         </div>
 
@@ -834,6 +981,18 @@ export default function Pipelines() {
                                 <User className="w-3 h-3 text-emerald-600 shrink-0" />
                               )}
                               <span className="truncate">{clienteNome}</span>
+                              {opp.tipo_cliente && (
+                                <span
+                                  className={cn(
+                                    'text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0',
+                                    opp.tipo_cliente === 'Recompra'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-emerald-100 text-emerald-800',
+                                  )}
+                                >
+                                  {opp.tipo_cliente}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100">
@@ -1042,6 +1201,21 @@ export default function Pipelines() {
                               <User className="w-3 h-3 text-emerald-600 shrink-0" />
                             )}
                             <span className="truncate">{clienteNome}</span>
+                            {opp.tipo_cliente && (
+                              <>
+                                <span>•</span>
+                                <span
+                                  className={cn(
+                                    'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                    opp.tipo_cliente === 'Recompra'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-emerald-100 text-emerald-800',
+                                  )}
+                                >
+                                  {opp.tipo_cliente}
+                                </span>
+                              </>
+                            )}
                             <span>•</span>
                             <span>Resp: {opp.expand?.vendedor_id?.name || 'Administrador'}</span>
                           </div>
@@ -1171,6 +1345,18 @@ export default function Pipelines() {
                                 <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               )}
                               <span className="truncate">{clienteNome}</span>
+                              {op.tipo_cliente && (
+                                <span
+                                  className={cn(
+                                    'text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0',
+                                    op.tipo_cliente === 'Recompra'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-emerald-100 text-emerald-800',
+                                  )}
+                                >
+                                  {op.tipo_cliente}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -1251,14 +1437,33 @@ export default function Pipelines() {
           setSearchParams(searchParams)
         }}
         onUpdate={loadOportunidades}
+        onDuplicate={(opp) => {
+          searchParams.delete('oppId')
+          setSearchParams(searchParams)
+          setDealModalInitialValues({
+            titulo: `${opp.titulo} (Cópia)`,
+            valor: opp.valor_estimado,
+            cliente_b2b_id: opp.cliente_b2b_id || opp.organizacao_id,
+            cliente_b2c_id: opp.cliente_b2c_id || opp.pessoa_id,
+            documento_faturamento: opp.documento_faturamento,
+            observacoes: opp.observacoes,
+            origem: opp.origem,
+          })
+          setIsNewOppModalOpen(true)
+        }}
       />
 
       {/* MODAL NOVO NEGÓCIO IDÊNTICO AO PIPEDRIVE */}
       <AddDealModal
         open={isNewOppModalOpen}
-        onOpenChange={setIsNewOppModalOpen}
+        onOpenChange={(val) => {
+          setIsNewOppModalOpen(val)
+          if (!val) setDealModalInitialValues(undefined)
+        }}
         defaultFunilId={activeFunilId}
+        initialValues={dealModalInitialValues}
         onSuccess={() => {
+          setDealModalInitialValues(undefined)
           loadOportunidades()
         }}
       />

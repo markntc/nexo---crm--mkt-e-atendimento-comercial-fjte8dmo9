@@ -45,8 +45,18 @@ export interface Funil {
   }
 }
 
-export type PerfilGlobal = 'Administrador' | 'Supervisor' | 'Vendedor' | 'Diretoria'
-export type PapelMarca = 'Vendedor' | 'Supervisor' | 'Administrador de marca' | 'Diretoria'
+export type PerfilGlobal =
+  | 'Administrador'
+  | 'Supervisor'
+  | 'Vendedor'
+  | 'Diretoria'
+  | 'Representante'
+export type PapelMarca =
+  | 'Vendedor'
+  | 'Supervisor'
+  | 'Administrador de marca'
+  | 'Diretoria'
+  | 'Representante'
 
 export interface PermissoesUsuario {
   marcas_permitidas?: string[]
@@ -139,6 +149,9 @@ export type ClienteB2C = Pessoa
 // Tipo derivado de status de relacionamento comercial (FRENTE 3)
 export type StatusRelacionamento = 'Cliente' | 'Prospect'
 
+// Classificação de negócio para CRM: Cliente novo x Recompra
+export type TipoClienteNegocio = 'Cliente novo' | 'Recompra'
+
 export interface Lead {
   id: string
   marca_id?: string
@@ -190,6 +203,8 @@ export interface Oportunidade {
   proxima_acao_data?: string
   proxima_acao_descricao?: string
   documento_faturamento?: DocumentoFaturamento
+  data_fechamento_esperada?: string
+  tipo_cliente?: TipoClienteNegocio
   lead_origem_id?: string
   campos_exportacao?: {
     moeda?: string

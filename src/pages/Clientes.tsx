@@ -18,7 +18,9 @@ import type {
   PreferenciaComunicacao,
   Atividade,
 } from '@/types'
-import { getClientStatusSets, getEtapaNome } from '@/lib/relationshipStatus'
+import { getClientStatusSets, getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
+import { AddDealModal } from '@/components/AddDealModal'
+import { Repeat } from 'lucide-react'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -125,6 +127,21 @@ export default function Clientes() {
   const [editLeadStatus, setEditLeadStatus] = useState<Lead['status_qualificacao']>('Novo')
 
   // Conversão de Lead em Oportunidade
+  // Modal de Recompra (AddDealModal pré-preenchido)
+  const [isRecompraModalOpen, setIsRecompraModalOpen] = useState(false)
+  const [recompraInitialValues, setRecompraInitialValues] = useState<
+    | {
+        titulo?: string
+        valor?: number | string
+        cliente_b2b_id?: string
+        cliente_b2c_id?: string
+        documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
+        observacoes?: string
+        origem?: string
+      }
+    | undefined
+  >(undefined)
+
   const [selectedLeadToConvert, setSelectedLeadToConvert] = useState<Lead | null>(null)
   const [funis, setFunis] = useState<Funil[]>([])
   const [convFunilId, setConvFunilId] = useState('')
@@ -338,6 +355,74 @@ export default function Clientes() {
     setSelectedB2C(c)
     setSelectedB2B(null)
     loadClientDetails(undefined, c.id)
+  }
+
+  // Ação de Recompra: busca o último negócio GANHO e abre o AddDealModal pré-preenchido
+  const handleIniciarRecompra = async (target: {
+    b2bId?: string
+    b2cId?: string
+    nome: string
+  }) => {
+    try {
+      const filter = target.b2bId
+        ? `cliente_b2b_id = "${target.b2bId}"`
+        : `cliente_b2c_id = "${target.b2cId}"`
+
+      const [deals, funisData] = await Promise.all([
+        pb.collection('oportunidades').getFullList<Oportunidade>({
+          filter,
+          sort: '-created',
+        }),
+        funis.length > 0
+          ? funis
+          : pb
+              .collection('funis')
+              .getFullList<Funil>()
+              .catch(() => []),
+      ])
+
+      // Encontrar último negócio GANHO
+      const wonDeal = deals.find((d) => {
+        const dFunil = funisData.find((f) => f.id === d.funil_id)
+        return isWonStage(d.etapa_atual, dFunil?.etapas_ordenadas)
+      })
+
+      const now = new Date()
+      const mesAno = now.toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })
+      const tituloRecompra = `Recompra – ${target.nome} – ${mesAno}`
+
+      if (wonDeal) {
+        setRecompraInitialValues({
+          titulo: tituloRecompra,
+          valor: wonDeal.valor_estimado,
+          cliente_b2b_id: wonDeal.cliente_b2b_id || target.b2bId,
+          cliente_b2c_id: wonDeal.cliente_b2c_id || target.b2cId,
+          documento_faturamento: wonDeal.documento_faturamento,
+          observacoes: wonDeal.observacoes
+            ? `[Recompra baseada no negócio "${wonDeal.titulo}"] ${wonDeal.observacoes}`
+            : undefined,
+          origem: 'Recompra Recorrente',
+        })
+      } else {
+        // Se ainda não tiver ganho anterior, pré-preenche com os dados básicos
+        setRecompraInitialValues({
+          titulo: tituloRecompra,
+          valor: '',
+          cliente_b2b_id: target.b2bId,
+          cliente_b2c_id: target.b2cId,
+          origem: 'Recompra Recorrente',
+        })
+      }
+
+      setIsRecompraModalOpen(true)
+    } catch (err) {
+      console.error('Erro ao iniciar recompra:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao iniciar recompra',
+        description: 'Não foi possível buscar os dados do último negócio ganho.',
+      })
+    }
   }
 
   // Criação de Contato com validação matemática de dígitos verificadores
@@ -1136,17 +1221,32 @@ export default function Clientes() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenB2C(c)
-                              }}
+                            <div
+                              className="flex items-center justify-end space-x-1"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              Ver Ficha
-                            </Button>
+                              {wonPessoaIds.has(c.id) && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleIniciarRecompra({ b2cId: c.id, nome: c.nome_completo })
+                                  }
+                                  className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
+                                  title="Iniciar novo negócio de recompra pré-preenchido"
+                                >
+                                  <Repeat className="w-3 h-3 mr-1" />
+                                  Recompra
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                                onClick={() => handleOpenB2C(c)}
+                              >
+                                Ver Ficha
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1451,17 +1551,32 @@ export default function Clientes() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenB2B(c)
-                              }}
+                            <div
+                              className="flex items-center justify-end space-x-1"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              Ver Ficha
-                            </Button>
+                              {wonOrgIds.has(c.id) && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleIniciarRecompra({ b2bId: c.id, nome: c.razao_social })
+                                  }
+                                  className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
+                                  title="Iniciar novo negócio de recompra pré-preenchido"
+                                >
+                                  <Repeat className="w-3 h-3 mr-1" />
+                                  Recompra
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                                onClick={() => handleOpenB2B(c)}
+                              >
+                                Ver Ficha
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1549,15 +1664,30 @@ export default function Clientes() {
                     >
                       Organização (B2B)
                     </Badge>
+                    {wonOrgIds.has(selectedB2B.id) ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                        Cliente
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                        Prospect
+                      </Badge>
+                    )}
                   </div>
-                  {wonOrgIds.has(selectedB2B.id) ? (
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-                      Cliente
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
-                      Prospect
-                    </Badge>
+                  {wonOrgIds.has(selectedB2B.id) && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        handleIniciarRecompra({
+                          b2bId: selectedB2B.id,
+                          nome: selectedB2B.razao_social,
+                        })
+                      }
+                      className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                    >
+                      <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                      Recompra
+                    </Button>
                   )}
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
@@ -1776,15 +1906,30 @@ export default function Clientes() {
                     >
                       Pessoa (B2C)
                     </Badge>
+                    {wonPessoaIds.has(selectedB2C.id) ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                        Cliente
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                        Prospect
+                      </Badge>
+                    )}
                   </div>
-                  {wonPessoaIds.has(selectedB2C.id) ? (
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-                      Cliente
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
-                      Prospect
-                    </Badge>
+                  {wonPessoaIds.has(selectedB2C.id) && (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        handleIniciarRecompra({
+                          b2cId: selectedB2C.id,
+                          nome: selectedB2C.nome_completo,
+                        })
+                      }
+                      className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                    >
+                      <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                      Recompra
+                    </Button>
                   )}
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
@@ -2528,6 +2673,24 @@ export default function Clientes() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL RECOMPRA (AddDealModal PRÉ-PREENCHIDO COM ÚLTIMO NEGÓCIO GANHO) */}
+      <AddDealModal
+        open={isRecompraModalOpen}
+        onOpenChange={(val) => {
+          setIsRecompraModalOpen(val)
+          if (!val) setRecompraInitialValues(undefined)
+        }}
+        initialValues={recompraInitialValues}
+        onSuccess={() => {
+          setRecompraInitialValues(undefined)
+          fetchContatos()
+          toast({
+            title: 'Negócio de recompra iniciado!',
+            description: 'A oportunidade foi cadastrada com sucesso.',
+          })
+        }}
+      />
 
       {/* MODAL CONVERTER LEAD (Lead -> Pessoa -> Negócio com rastreamento lead_origem_id) */}
       <Dialog

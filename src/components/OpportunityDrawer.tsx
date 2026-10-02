@@ -36,6 +36,7 @@ import {
   ShieldCheck,
   Briefcase,
   Loader2,
+  Copy,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 
@@ -43,12 +44,14 @@ interface OpportunityDrawerProps {
   opportunityId: string | null
   onClose: () => void
   onUpdate: () => void
+  onDuplicate?: (opportunity: Oportunidade) => void
 }
 
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   opportunityId,
   onClose,
   onUpdate,
+  onDuplicate,
 }) => {
   const [opportunity, setOpportunity] = useState<Oportunidade | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
@@ -333,16 +336,42 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     <Badge className="bg-[#1B4F72] text-white text-[10px]">
                       {opportunity.etapa_atual}
                     </Badge>
+                    {opportunity.tipo_cliente && (
+                      <Badge
+                        className={cn(
+                          'text-[10px] font-bold',
+                          opportunity.tipo_cliente === 'Recompra'
+                            ? 'bg-purple-100 text-purple-800 border-purple-200'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                        )}
+                      >
+                        {opportunity.tipo_cliente}
+                      </Badge>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteConfirmOpen(true)}
-                    className="text-xs text-red-600 hover:bg-red-50 h-8"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    Excluir
-                  </Button>
+                  <div className="flex items-center space-x-1">
+                    {onDuplicate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onDuplicate(opportunity)}
+                        className="text-xs h-8 border-[#D5DBDB] text-slate-700 hover:bg-slate-100"
+                        title="Duplicar negócio como cópia editável não salva"
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1 text-[#017848]" />
+                        Duplicar negócio
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteConfirmOpen(true)}
+                      className="text-xs text-red-600 hover:bg-red-50 h-8"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      Excluir
+                    </Button>
+                  </div>
                 </div>
 
                 <SheetTitle className="text-lg font-bold text-[#1C2833] mt-2">

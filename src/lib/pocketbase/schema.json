@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T14:05:02.562Z",
+  "generatedAt": "2026-10-02T17:11:28.194Z",
   "collections": [
     {
       "name": "users",
@@ -45,17 +45,17 @@
           "system": false
         },
         {
-          "name": "perfil_global",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria"]
-        },
-        {
           "name": "permissoes",
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "perfil_global",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria", "Representante"]
         }
       ],
       "indexes": [
@@ -631,6 +631,19 @@
           "required": false,
           "system": false,
           "collectionRef": "leads"
+        },
+        {
+          "name": "data_fechamento_esperada",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_cliente",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Cliente novo", "Recompra"]
         }
       ],
       "indexes": [
@@ -962,13 +975,6 @@
           "system": false
         },
         {
-          "name": "perfil_global",
-          "type": "select",
-          "required": true,
-          "system": false,
-          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria"]
-        },
-        {
           "name": "permissoes",
           "type": "json",
           "required": false,
@@ -1001,6 +1007,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "perfil_global",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Administrador", "Supervisor", "Vendedor", "Diretoria", "Representante"]
         }
       ],
       "indexes": [

@@ -41,6 +41,15 @@ export interface AddDealModalProps {
   onOpenChange: (open: boolean) => void
   onSuccess?: (createdDealId: string) => void
   defaultFunilId?: string
+  initialValues?: {
+    titulo?: string
+    valor?: number | string
+    cliente_b2b_id?: string
+    cliente_b2c_id?: string
+    documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
+    observacoes?: string
+    origem?: string
+  }
 }
 
 interface PhoneEntry {
@@ -60,6 +69,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   onOpenChange,
   onSuccess,
   defaultFunilId,
+  initialValues,
 }) => {
   const { activeBrand, marcas } = useBrand()
   const { user } = useAuth()
@@ -195,6 +205,48 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             setEtapaAtual(getEtapaNome(etapasList[0]))
           }
         }
+
+        // Preenche com initialValues se fornecido (ex: Recompra ou Duplicar)
+        if (initialValues) {
+          if (initialValues.titulo) {
+            setTitulo(initialValues.titulo)
+            setUserEditedTitle(true)
+          }
+          if (initialValues.valor !== undefined && initialValues.valor !== null) {
+            setValor(String(initialValues.valor))
+          }
+          if (initialValues.documento_faturamento) {
+            setDocumentoFaturamento(initialValues.documento_faturamento)
+          }
+          if (initialValues.observacoes) {
+            setNotaObservacoes(initialValues.observacoes)
+          }
+          if (initialValues.origem) {
+            setCanalOrigem(initialValues.origem)
+          }
+
+          if (initialValues.cliente_b2b_id) {
+            const org = orgsRes.find((o) => o.id === initialValues.cliente_b2b_id)
+            if (org) {
+              setSelectedOrgId(org.id)
+              setOrgSearch(org.razao_social)
+            }
+          }
+
+          if (initialValues.cliente_b2c_id) {
+            const p = pessoasRes.find((x) => x.id === initialValues.cliente_b2c_id)
+            if (p) {
+              setSelectedPersonId(p.id)
+              setPersonSearch(p.nome_completo)
+              if (p.telefone) {
+                setPhones([{ id: '1', number: p.telefone, tipo: 'Comercial' }])
+              }
+              if (p.email_principal) {
+                setEmails([{ id: '1', address: p.email_principal, tipo: 'Comercial' }])
+              }
+            }
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar dados do modal de negócio:', err)
       } finally {
@@ -203,7 +255,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
 
     loadData()
-  }, [open, activeBrand, defaultFunilId, user?.id])
+  }, [open, activeBrand, defaultFunilId, user?.id, initialValues])
 
   // Quando o funil muda, atualiza a etapa atual
   useEffect(() => {
@@ -431,6 +483,38 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         }
       }
 
+      // 2. Classificação Automática: "Cliente novo" vs "Recompra"
+      // Se a pessoa ou organização vinculada tiver negócio ganho anterior -> "Recompra", senão -> "Cliente novo"
+      let tipoClienteClassificado: 'Cliente novo' | 'Recompra' = 'Cliente novo'
+      const checkFilters: string[] = []
+      if (selectedOrgId) checkFilters.push(`cliente_b2b_id = "${selectedOrgId}"`)
+      if (finalPessoaId) checkFilters.push(`cliente_b2c_id = "${finalPessoaId}"`)
+
+      if (checkFilters.length > 0) {
+        try {
+          const clientFilter = `(${checkFilters.join(' || ')})`
+          const deals = await pb.collection('oportunidades').getFullList({
+            filter: clientFilter,
+            sort: '-created',
+          })
+
+          // Pega todos os funis para checar etapas ganhas
+          const funisList = await pb
+            .collection('funis')
+            .getFullList<Funil>()
+            .catch(() => [])
+          const hasWon = deals.some((d) => {
+            const dFunil = funisList.find((f) => f.id === d.funil_id)
+            return isWonStage(d.etapa_atual, dFunil?.etapas_ordenadas)
+          })
+          if (hasWon) {
+            tipoClienteClassificado = 'Recompra'
+          }
+        } catch (e) {
+          console.warn('Erro ao verificar histórico para classificação tipo_cliente:', e)
+        }
+      }
+
       const novoNegocio = await pb.collection('oportunidades').create({
         titulo: titulo.trim(),
         valor_estimado: numValor,
@@ -441,6 +525,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         cliente_b2c_id: finalPessoaId || null,
         documento_faturamento: documentoFaturamento,
         data_fechamento_esperada: dataFechamentoIso,
+        tipo_cliente: tipoClienteClassificado,
         vendedor_id: currentUserId,
         origem: canalOrigem,
         id_canal_origem: idCanalOrigem.trim() || null,
