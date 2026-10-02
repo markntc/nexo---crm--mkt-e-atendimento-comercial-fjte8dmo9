@@ -486,10 +486,10 @@ export default function Index() {
                   </thead>
                   <tbody className="divide-y divide-[#D5DBDB]/60">
                     {oportunidades.slice(0, 5).map((op) => {
+                      const b2b = op.expand?.organizacao_id || op.expand?.cliente_b2b_id
+                      const b2c = op.expand?.pessoa_id || op.expand?.cliente_b2c_id
                       const clienteNome =
-                        op.expand?.cliente_b2b_id?.razao_social ||
-                        op.expand?.cliente_b2c_id?.nome_completo ||
-                        'Cliente Não Vinculado'
+                        b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado'
                       const followStatus = getFollowUpStatus(op.proxima_acao_data)
 
                       return (

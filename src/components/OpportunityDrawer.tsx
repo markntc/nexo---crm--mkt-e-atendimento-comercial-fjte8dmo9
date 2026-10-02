@@ -107,10 +107,12 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
       // Preferências de comunicação do cliente vinculado
       let prefFilter = ''
-      if (opp.cliente_b2b_id) {
-        prefFilter = `cliente_b2b_id = "${opp.cliente_b2b_id}"`
-      } else if (opp.cliente_b2c_id) {
-        prefFilter = `cliente_b2c_id = "${opp.cliente_b2c_id}"`
+      const b2bId = opp.cliente_b2b_id || opp.organizacao_id
+      const b2cId = opp.cliente_b2c_id || opp.pessoa_id
+      if (b2bId) {
+        prefFilter = `cliente_b2b_id = "${b2bId}"`
+      } else if (b2cId) {
+        prefFilter = `cliente_b2c_id = "${b2cId}"`
       }
 
       if (prefFilter) {
@@ -244,23 +246,53 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     if (!opportunity) return
     setIsDeleting(true)
     try {
+      // (a) Tentar excluir primeiro as atividades vinculadas
+      try {
+        const ativs = await pb.collection('atividades').getFullList({
+          filter: `oportunidade_id = "${opportunity.id}"`,
+          requestKey: null,
+        })
+        for (const at of ativs) {
+          try {
+            await pb.collection('atividades').delete(at.id)
+          } catch (errAtiv) {
+            console.warn(`[Atividades] Aviso ao excluir atividade vinculada ${at.id}:`, errAtiv)
+          }
+        }
+      } catch (errListAtiv) {
+        console.warn('Aviso ao consultar atividades para pré-exclusão:', errListAtiv)
+      }
+
+      // (b) Excluir a oportunidade
       await pb.collection('oportunidades').delete(opportunity.id)
+
+      // (c) Em caso de sucesso, toast de sucesso fechando modal e drawer
       toast({
-        title: 'Oportunidade excluída',
-        description: 'Registro removido da base comercial.',
+        title: 'Oportunidade excluída com sucesso',
+        description: 'Registro e suas atividades vinculadas foram removidos da base comercial.',
       })
       setDeleteConfirmOpen(false)
       onClose()
       onUpdate()
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Erro ao excluir oportunidade:', err)
+      const errObj = err as { data?: { message?: string }; message?: string }
+      const errorMsg =
+        errObj?.data?.message ||
+        errObj?.message ||
+        'Não foi possível excluir a oportunidade. Verifique se possui permissão ou se existem outros vínculos pendentes.'
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir oportunidade',
+        description: errorMsg,
+      })
     } finally {
       setIsDeleting(false)
     }
   }
 
-  const clienteB2B = opportunity?.expand?.cliente_b2b_id
-  const clienteB2C = opportunity?.expand?.cliente_b2c_id
+  const clienteB2B = opportunity?.expand?.organizacao_id || opportunity?.expand?.cliente_b2b_id
+  const clienteB2C = opportunity?.expand?.pessoa_id || opportunity?.expand?.cliente_b2c_id
   const clienteNome = clienteB2B
     ? clienteB2B.razao_social
     : clienteB2C

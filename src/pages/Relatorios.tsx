@@ -198,8 +198,9 @@ export default function Relatorios() {
   const handleExportCSV = () => {
     let csv = 'ID;Titulo;Cliente;Valor_Estimado;Etapa;Marca;Data_Criacao\n'
     oportunidades.forEach((o) => {
-      const cNome =
-        o.expand?.cliente_b2b_id?.razao_social || o.expand?.cliente_b2c_id?.nome_completo || 'N/A'
+      const b2b = o.expand?.organizacao_id || o.expand?.cliente_b2b_id
+      const b2c = o.expand?.pessoa_id || o.expand?.cliente_b2c_id
+      const cNome = b2b?.razao_social || b2c?.nome_completo || 'N/A'
       const mNome = o.expand?.marca_id?.nome || 'NTC'
       csv += `"${o.id}";"${o.titulo}";"${cNome}";"${o.valor_estimado}";"${o.etapa_atual}";"${mNome}";"${o.created}"\n`
     })

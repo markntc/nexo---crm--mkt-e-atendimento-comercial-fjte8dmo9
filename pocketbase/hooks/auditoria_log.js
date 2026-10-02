@@ -9,22 +9,23 @@ onRecordAfterCreateSuccess(
       const logsCol = $app.findCollectionByNameOrId('logs_auditoria')
       const logRec = new Record(logsCol)
 
-      let marcaId = ''
-      if (e.record.has('marca_id')) {
-        marcaId = e.record.getString('marca_id')
-      } else if (e.record.has('marca_captura_id')) {
-        marcaId = e.record.getString('marca_captura_id')
+      // Leitura segura sem usar .has()
+      const rawMarca = e.record.get('marca_id') || e.record.get('marca_captura_id')
+      const marcaId = rawMarca ? String(rawMarca) : null
+
+      const rawUser = e.record.get('criado_por_id') || e.record.get('vendedor_id')
+      let usuarioId = rawUser ? String(rawUser) : null
+
+      // Fallback para o authRecord se disponível
+      if (!usuarioId) {
+        try {
+          const authRec = $app.findAuthRecordByEmail('_pb_users_auth_', 'skip.adm@ntc.ind.br')
+          if (authRec) usuarioId = authRec.id
+        } catch (_) {}
       }
 
-      let usuarioId = ''
-      if (e.record.has('criado_por_id')) {
-        usuarioId = e.record.getString('criado_por_id')
-      } else if (e.record.has('vendedor_id')) {
-        usuarioId = e.record.getString('vendedor_id')
-      }
-
-      logRec.set('marca_id', marcaId || null)
-      logRec.set('usuario_id', usuarioId || null)
+      logRec.set('marca_id', marcaId)
+      logRec.set('usuario_id', usuarioId)
       logRec.set('entidade', colName)
       logRec.set('entidade_id', e.record.id)
       logRec.set('dados_anteriores', null)
@@ -51,22 +52,23 @@ onRecordAfterUpdateSuccess(
       const logsCol = $app.findCollectionByNameOrId('logs_auditoria')
       const logRec = new Record(logsCol)
 
-      let marcaId = ''
-      if (e.record.has('marca_id')) {
-        marcaId = e.record.getString('marca_id')
-      } else if (e.record.has('marca_captura_id')) {
-        marcaId = e.record.getString('marca_captura_id')
+      // Leitura segura sem usar .has()
+      const rawMarca = e.record.get('marca_id') || e.record.get('marca_captura_id')
+      const marcaId = rawMarca ? String(rawMarca) : null
+
+      const rawUser = e.record.get('criado_por_id') || e.record.get('vendedor_id')
+      let usuarioId = rawUser ? String(rawUser) : null
+
+      // Fallback para o authRecord se disponível
+      if (!usuarioId) {
+        try {
+          const authRec = $app.findAuthRecordByEmail('_pb_users_auth_', 'skip.adm@ntc.ind.br')
+          if (authRec) usuarioId = authRec.id
+        } catch (_) {}
       }
 
-      let usuarioId = ''
-      if (e.record.has('criado_por_id')) {
-        usuarioId = e.record.getString('criado_por_id')
-      } else if (e.record.has('vendedor_id')) {
-        usuarioId = e.record.getString('vendedor_id')
-      }
-
-      logRec.set('marca_id', marcaId || null)
-      logRec.set('usuario_id', usuarioId || null)
+      logRec.set('marca_id', marcaId)
+      logRec.set('usuario_id', usuarioId)
       logRec.set('entidade', colName)
       logRec.set('entidade_id', e.record.id)
       logRec.set(
@@ -96,14 +98,23 @@ onRecordAfterDeleteSuccess(
       const logsCol = $app.findCollectionByNameOrId('logs_auditoria')
       const logRec = new Record(logsCol)
 
-      let marcaId = ''
-      if (e.record.has('marca_id')) {
-        marcaId = e.record.getString('marca_id')
-      } else if (e.record.has('marca_captura_id')) {
-        marcaId = e.record.getString('marca_captura_id')
+      // Leitura segura sem usar .has()
+      const rawMarca = e.record.get('marca_id') || e.record.get('marca_captura_id')
+      const marcaId = rawMarca ? String(rawMarca) : null
+
+      const rawUser = e.record.get('criado_por_id') || e.record.get('vendedor_id')
+      let usuarioId = rawUser ? String(rawUser) : null
+
+      // Fallback para o authRecord se disponível
+      if (!usuarioId) {
+        try {
+          const authRec = $app.findAuthRecordByEmail('_pb_users_auth_', 'skip.adm@ntc.ind.br')
+          if (authRec) usuarioId = authRec.id
+        } catch (_) {}
       }
 
-      logRec.set('marca_id', marcaId || null)
+      logRec.set('marca_id', marcaId)
+      logRec.set('usuario_id', usuarioId)
       logRec.set('entidade', colName)
       logRec.set('entidade_id', e.record.id)
       logRec.set('dados_anteriores', e.record.publicExport())

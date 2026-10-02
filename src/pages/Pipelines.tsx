@@ -477,8 +477,10 @@ export default function Pipelines() {
     if (!searchFilter.trim()) return true
     const q = searchFilter.toLowerCase()
     const tituloMatch = op.titulo.toLowerCase().includes(q)
-    const b2bMatch = op.expand?.cliente_b2b_id?.razao_social?.toLowerCase().includes(q)
-    const b2cMatch = op.expand?.cliente_b2c_id?.nome_completo?.toLowerCase().includes(q)
+    const b2b = op.expand?.organizacao_id || op.expand?.cliente_b2b_id
+    const b2c = op.expand?.pessoa_id || op.expand?.cliente_b2c_id
+    const b2bMatch = b2b?.razao_social?.toLowerCase().includes(q)
+    const b2cMatch = b2c?.nome_completo?.toLowerCase().includes(q)
     return tituloMatch || b2bMatch || b2cMatch
   })
 
@@ -788,10 +790,10 @@ export default function Pipelines() {
                     {/* Lista de Cards com Scroll Vertical */}
                     <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 scrollbar-thin">
                       {colOpps.map((opp) => {
+                        const b2b = opp.expand?.organizacao_id || opp.expand?.cliente_b2b_id
+                        const b2c = opp.expand?.pessoa_id || opp.expand?.cliente_b2c_id
                         const clienteNome =
-                          opp.expand?.cliente_b2b_id?.razao_social ||
-                          opp.expand?.cliente_b2c_id?.nome_completo ||
-                          'Cliente Não Vinculado'
+                          b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado'
                         const followStatus = getFollowUpStatus(opp.proxima_acao_data)
                         const isShaking = shakingOppId === opp.id
 
@@ -826,7 +828,7 @@ export default function Pipelines() {
                             </p>
 
                             <div className="flex items-center space-x-1.5 mt-1.5 text-[11px] text-slate-600 truncate">
-                              {opp.expand?.cliente_b2b_id ? (
+                              {b2b ? (
                                 <Building2 className="w-3 h-3 text-sky-600 shrink-0" />
                               ) : (
                                 <User className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -995,10 +997,10 @@ export default function Pipelines() {
                 </div>
               ) : (
                 sortedOpps.map((opp) => {
+                  const b2b = opp.expand?.organizacao_id || opp.expand?.cliente_b2b_id
+                  const b2c = opp.expand?.pessoa_id || opp.expand?.cliente_b2c_id
                   const clienteNome =
-                    opp.expand?.cliente_b2b_id?.razao_social ||
-                    opp.expand?.cliente_b2c_id?.nome_completo ||
-                    'Cliente Não Vinculado'
+                    b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado'
                   const followStatus = getFollowUpStatus(opp.proxima_acao_data)
                   const isShaking = shakingOppId === opp.id
 
@@ -1034,7 +1036,7 @@ export default function Pipelines() {
                             )}
                           </div>
                           <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-0.5 truncate">
-                            {opp.expand?.cliente_b2b_id ? (
+                            {b2b ? (
                               <Building2 className="w-3 h-3 text-sky-600 shrink-0" />
                             ) : (
                               <User className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -1131,10 +1133,10 @@ export default function Pipelines() {
                     </tr>
                   ) : (
                     sortedOpps.map((op) => {
+                      const b2b = op.expand?.organizacao_id || op.expand?.cliente_b2b_id
+                      const b2c = op.expand?.pessoa_id || op.expand?.cliente_b2c_id
                       const clienteNome =
-                        op.expand?.cliente_b2b_id?.razao_social ||
-                        op.expand?.cliente_b2c_id?.nome_completo ||
-                        'Cliente Não Vinculado'
+                        b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado'
                       const followStatus = getFollowUpStatus(op.proxima_acao_data)
                       const isShaking = shakingOppId === op.id
 
@@ -1163,7 +1165,7 @@ export default function Pipelines() {
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             <div className="flex items-center space-x-1.5 truncate">
-                              {op.expand?.cliente_b2b_id ? (
+                              {b2b ? (
                                 <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                               ) : (
                                 <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />

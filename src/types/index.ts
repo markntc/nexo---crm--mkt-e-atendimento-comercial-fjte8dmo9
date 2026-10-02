@@ -181,6 +181,8 @@ export interface Oportunidade {
   equipe_id?: string
   cliente_b2b_id?: string
   cliente_b2c_id?: string
+  organizacao_id?: string
+  pessoa_id?: string
   titulo: string
   valor_estimado: number
   etapa_atual: string
@@ -203,6 +205,8 @@ export interface Oportunidade {
     equipe_id?: Equipe
     cliente_b2b_id?: Organizacao
     cliente_b2c_id?: Pessoa
+    organizacao_id?: Organizacao
+    pessoa_id?: Pessoa
     vendedor_id?: { id: string; name: string; email: string }
     lead_origem_id?: Lead
   }
