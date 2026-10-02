@@ -17,7 +17,6 @@ import {
   Building2,
   Info,
   Search,
-  Users,
   Download,
   Plus,
   Trash2,
@@ -80,6 +79,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 }) => {
   const { activeBrand, marcas } = useBrand()
   const { user, isAdmin } = useAuth()
+  const mouseDownOutsideRef = useRef(false)
 
   // Listas de dados mestre
   const [funis, setFunis] = useState<Funil[]>([])
@@ -143,9 +143,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
   // 10. ID do canal da origem
   const [idCanalOrigem, setIdCanalOrigem] = useState<string>('')
-
-  // 11. Visível para
-  const [visibilidade, setVisibilidade] = useState<string>('proprietario_subordinados')
 
   // Geografia: Faturamento e Entrega
   const [cidadeFaturamento, setCidadeFaturamento] = useState('')
@@ -220,9 +217,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setOrganizacoes(orgsRes)
         setUsersList(usersRes)
 
-        // Inicializa proprietário com o usuário logado
+        // Inicializa proprietário com o usuário logado se ainda não preenchido
         if (user?.id) {
-          setProprietarioId(user.id)
+          setProprietarioId((prev) => prev || user.id)
         }
 
         // Inicializa Funil
@@ -328,6 +325,66 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
     loadData()
   }, [open, activeBrand, defaultFunilId, user?.id, initialValues])
+
+  // Garante que o proprietário sempre venha preenchido com o usuário logado ao abrir o modal
+  useEffect(() => {
+    if (open && user?.id && !proprietarioId) {
+      setProprietarioId(user.id)
+    }
+  }, [open, user?.id, proprietarioId])
+
+  // Rastreia se o mousedown ocorreu fora do painel do modal (no backdrop/overlay)
+  // para fechar apenas se mousedown E mouseup ocorrerem fora do painel
+  useEffect(() => {
+    if (!open) return
+
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) {
+        mouseDownOutsideRef.current = false
+        return
+      }
+
+      // Verifica se o clique começou dentro do painel do modal ou em portais conhecidos
+      const insideDialog = target.closest('[role="dialog"]')
+      const insideRadixPopper = target.closest('[data-radix-popper-content-wrapper]')
+      const insideSelect = target.closest('[role="listbox"]') || target.closest('[role="combobox"]')
+
+      if (insideDialog || insideRadixPopper || insideSelect) {
+        mouseDownOutsideRef.current = false
+      } else {
+        mouseDownOutsideRef.current = true
+      }
+    }
+
+    const handleDocumentMouseUp = (e: MouseEvent) => {
+      if (!mouseDownOutsideRef.current) {
+        return
+      }
+
+      const target = e.target as HTMLElement | null
+      const insideDialog = target?.closest('[role="dialog"]')
+      const insideRadixPopper = target?.closest('[data-radix-popper-content-wrapper]')
+      const insideSelect =
+        target?.closest('[role="listbox"]') || target?.closest('[role="combobox"]')
+
+      // Se mouseup também ocorreu fora, fecha o modal com segurança
+      if (!insideDialog && !insideRadixPopper && !insideSelect) {
+        onOpenChange(false)
+      }
+
+      mouseDownOutsideRef.current = false
+    }
+
+    document.addEventListener('mousedown', handleDocumentMouseDown, true)
+    document.addEventListener('mouseup', handleDocumentMouseUp, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown, true)
+      document.removeEventListener('mouseup', handleDocumentMouseUp, true)
+      mouseDownOutsideRef.current = false
+    }
+  }, [open, onOpenChange])
 
   // Quando o funil muda, atualiza a etapa atual
   useEffect(() => {
@@ -668,7 +725,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         vendedor_id: currentUserId,
         origem: canalOrigem,
         id_canal_origem: idCanalOrigem.trim() || null,
-        visibilidade: visibilidade,
         observacoes: notaObservacoes.trim() || null,
         cidade: cidadeFaturamento.trim() || null,
         estado: estadoFaturamento.trim() || null,
@@ -706,6 +762,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       }
 
       // Limpa e fecha modal
+      // Reset de campos para novo cadastro
+      setTitulo('')
+      setUserEditedTitle(false)
+      setValor('')
+      setSelectedPersonId(null)
+      setPersonSearch('')
+      setSelectedOrgId(null)
+      setOrgSearch('')
+      setNotaObservacoes('')
+      setProprietarioId(user?.id || '')
+
+      // Fecha modal e dispara callback
       onOpenChange(false)
       if (onSuccess) {
         onSuccess(novoNegocio.id)
@@ -745,7 +813,19 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col">
+      <DialogContent
+        onPointerDownOutside={(e) => {
+          // Bloqueia o fechamento padrão do Radix por pointerdown outside.
+          // O fechamento por clique fora é controlado com segurança pelos listeners de
+          // mousedown e mouseup globais (só fecha se mousedown E mouseup ocorrerem fora do painel).
+          e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          // Previne fechamento por interações fora (dropdowns, portais, tooltips, etc.)
+          e.preventDefault()
+        }}
+        className="max-w-4xl p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col"
+      >
         {/* CABEÇALHO DO MODAL */}
         <DialogHeader className="px-6 py-4 border-b border-[#E3E7EB] flex flex-row items-center justify-between text-left shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
@@ -1317,26 +1397,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                 />
               </div>
-
-              {/* 11. Visível para */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Visível para</Label>
-                <Select value={visibilidade} onValueChange={setVisibilidade}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white flex items-center">
-                    <div className="flex items-center space-x-2 truncate">
-                      <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <SelectValue />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="proprietario_subordinados">
-                      Grupo de visibilidade do proprietário...
-                    </SelectItem>
-                    <SelectItem value="toda_empresa">Toda a empresa</SelectItem>
-                    <SelectItem value="somente_proprietario">Apenas o proprietário</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             {/* ======================================================== */}
@@ -1514,7 +1574,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => {
+                  setProprietarioId(user?.id || '')
+                  onOpenChange(false)
+                }}
                 className="h-9 px-4 text-xs font-semibold rounded-lg border-[#D5DBDB] text-slate-700 hover:bg-slate-50"
               >
                 Cancelar
