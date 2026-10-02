@@ -3,10 +3,26 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import type { AuthRecord } from 'pocketbase'
 
+import type { PerfilGlobal, PermissoesUsuario } from '@/types'
+
 export interface AuthContextType {
   user: AuthRecord | null
   isAuthenticated: boolean
   isAdmin: boolean
+  isDiretoria: boolean
+  isSupervisor: boolean
+  isVendedor: boolean
+  perfilGlobal: PerfilGlobal
+  permissoes: PermissoesUsuario
+  marcasAutorizadasIds: string[] | null // null = todas (Admin/Diretoria sem restrição)
+  escopoVisibilidade: 'proprios' | 'equipe' | 'marca_inteira'
+  podeVerConsolidado: boolean
+  podeAcessarPreferencias: boolean
+  podeAcessarConciliacao: boolean
+  pode: (
+    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado',
+    marcaId?: string,
+  ) => boolean
   isLoading: boolean
   login: (email: string, pass: string) => Promise<void>
   logout: () => void
@@ -79,11 +95,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
   }
 
-  const isAdmin =
-    user?.perfil_global === 'Administrador' ||
-    user?.email === 'skip.adm@ntc.ind.br' ||
-    user?.name?.toLowerCase().includes('administrador') ||
-    false
+  const rawPerfil = (user?.perfil_global as PerfilGlobal) || 'Vendedor'
+  const isSuperAdminEmail = user?.email === 'skip.adm@ntc.ind.br'
+  const isAdmin = rawPerfil === 'Administrador' || isSuperAdminEmail
+  const isDiretoria = !isAdmin && rawPerfil === 'Diretoria'
+  const isSupervisor = !isAdmin && !isDiretoria && rawPerfil === 'Supervisor'
+  const isVendedor =
+    !isAdmin && !isDiretoria && !isSupervisor && (rawPerfil === 'Vendedor' || !rawPerfil)
+
+  const perfilGlobal: PerfilGlobal = isAdmin
+    ? 'Administrador'
+    : isDiretoria
+      ? 'Diretoria'
+      : isSupervisor
+        ? 'Supervisor'
+        : 'Vendedor'
+
+  const userPermissoes = (user?.permissoes as PermissoesUsuario) || {}
+
+  // Supervisor e Vendedor têm restrição de marcas autorizadas
+  // Administrador e Diretoria têm acesso irrestrito a todas as marcas
+  const marcasAutorizadasIds: string[] | null =
+    isAdmin || isDiretoria
+      ? null
+      : Array.isArray(userPermissoes.marcas_permitidas)
+        ? userPermissoes.marcas_permitidas
+        : []
+
+  // Escopo de visibilidade:
+  // Administrador / Diretoria: marca_inteira
+  // Supervisor: 'equipe' por padrão (ou o que estiver configurado)
+  // Vendedor: 'proprios' por padrão (ou o configurado nas permissões)
+  const escopoVisibilidade: 'proprios' | 'equipe' | 'marca_inteira' =
+    isAdmin || isDiretoria
+      ? 'marca_inteira'
+      : userPermissoes.escopo_visibilidade || (isSupervisor ? 'equipe' : 'proprios')
+
+  // Regras da Matriz NTC:
+  // 1. Consolidado ("Todas as marcas"): visível e selecionável APENAS para Administrador e Diretoria
+  const podeVerConsolidado = isAdmin || isDiretoria
+
+  // 5. Preferências: acessível APENAS por Administrador
+  const podeAcessarPreferencias = isAdmin
+
+  // 6. Conciliação: visível e executável para Administrador, Supervisor e Vendedor; OCULTO para Diretoria
+  // Para supervisor e vendedor, se houver flag explícita `pode_conciliar`, respeita se true/false; por padrão true para supervisor/vendedor
+  const podeAcessarConciliacao =
+    isAdmin || (!isDiretoria && userPermissoes.pode_conciliar !== false)
+
+  const pode = (
+    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado',
+    marcaId?: string,
+  ): boolean => {
+    if (acao === 'preferencias') return podeAcessarPreferencias
+    if (acao === 'consolidado') return podeVerConsolidado
+    if (acao === 'conciliacao') return podeAcessarConciliacao
+    if (acao === 'importacao') {
+      if (isAdmin) return true
+      if (isDiretoria) return false
+      return userPermissoes.pode_importar !== false
+    }
+    if (marcaId && marcasAutorizadasIds !== null) {
+      return marcasAutorizadasIds.includes(marcaId)
+    }
+    return true
+  }
 
   return (
     <AuthContext.Provider
@@ -91,6 +167,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated: !!user && pb.authStore.isValid,
         isAdmin,
+        isDiretoria,
+        isSupervisor,
+        isVendedor,
+        perfilGlobal,
+        permissoes: userPermissoes,
+        marcasAutorizadasIds,
+        escopoVisibilidade,
+        podeVerConsolidado,
+        podeAcessarPreferencias,
+        podeAcessarConciliacao,
+        pode,
         isLoading,
         login,
         logout,

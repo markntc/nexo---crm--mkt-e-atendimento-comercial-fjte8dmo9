@@ -5,13 +5,15 @@ import type { Marca } from '@/types'
 import { useAuth } from './AuthContext'
 
 export interface BrandContextType {
-  marcas: Marca[]
-  activeBrand: Marca | null // null significa "Consolidado"
+  marcas: Marca[] // lista filtrada de marcas autorizadas para este usuário
+  todasMarcas: Marca[] // todas as marcas ativas cadastradas no CRM
+  activeBrand: Marca | null // null significa "Consolidado" (apenas Admin/Diretoria)
   isConsolidated: boolean
   isLoadingBrands: boolean
   setActiveBrandId: (id: string | null) => void
   refreshMarcas: () => Promise<void>
   currentBrandColor: string
+  podeVerConsolidado: boolean
 }
 
 const BrandContext = createContext<BrandContextType | undefined>(undefined)
@@ -19,8 +21,8 @@ const BrandContext = createContext<BrandContextType | undefined>(undefined)
 const BRAND_STORAGE_KEY = 'ntc_active_brand_id'
 
 export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth()
-  const [marcas, setMarcas] = useState<Marca[]>([])
+  const { isAuthenticated, podeVerConsolidado, marcasAutorizadasIds } = useAuth()
+  const [todasMarcas, setTodasMarcas] = useState<Marca[]>([])
   const [activeBrandId, setActiveBrandIdState] = useState<string | null>(() => {
     return localStorage.getItem(BRAND_STORAGE_KEY)
   })
@@ -36,17 +38,7 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         filter: 'ativo = true',
         sort: 'nome',
       })
-      setMarcas(records)
-
-      // Se activeBrandId não estiver setado ou não for válido nas marcas existentes
-      if (activeBrandId && activeBrandId !== 'consolidado') {
-        const found = records.find((m) => m.id === activeBrandId)
-        if (!found && records.length > 0) {
-          // Default: ou consolidado ou primeira marca
-          setActiveBrandIdState(null)
-          localStorage.removeItem(BRAND_STORAGE_KEY)
-        }
-      }
+      setTodasMarcas(records)
     } catch (err) {
       console.error('Erro ao buscar marcas:', err)
     } finally {
@@ -58,30 +50,86 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchMarcas()
   }, [isAuthenticated])
 
+  // Marcas autorizadas para o usuário ativo:
+  // Se marcasAutorizadasIds === null (Admin / Diretoria), todas as marcas ativas.
+  // Caso contrário, apenas as marcas cujo id está em marcasAutorizadasIds.
+  const marcasAutorizadas = React.useMemo(() => {
+    if (marcasAutorizadasIds === null) {
+      return todasMarcas
+    }
+    return todasMarcas.filter((m) => marcasAutorizadasIds.includes(m.id))
+  }, [todasMarcas, marcasAutorizadasIds])
+
+  // Validação e coerção da marca ativa conforme o perfil:
+  // Supervisor e Vendedor operam UMA marca por vez, NUNCA veem "Consolidado".
+  useEffect(() => {
+    if (isLoadingBrands || marcasAutorizadas.length === 0) return
+
+    if (!podeVerConsolidado) {
+      // Usuário não pode ver consolidado: DEVE ter uma marca autorizada ativa
+      const isValidBrand =
+        activeBrandId &&
+        activeBrandId !== 'consolidado' &&
+        marcasAutorizadas.some((m) => m.id === activeBrandId)
+
+      if (!isValidBrand) {
+        // Seleciona a primeira marca autorizada disponível
+        const fallbackId = marcasAutorizadas[0].id
+        setActiveBrandIdState(fallbackId)
+        localStorage.setItem(BRAND_STORAGE_KEY, fallbackId)
+      }
+    } else {
+      // Usuário pode ver consolidado (Admin/Diretoria)
+      if (activeBrandId && activeBrandId !== 'consolidado') {
+        const found = todasMarcas.find((m) => m.id === activeBrandId)
+        if (!found) {
+          setActiveBrandIdState(null)
+          localStorage.removeItem(BRAND_STORAGE_KEY)
+        }
+      }
+    }
+  }, [podeVerConsolidado, marcasAutorizadas, activeBrandId, isLoadingBrands, todasMarcas])
+
   const setActiveBrandId = (id: string | null) => {
+    // Se não puder ver consolidado e tentou setar null/consolidado, proíbe e mantém primeira autorizada
+    if (!podeVerConsolidado && (!id || id === 'consolidado')) {
+      if (marcasAutorizadas.length > 0) {
+        const fallback = marcasAutorizadas[0].id
+        setActiveBrandIdState(fallback)
+        localStorage.setItem(BRAND_STORAGE_KEY, fallback)
+      }
+      return
+    }
+
     setActiveBrandIdState(id)
-    if (id) {
+    if (id && id !== 'consolidado') {
       localStorage.setItem(BRAND_STORAGE_KEY, id)
     } else {
       localStorage.removeItem(BRAND_STORAGE_KEY)
     }
   }
 
-  const isConsolidated = activeBrandId === null || activeBrandId === 'consolidado'
-  const activeBrand = !isConsolidated ? marcas.find((m) => m.id === activeBrandId) || null : null
+  // Se o usuário não puder ver consolidado, isConsolidated é SEMPRE false
+  const isConsolidated =
+    podeVerConsolidado && (activeBrandId === null || activeBrandId === 'consolidado')
+  const activeBrand = !isConsolidated
+    ? marcasAutorizadas.find((m) => m.id === activeBrandId) || marcasAutorizadas[0] || null
+    : null
 
   const currentBrandColor = activeBrand?.cor_destaque || '#1B4F72'
 
   return (
     <BrandContext.Provider
       value={{
-        marcas,
+        marcas: marcasAutorizadas,
+        todasMarcas,
         activeBrand,
         isConsolidated,
         isLoadingBrands,
         setActiveBrandId,
         refreshMarcas: fetchMarcas,
         currentBrandColor,
+        podeVerConsolidado,
       }}
     >
       {children}

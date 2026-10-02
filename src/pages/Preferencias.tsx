@@ -220,6 +220,21 @@ export default function Preferencias() {
     return b2b || b2c
   })
 
+  if (!isAdmin) {
+    return (
+      <div className="p-8 max-w-lg mx-auto text-center space-y-4">
+        <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+          <ShieldCheck className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Acesso Restrito a Administradores</h2>
+        <p className="text-xs text-slate-500">
+          Esta área é destinada exclusivamente à gestão de governança, funis e matriz de acessos
+          corporativos do Grupo NTC.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* NAVEGAÇÃO DE SEÇÕES DE PREFERÊNCIAS */}

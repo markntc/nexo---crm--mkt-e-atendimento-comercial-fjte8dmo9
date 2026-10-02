@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Oportunidade, Atividade, Lead, Marca } from '@/types'
 import { formatCurrencyBRL } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import {
   BarChart,
   Bar,
@@ -32,11 +34,26 @@ import {
 } from 'lucide-react'
 
 export default function Relatorios() {
-  const { marcas, activeBrand, isConsolidated, setActiveBrandId, currentBrandColor } = useBrand()
+  const {
+    marcas,
+    activeBrand,
+    isConsolidated,
+    setActiveBrandId,
+    currentBrandColor,
+    podeVerConsolidado,
+  } = useBrand()
+  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
 
+  // Se o usuário não puder ver consolidado (Supervisor / Vendedor), aba SEMPRE é 'marca'
   const [activeTab, setActiveTab] = useState<'marca' | 'consolidado'>(
-    isConsolidated ? 'consolidado' : 'marca',
+    podeVerConsolidado && isConsolidated ? 'consolidado' : 'marca',
   )
+
+  useEffect(() => {
+    if (!podeVerConsolidado && activeTab === 'consolidado') {
+      setActiveTab('marca')
+    }
+  }, [podeVerConsolidado, activeTab])
 
   const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
   const [atividades, setAtividades] = useState<Atividade[]>([])
@@ -46,23 +63,51 @@ export default function Relatorios() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      let filter = ''
-      if (activeTab === 'marca' && activeBrand) {
-        filter = `marca_id = "${activeBrand.id}"`
+      const oppFilters: string[] = []
+      const ativFilters: string[] = []
+      const leadFilters: string[] = []
+
+      // 1. Marca:
+      // Se não tem permissão para consolidado, OBRIGATORIAMENTE filtra pela marca ativa
+      // Se tiver permissão e estiver na aba marca, filtra pela marca ativa
+      if (!podeVerConsolidado || activeTab === 'marca') {
+        if (activeBrand) {
+          oppFilters.push(`marca_id = "${activeBrand.id}"`)
+          ativFilters.push(`marca_id = "${activeBrand.id}"`)
+          leadFilters.push(`marca_id = "${activeBrand.id}"`)
+        }
       }
+
+      // 2. Escopo de visibilidade:
+      // Supervisor: apenas a marca ativa (sem agregação multimarca) e escopo de equipe/marca
+      // Vendedor: apenas a marca ativa e somente seus próprios negócios/cadastros se escopo 'proprios'
+      if (user && !isAdmin && !isDiretoria) {
+        if (isVendedor && escopoVisibilidade === 'proprios') {
+          oppFilters.push(`vendedor_id = "${user.id}"`)
+          ativFilters.push(`responsavel_id = "${user.id}"`)
+          leadFilters.push(`criado_por_id = "${user.id}"`)
+        } else if (escopoVisibilidade === 'proprios') {
+          oppFilters.push(`vendedor_id = "${user.id}"`)
+          ativFilters.push(`responsavel_id = "${user.id}"`)
+        }
+      }
+
+      const oppFilter = oppFilters.join(' && ')
+      const ativFilter = ativFilters.join(' && ')
+      const leadFilter = leadFilters.join(' && ')
 
       const [oppRes, ativRes, leadRes] = await Promise.all([
         pb.collection('oportunidades').getFullList<Oportunidade>({
-          filter: filter || undefined,
+          filter: oppFilter || undefined,
           expand: 'marca_id,cliente_b2b_id,cliente_b2c_id',
           sort: '-created',
         }),
         pb.collection('atividades').getFullList<Atividade>({
-          filter: filter || undefined,
+          filter: ativFilter || undefined,
           expand: 'marca_id',
         }),
         pb.collection('leads').getFullList<Lead>({
-          filter: filter || undefined,
+          filter: leadFilter || undefined,
           expand: 'marca_id',
         }),
       ])
@@ -79,7 +124,7 @@ export default function Relatorios() {
 
   useEffect(() => {
     fetchData()
-  }, [activeTab, activeBrand])
+  }, [activeTab, activeBrand, user?.id, escopoVisibilidade])
 
   // Cálculos de KPIs
   const totalOportunidades = oportunidades.length
@@ -193,32 +238,40 @@ export default function Relatorios() {
         </Button>
       </div>
 
-      {/* SELETOR DE ABAS: POR MARCA OU CONSOLIDADO */}
-      <div className="flex items-center space-x-2">
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => {
-            setActiveTab(v as 'marca' | 'consolidado')
-            if (v === 'consolidado') setActiveBrandId(null)
-          }}
-          className="w-auto"
-        >
-          <TabsList className="bg-white border border-[#D5DBDB] p-1 h-10 shadow-xs">
-            <TabsTrigger
-              value="marca"
-              className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white"
-            >
-              Visão por Marca ({activeBrand?.nome || 'Selecione'})
-            </TabsTrigger>
-            <TabsTrigger
-              value="consolidado"
-              className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white"
-            >
-              Visão Consolidada Diretoria (Todas)
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      {/* SELETOR DE ABAS: POR MARCA OU CONSOLIDADO (Consolidado visível APENAS para Administrador e Diretoria) */}
+      {podeVerConsolidado ? (
+        <div className="flex items-center space-x-2">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              setActiveTab(v as 'marca' | 'consolidado')
+              if (v === 'consolidado') setActiveBrandId(null)
+            }}
+            className="w-auto"
+          >
+            <TabsList className="bg-white border border-[#D5DBDB] p-1 h-10 shadow-xs">
+              <TabsTrigger
+                value="marca"
+                className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white"
+              >
+                Visão por Marca ({activeBrand?.nome || 'Selecione'})
+              </TabsTrigger>
+              <TabsTrigger
+                value="consolidado"
+                className="text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-[#1B4F72] data-[state=active]:text-white"
+              >
+                Visão Consolidada Diretoria (Todas as Marcas)
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      ) : (
+        <div className="flex items-center space-x-2">
+          <Badge variant="outline" className="text-xs py-1 px-3 bg-white border-[#D5DBDB]">
+            Marca Ativa: <strong>{activeBrand?.nome || 'NTC'}</strong>
+          </Badge>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="py-20 flex flex-col items-center justify-center text-xs text-[#5D6D7E]">

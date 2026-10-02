@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Oportunidade, Atividade, Lead } from '@/types'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -39,6 +40,7 @@ import {
 export default function Index() {
   const navigate = useNavigate()
   const { activeBrand, isConsolidated, currentBrandColor } = useBrand()
+  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
 
   const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
   const [atividades, setAtividades] = useState<Atividade[]>([])
@@ -48,15 +50,36 @@ export default function Index() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      let oppFilter = ''
-      let ativFilter = ''
-      let leadFilter = ''
+      const oppFilters: string[] = []
+      const ativFilters: string[] = []
+      const leadFilters: string[] = []
 
+      // 1. Filtro por marca ativa:
+      // Para Supervisor e Vendedor: OBRIGATORIAMENTE a marca ativa
+      // Para Admin e Diretoria: se selecionada marca específica, filtra por ela; se consolidado, soma todas
       if (activeBrand) {
-        oppFilter = `marca_id = "${activeBrand.id}"`
-        ativFilter = `marca_id = "${activeBrand.id}"`
-        leadFilter = `marca_id = "${activeBrand.id}"`
+        oppFilters.push(`marca_id = "${activeBrand.id}"`)
+        ativFilters.push(`marca_id = "${activeBrand.id}"`)
+        leadFilters.push(`marca_id = "${activeBrand.id}"`)
       }
+
+      // 2. Filtro por escopo de visibilidade:
+      // Vendedor: vê apenas seus próprios negócios/atividades/leads se escopoVisibilidade === 'proprios'
+      // Supervisor: se escopo for 'equipe', pode ver os itens da equipe ou da marca ativa dele
+      if (user && !isAdmin && !isDiretoria) {
+        if (isVendedor && escopoVisibilidade === 'proprios') {
+          oppFilters.push(`vendedor_id = "${user.id}"`)
+          ativFilters.push(`responsavel_id = "${user.id}"`)
+          leadFilters.push(`criado_por_id = "${user.id}"`)
+        } else if (escopoVisibilidade === 'proprios') {
+          oppFilters.push(`vendedor_id = "${user.id}"`)
+          ativFilters.push(`responsavel_id = "${user.id}"`)
+        }
+      }
+
+      const oppFilter = oppFilters.join(' && ')
+      const ativFilter = ativFilters.join(' && ')
+      const leadFilter = leadFilters.join(' && ')
 
       const [oppRes, ativRes, leadRes] = await Promise.all([
         pb.collection('oportunidades').getFullList<Oportunidade>({
@@ -88,7 +111,7 @@ export default function Index() {
 
   useEffect(() => {
     fetchData()
-  }, [activeBrand])
+  }, [activeBrand, user?.id, escopoVisibilidade])
 
   // Cálculos de KPIs
   const totalOportunidades = oportunidades.length

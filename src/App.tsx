@@ -65,7 +65,14 @@ export default function App() {
                   <Route path="tarefas" element={<Tarefas />} />
                   <Route path="conciliacao" element={<Conciliacao />} />
                   <Route path="importacao" element={<Importacao />} />
-                  <Route path="preferencias" element={<Preferencias />} />
+                  <Route
+                    path="preferencias"
+                    element={
+                      <ProtectedRoute requireAdmin>
+                        <Preferencias />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="relatorios" element={<Relatorios />} />
                 </Route>
 

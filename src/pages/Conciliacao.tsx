@@ -1,6 +1,8 @@
 // src/pages/Conciliacao.tsx
 import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
+import { useAuth } from '@/contexts/AuthContext'
+import { Navigate } from 'react-router-dom'
 import type { Duplicidade, Organizacao, Pessoa } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -29,6 +31,7 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
 export default function Conciliacao() {
+  const { podeAcessarConciliacao, isDiretoria } = useAuth()
   const [duplicidades, setDuplicidades] = useState<Duplicidade[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedCase, setSelectedCase] = useState<Duplicidade | null>(null)
@@ -144,6 +147,10 @@ export default function Conciliacao() {
       item.expand?.cliente_b2c_id_2?.nome_completo ||
       'Registro B'
     )
+  }
+
+  if (isDiretoria || !podeAcessarConciliacao) {
+    return <Navigate to="/" replace />
   }
 
   return (

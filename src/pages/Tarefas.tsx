@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Atividade, Oportunidade } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +50,7 @@ export default function Tarefas() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { activeBrand, marcas } = useBrand()
+  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
 
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -77,18 +79,29 @@ export default function Tarefas() {
   const fetchTarefas = async () => {
     setIsLoading(true)
     try {
-      let filter = ''
+      const filters: string[] = []
       if (activeBrand) {
-        filter = `marca_id = "${activeBrand.id}"`
+        filters.push(`marca_id = "${activeBrand.id}"`)
       }
       if (tipoFilter !== 'all') {
-        filter = filter ? `${filter} && tipo = "${tipoFilter}"` : `tipo = "${tipoFilter}"`
+        filters.push(`tipo = "${tipoFilter}"`)
       }
       if (statusFilter === 'pendente') {
-        filter = filter ? `${filter} && concluida = false` : `concluida = false`
+        filters.push(`concluida = false`)
       } else if (statusFilter === 'concluida') {
-        filter = filter ? `${filter} && concluida = true` : `concluida = true`
+        filters.push(`concluida = true`)
       }
+
+      // Escopo de visibilidade:
+      if (user && !isAdmin && !isDiretoria) {
+        if (isVendedor && escopoVisibilidade === 'proprios') {
+          filters.push(`responsavel_id = "${user.id}"`)
+        } else if (escopoVisibilidade === 'proprios') {
+          filters.push(`responsavel_id = "${user.id}"`)
+        }
+      }
+
+      const filter = filters.join(' && ')
 
       const res = await pb.collection('atividades').getFullList<Atividade>({
         filter: filter || undefined,
@@ -105,8 +118,7 @@ export default function Tarefas() {
 
   useEffect(() => {
     fetchTarefas()
-  }, [activeBrand, tipoFilter, statusFilter])
-
+  }, [activeBrand, tipoFilter, statusFilter, user?.id, escopoVisibilidade])
   // Carrega lista de oportunidades para vincular no modal
   const loadOpportunitiesForTask = async () => {
     try {

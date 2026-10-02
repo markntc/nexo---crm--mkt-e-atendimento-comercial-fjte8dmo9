@@ -2,6 +2,8 @@
 import React, { useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { Navigate } from 'react-router-dom'
 import { isValidCNPJ, isValidCPF, maskCNPJ, maskCPF } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,7 @@ interface ParsedRow {
 
 export default function Importacao() {
   const { marcas, activeBrand } = useBrand()
+  const { isDiretoria } = useAuth()
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
 
@@ -65,6 +68,10 @@ export default function Importacao() {
     queued: number
     errors: number
   } | null>(null)
+
+  if (isDiretoria) {
+    return <Navigate to="/" replace />
+  }
 
   // Manipulação de arquivo CSV
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

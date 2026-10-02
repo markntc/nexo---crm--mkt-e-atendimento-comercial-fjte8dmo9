@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T19:52:42.985Z",
+  "generatedAt": "2026-10-02T13:45:49.900Z",
   "collections": [
     {
       "name": "users",
@@ -721,11 +721,11 @@
       "name": "preferencias_comunicacao",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "view": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "create": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "update": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "delete": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')"
       },
       "fields": [
         {
@@ -942,11 +942,11 @@
       "name": "convites_usuarios",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "view": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "create": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "update": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')",
+        "delete": "@request.auth.id != '' && (@request.auth.perfil_global = 'Administrador' || @request.auth.email = 'skip.adm@ntc.ind.br')"
       },
       "fields": [
         {

@@ -66,7 +66,7 @@ type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' |
 export default function Pipelines() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { activeBrand, isConsolidated } = useBrand()
-  const { isAdmin } = useAuth()
+  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
 
   // Modo de visualização (Kanban, Lista, Tabela)
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -171,17 +171,35 @@ export default function Pipelines() {
     }
   }, [searchParams])
 
-  // 2. Carrega oportunidades do funil ativo
+  // 2. Carrega oportunidades do funil ativo com escopo de visibilidade por perfil
   const loadOportunidades = async () => {
     if (!activeFunilId) {
       setOportunidades([])
       return
     }
     try {
-      let filter = `funil_id = "${activeFunilId}"`
-      if (selectedEquipeFilter && selectedEquipeFilter !== 'all') {
-        filter += ` && equipe_id = "${selectedEquipeFilter}"`
+      const filters: string[] = [`funil_id = "${activeFunilId}"`]
+
+      // Marca ativa: para Supervisor e Vendedor é estritamente a marca ativa
+      if (activeBrand) {
+        filters.push(`marca_id = "${activeBrand.id}"`)
       }
+
+      if (selectedEquipeFilter && selectedEquipeFilter !== 'all') {
+        filters.push(`equipe_id = "${selectedEquipeFilter}"`)
+      }
+
+      // Escopo de visibilidade:
+      // Vendedor com escopo 'proprios': vê apenas seus próprios negócios
+      if (user && !isAdmin && !isDiretoria) {
+        if (isVendedor && escopoVisibilidade === 'proprios') {
+          filters.push(`vendedor_id = "${user.id}"`)
+        } else if (escopoVisibilidade === 'proprios') {
+          filters.push(`vendedor_id = "${user.id}"`)
+        }
+      }
+
+      const filter = filters.join(' && ')
 
       const res = await pb.collection('oportunidades').getFullList<Oportunidade>({
         filter,
@@ -196,7 +214,7 @@ export default function Pipelines() {
 
   useEffect(() => {
     loadOportunidades()
-  }, [activeFunilId, selectedEquipeFilter])
+  }, [activeFunilId, selectedEquipeFilter, user?.id, escopoVisibilidade, activeBrand])
 
   // Estado para inline "+ Adicionar nova etapa" no fim do Kanban (Admin Only)
   const [isAddingKanbanStage, setIsAddingKanbanStage] = useState(false)

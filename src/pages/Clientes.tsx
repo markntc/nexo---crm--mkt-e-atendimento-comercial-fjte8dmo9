@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
+import { useAuth } from '@/contexts/AuthContext'
 import type {
   Organizacao,
   Pessoa,
@@ -82,6 +83,7 @@ export default function Clientes() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { marcas, activeBrand, isConsolidated } = useBrand()
+  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
 
   // Subnavegação lateral estilo captura 2 do Pipedrive
   const subnavParam = searchParams.get('sub') as ContactSubNav | null
@@ -182,15 +184,31 @@ export default function Clientes() {
   const fetchContatos = async () => {
     setIsLoading(true)
     try {
-      let filterB2B = ''
-      let filterB2C = ''
-      let filterLeads = ''
+      const b2bFilters: string[] = []
+      const b2cFilters: string[] = []
+      const leadFilters: string[] = []
 
+      // 1. Marca ativa:
+      // Para Supervisor e Vendedor: estritamente a marca ativa
       if (activeBrand) {
-        filterB2B = `marca_captura_id = "${activeBrand.id}"`
-        filterB2C = `marca_captura_id = "${activeBrand.id}"`
-        filterLeads = `marca_origem_id = "${activeBrand.id}"`
+        b2bFilters.push(`marca_captura_id = "${activeBrand.id}"`)
+        b2cFilters.push(`marca_captura_id = "${activeBrand.id}"`)
+        leadFilters.push(`marca_origem_id = "${activeBrand.id}"`)
       }
+
+      // 2. Escopo de visibilidade:
+      // Vendedor: se escopo 'proprios', visualiza seus próprios cadastros criados
+      if (user && !isAdmin && !isDiretoria) {
+        if (isVendedor && escopoVisibilidade === 'proprios') {
+          b2bFilters.push(`criado_por_id = "${user.id}"`)
+          b2cFilters.push(`criado_por_id = "${user.id}"`)
+          leadFilters.push(`criado_por_id = "${user.id}"`)
+        }
+      }
+
+      let filterB2B = b2bFilters.join(' && ')
+      let filterB2C = b2cFilters.join(' && ')
+      let filterLeads = leadFilters.join(' && ')
 
       if (searchTerm.trim()) {
         const clean = searchTerm.trim().replace(/['"]/g, '')
@@ -257,7 +275,7 @@ export default function Clientes() {
 
   useEffect(() => {
     fetchContatos()
-  }, [activeBrand, searchTerm])
+  }, [activeBrand, searchTerm, user?.id, escopoVisibilidade])
 
   const handleSelectSubNav = (item: ContactSubNav) => {
     if (item === 'duplicatas') {

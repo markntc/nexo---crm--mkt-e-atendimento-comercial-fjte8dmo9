@@ -4,8 +4,16 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
 
-export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth()
+export interface ProtectedRouteProps {
+  children: React.ReactNode
+  requireAdmin?: boolean
+}
+
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requireAdmin = false,
+}) => {
+  const { isAuthenticated, isLoading, isAdmin } = useAuth()
 
   if (isLoading) {
     return (
@@ -18,6 +26,11 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (requireAdmin && !isAdmin) {
+    // Acesso não autorizado a rotas restritas a Administrador (ex: /preferencias)
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>

@@ -46,7 +46,16 @@ import { cn } from '@/lib/utils'
 import { QuickActionModal, type QuickActionType } from './QuickActionModal'
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const {
+    user,
+    logout,
+    isAdmin,
+    isDiretoria,
+    podeVerConsolidado,
+    podeAcessarPreferencias,
+    podeAcessarConciliacao,
+    perfilGlobal,
+  } = useAuth()
   const { marcas, activeBrand, isConsolidated, setActiveBrandId, currentBrandColor } = useBrand()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // Pin no localStorage — se pin ativado, fica aberto (240px); se pin desativado, fica recolhido (68px) e NÃO abre no hover
@@ -118,17 +127,19 @@ export default function Layout() {
   // Quando o pin está desativado, o menu NÃO expande no hover: só abre com pin ativado
   const isExpanded = isSidebarPinned
 
-  // Menu principal do CRM conforme Pipedrive
-  // Item unificado de "Negócios" no lugar de separar Pipelines e Oportunidades
-  // Item "Contatos" unificado para Pessoas B2C e Organizações B2B
-  const navItems = [
-    { label: 'Visão Geral', path: '/', icon: LayoutDashboard },
+  // Menu principal do CRM adaptativo por perfil:
+  // - Preferências: visível APENAS para Administrador (oculto para Diretoria, Supervisor, Vendedor)
+  // - Conciliação: visível para Admin, Supervisor, Vendedor; OCULTO para Diretoria
+  // - Importação: oculta para Diretoria (Diretoria tem foco consultivo de BI)
+  const allNavItems = [
+    { label: 'Visão Geral', path: '/', icon: LayoutDashboard, visible: true },
     {
       label: 'Negócios',
       path: '/negocios',
       icon: Funnel,
       badge: null,
       activeMatches: ['/negocios', '/pipelines', '/oportunidades'],
+      visible: true,
     },
     {
       label: 'Contatos',
@@ -136,23 +147,46 @@ export default function Layout() {
       icon: Users2,
       badge: contatosCount > 0 ? contatosCount : null,
       activeMatches: ['/contatos', '/clientes', '/leads'],
+      visible: true,
     },
     {
       label: 'Tarefas',
       path: '/tarefas',
       icon: CheckSquare,
       badge: tarefasVencidasCount > 0 ? tarefasVencidasCount : null,
+      visible: true,
     },
     {
       label: 'Conciliação',
       path: '/conciliacao',
       icon: GitCompare,
       badge: duplicidadesCount > 0 ? duplicidadesCount : null,
+      visible: podeAcessarConciliacao,
     },
-    { label: 'Importação', path: '/importacao', icon: FileSpreadsheet, badge: null },
-    { label: 'Painéis & Relatórios', path: '/relatorios', icon: BarChart3, badge: null },
-    { label: 'Preferências', path: '/preferencias', icon: Settings, badge: null },
+    {
+      label: 'Importação',
+      path: '/importacao',
+      icon: FileSpreadsheet,
+      badge: null,
+      visible: !isDiretoria,
+    },
+    {
+      label: 'Painéis & Relatórios',
+      path: '/relatorios',
+      icon: BarChart3,
+      badge: null,
+      visible: true,
+    },
+    {
+      label: 'Preferências',
+      path: '/preferencias',
+      icon: Settings,
+      badge: null,
+      visible: podeAcessarPreferencias,
+    },
   ]
+
+  const navItems = allNavItems.filter((item) => item.visible)
 
   const handleLogout = () => {
     logout()
@@ -172,91 +206,89 @@ export default function Layout() {
     return location.pathname.startsWith(item.path)
   }
 
-  const BrandSelectorComponent = ({ compact = false }: { compact?: boolean }) => (
+  // Seletor ÚNICO de Marca para o Header (substitui o chip e centraliza a troca de marca)
+  const HeaderBrandSelector = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {compact ? (
-          <button
-            type="button"
-            className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all mx-auto"
-            title={isConsolidated ? 'Consolidado NTC' : activeBrand?.nome}
-          >
-            <span
-              className="w-3.5 h-3.5 rounded-full ring-2 ring-white/60 shadow-sm"
-              style={{
-                backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor,
-              }}
-            />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white transition-all text-left border border-white/10"
-          >
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <span
-                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/50"
-                style={{
-                  backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor,
-                }}
-              />
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-300 leading-none">
-                  Marca Ativa
-                </p>
-                <p className="text-xs font-semibold text-white truncate mt-0.5">
-                  {isConsolidated ? 'Consolidado (Todas)' : activeBrand?.nome}
-                </p>
-              </div>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-300 shrink-0 ml-1.5" />
-          </button>
-        )}
+        <button
+          type="button"
+          aria-label="Selecionar Marca ou Consolidado"
+          className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-xs font-semibold transition-all shadow-2xs group focus:outline-none focus:ring-2 focus:ring-[#017848]/30"
+        >
+          <span
+            className="w-2.5 h-2.5 rounded-full shadow-xs shrink-0 ring-1 ring-black/10 group-hover:scale-110 transition-transform"
+            style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
+          />
+          <span className="text-slate-800 max-w-[170px] truncate">
+            {isConsolidated
+              ? 'Consolidado (Todas as Marcas)'
+              : activeBrand?.nome || 'Selecione a Marca'}
+          </span>
+          <ChevronDown className="w-3 h-3 text-slate-500 group-hover:text-slate-800 shrink-0" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64 p-1.5 shadow-xl border-slate-200">
         <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-[#5D6D7E]">
-          Contexto Multimarca
+          {podeVerConsolidado ? 'Contexto Multimarca' : 'Marcas Autorizadas'}
         </DropdownMenuLabel>
-        <DropdownMenuItem
-          onClick={() => setActiveBrandId(null)}
-          className={cn(
-            'flex items-center justify-between cursor-pointer rounded-lg text-xs font-semibold py-2 px-2.5',
-            isConsolidated ? 'bg-sky-50 text-[#1B4F72]' : 'text-[#1C2833]',
-          )}
-        >
-          <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-[#1B4F72]" />
-            <span>Consolidado (Todas as Marcas)</span>
-          </div>
-          {isConsolidated && <span className="text-[10px] font-bold text-[#1B4F72]">Ativo</span>}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-slate-200/60" />
-        {marcas.map((m) => {
-          const isSelected = !isConsolidated && activeBrand?.id === m.id
-          return (
+
+        {/* Opção "Consolidado" visível APENAS para Administrador e Diretoria */}
+        {podeVerConsolidado && (
+          <>
             <DropdownMenuItem
-              key={m.id}
-              onClick={() => setActiveBrandId(m.id)}
+              onClick={() => setActiveBrandId(null)}
               className={cn(
                 'flex items-center justify-between cursor-pointer rounded-lg text-xs font-semibold py-2 px-2.5',
-                isSelected ? 'bg-slate-100 font-bold' : 'text-[#1C2833]',
+                isConsolidated ? 'bg-sky-50 text-[#1B4F72]' : 'text-[#1C2833]',
               )}
             >
-              <div className="flex items-center space-x-2 min-w-0">
-                <span
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: m.cor_destaque }}
-                />
-                <span className="truncate">{m.nome}</span>
+              <div className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full bg-[#1B4F72]" />
+                <span>Todas as Marcas (Consolidado)</span>
               </div>
-              {isSelected && (
-                <span className="text-[10px] font-bold shrink-0" style={{ color: m.cor_destaque }}>
-                  Ativo
-                </span>
+              {isConsolidated && (
+                <span className="text-[10px] font-bold text-[#1B4F72]">Ativo</span>
               )}
             </DropdownMenuItem>
-          )
-        })}
+            <DropdownMenuSeparator className="bg-slate-200/60" />
+          </>
+        )}
+
+        {marcas.length === 0 ? (
+          <div className="px-2.5 py-3 text-center text-xs text-slate-500">
+            Nenhuma marca autorizada cadastrada.
+          </div>
+        ) : (
+          marcas.map((m) => {
+            const isSelected = !isConsolidated && activeBrand?.id === m.id
+            return (
+              <DropdownMenuItem
+                key={m.id}
+                onClick={() => setActiveBrandId(m.id)}
+                className={cn(
+                  'flex items-center justify-between cursor-pointer rounded-lg text-xs font-semibold py-2 px-2.5',
+                  isSelected ? 'bg-slate-100 font-bold' : 'text-[#1C2833]',
+                )}
+              >
+                <div className="flex items-center space-x-2 min-w-0">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: m.cor_destaque }}
+                  />
+                  <span className="truncate">{m.nome}</span>
+                </div>
+                {isSelected && (
+                  <span
+                    className="text-[10px] font-bold shrink-0"
+                    style={{ color: m.cor_destaque }}
+                  >
+                    Ativo
+                  </span>
+                )}
+              </DropdownMenuItem>
+            )
+          })
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -299,9 +331,34 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Brand Selector */}
+        {/* Sidebar Brand Identity — exibe a marca ativa sem controle duplicado de troca (quem troca é o header) */}
         <div className="p-2 border-b border-[#2C243B]">
-          <BrandSelectorComponent compact={!isExpanded} />
+          {isExpanded ? (
+            <div className="flex items-center space-x-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/5">
+              <span
+                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/40"
+                style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
+              />
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 leading-none">
+                  Marca Ativa
+                </p>
+                <p className="text-xs font-semibold text-white truncate mt-0.5">
+                  {isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'NTC'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mx-auto"
+              title={isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'Marca Ativa'}
+            >
+              <span
+                className="w-3 h-3 rounded-full ring-2 ring-white/50"
+                style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Navigation Items */}
@@ -442,8 +499,20 @@ export default function Layout() {
             </div>
           </SheetHeader>
 
-          <div className="p-3 border-b border-[#2C243B]">
-            <BrandSelectorComponent />
+          {/* Mobile Identity */}
+          <div className="p-3 border-b border-[#2C243B] flex items-center space-x-2.5">
+            <span
+              className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/40"
+              style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
+            />
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 leading-none">
+                Marca Ativa
+              </p>
+              <p className="text-xs font-semibold text-white truncate mt-0.5">
+                {isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'NTC'}
+              </p>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -514,15 +583,9 @@ export default function Layout() {
               <Menu className="w-5 h-5" />
             </Button>
 
-            {/* Brand Accent Indicator Top Bar */}
-            <div className="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs font-semibold">
-              <span
-                className="w-2.5 h-2.5 rounded-full shadow-xs"
-                style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
-              />
-              <span className="text-slate-800 max-w-[150px] truncate">
-                {isConsolidated ? 'Consolidado NTC' : activeBrand?.nome}
-              </span>
+            {/* Seletor Único de Marca no Header (Desktop) */}
+            <div className="hidden sm:block">
+              <HeaderBrandSelector />
             </div>
           </div>
 
@@ -620,19 +683,26 @@ export default function Layout() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-xs font-bold leading-none text-slate-900">
-                      {user?.name || 'Administrador NTC'}
+                      {user?.name || 'Usuário NTC'}
                     </p>
                     <p className="text-[11px] leading-none text-slate-500">{user?.email}</p>
+                    <div className="pt-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        {perfilGlobal}
+                      </span>
+                    </div>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => navigate('/preferencias')}
-                  className="text-xs cursor-pointer rounded-lg"
-                >
-                  <Settings className="w-4 h-4 mr-2 text-slate-500" />
-                  Preferências
-                </DropdownMenuItem>
+                {podeAcessarPreferencias && (
+                  <DropdownMenuItem
+                    onClick={() => navigate('/preferencias')}
+                    className="text-xs cursor-pointer rounded-lg"
+                  >
+                    <Settings className="w-4 h-4 mr-2 text-slate-500" />
+                    Preferências
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => navigate('/relatorios')}
                   className="text-xs cursor-pointer rounded-lg"
@@ -653,20 +723,22 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* MOBILE BRAND HORIZONTAL CHIP ROW */}
-        <div className="lg:hidden bg-white border-b border-slate-200 px-3 py-2 overflow-x-auto flex items-center space-x-1.5 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActiveBrandId(null)}
-            className={cn(
-              'px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors border',
-              isConsolidated
-                ? 'bg-[#017848] text-white border-[#017848]'
-                : 'bg-slate-50 text-slate-600 border-slate-200',
-            )}
-          >
-            Consolidado
-          </button>
+        {/* MOBILE BRAND HORIZONTAL ROW */}
+        <div className="sm:hidden bg-white border-b border-slate-200 px-3 py-2 overflow-x-auto flex items-center space-x-1.5 scrollbar-none">
+          {podeVerConsolidado && (
+            <button
+              type="button"
+              onClick={() => setActiveBrandId(null)}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors border',
+                isConsolidated
+                  ? 'bg-[#017848] text-white border-[#017848]'
+                  : 'bg-slate-50 text-slate-600 border-slate-200',
+              )}
+            >
+              Consolidado
+            </button>
+          )}
           {marcas.map((m) => {
             const isSelected = !isConsolidated && activeBrand?.id === m.id
             return (
