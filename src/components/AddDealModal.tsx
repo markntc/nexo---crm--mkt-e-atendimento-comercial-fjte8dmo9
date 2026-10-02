@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import { maskPhone } from '@/lib/formatters'
 import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
+import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
 
 export interface AddDealModalProps {
   open: boolean
@@ -49,6 +50,11 @@ export interface AddDealModalProps {
     documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
     observacoes?: string
     origem?: string
+    cidade?: string
+    estado?: string
+    pais?: string
+    cidade_entrega?: string
+    estado_entrega?: string
   }
 }
 
@@ -72,7 +78,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   initialValues,
 }) => {
   const { activeBrand, marcas } = useBrand()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
 
   // Listas de dados mestre
   const [funis, setFunis] = useState<Funil[]>([])
@@ -90,9 +96,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [isPersonDropdownOpen, setIsPersonDropdownOpen] = useState(false)
   const personInputRef = useRef<HTMLInputElement>(null)
 
-  // 2. Organização (busca / seleção)
+  // 2. Organização (busca / seleção + criação inline com badge NOVO)
   const [orgSearch, setOrgSearch] = useState('')
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
+  const [isNewOrgCandidate, setIsNewOrgCandidate] = useState(false)
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
 
   // 3. Título
@@ -138,6 +145,14 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 11. Visível para
   const [visibilidade, setVisibilidade] = useState<string>('proprietario_subordinados')
 
+  // Geografia: Faturamento e Entrega
+  const [cidadeFaturamento, setCidadeFaturamento] = useState('')
+  const [estadoFaturamento, setEstadoFaturamento] = useState('')
+  const [paisFaturamento, setPaisFaturamento] = useState('Brasil')
+  const [cidadeEntrega, setCidadeEntrega] = useState('')
+  const [estadoEntrega, setEstadoEntrega] = useState('')
+  const [entregaDiferente, setEntregaDiferente] = useState(false)
+
   // Painel Direito: PESSOA
   const [phones, setPhones] = useState<PhoneEntry[]>([{ id: '1', number: '', tipo: 'Comercial' }])
   const [emails, setEmails] = useState<EmailEntry[]>([{ id: '1', address: '', tipo: 'Comercial' }])
@@ -153,16 +168,29 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     const loadData = async () => {
       setIsLoadingMasterData(true)
       try {
-        const [funisRes, pessoasRes, orgsRes, usersRes] = await Promise.all([
-          pb
-            .collection('funis')
-            .getFullList<Funil>({
-              filter: activeBrand
-                ? `marca_id = "${activeBrand.id}" && ativo = true`
-                : 'ativo = true',
+        let funisRes: Funil[] = []
+        try {
+          if (activeBrand) {
+            funisRes = await pb.collection('funis').getFullList<Funil>({
+              filter: `marca_id = "${activeBrand.id}"`,
               sort: 'nome_funil',
             })
-            .catch(() => []),
+          } else {
+            funisRes = await pb.collection('funis').getFullList<Funil>({
+              sort: 'nome_funil',
+            })
+          }
+        } catch (e) {
+          console.warn('Falha no filtro de funis por marca, buscando todos:', e)
+          funisRes = await pb
+            .collection('funis')
+            .getFullList<Funil>({
+              sort: 'nome_funil',
+            })
+            .catch(() => [])
+        }
+
+        const [pessoasRes, orgsRes, usersRes] = await Promise.all([
           pb
             .collection('pessoas')
             .getFullList<ClienteB2C>({
@@ -225,11 +253,39 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             setCanalOrigem(initialValues.origem)
           }
 
+          if (initialValues.cidade) {
+            setCidadeFaturamento(initialValues.cidade)
+          }
+          if (initialValues.estado) {
+            setEstadoFaturamento(initialValues.estado)
+          }
+          if (initialValues.pais) {
+            setPaisFaturamento(initialValues.pais)
+          }
+          if (initialValues.cidade_entrega) {
+            setCidadeEntrega(initialValues.cidade_entrega)
+            setEntregaDiferente(true)
+          }
+          if (initialValues.estado_entrega) {
+            setEstadoEntrega(initialValues.estado_entrega)
+            setEntregaDiferente(true)
+          }
+
           if (initialValues.cliente_b2b_id) {
             const org = orgsRes.find((o) => o.id === initialValues.cliente_b2b_id)
             if (org) {
               setSelectedOrgId(org.id)
               setOrgSearch(org.razao_social)
+              if (!initialValues.cidade && org.endereco_corporativo) {
+                const loc = extrairCidadeEstado(org.endereco_corporativo)
+                if (loc.cidade) setCidadeFaturamento(loc.cidade)
+                if (loc.estado) setEstadoFaturamento(loc.estado)
+                if (loc.pais) setPaisFaturamento(loc.pais)
+                if (!initialValues.cidade_entrega) {
+                  setCidadeEntrega(loc.cidade)
+                  setEstadoEntrega(loc.estado)
+                }
+              }
             }
           }
 
@@ -243,6 +299,20 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               }
               if (p.email_principal) {
                 setEmails([{ id: '1', address: p.email_principal, tipo: 'Comercial' }])
+              }
+              if (
+                !initialValues.cidade &&
+                !initialValues.cliente_b2b_id &&
+                p.endereco_residencial
+              ) {
+                const loc = extrairCidadeEstado(p.endereco_residencial)
+                if (loc.cidade) setCidadeFaturamento(loc.cidade)
+                if (loc.estado) setEstadoFaturamento(loc.estado)
+                if (loc.pais) setPaisFaturamento(loc.pais)
+                if (!initialValues.cidade_entrega) {
+                  setCidadeEntrega(loc.cidade)
+                  setEstadoEntrega(loc.estado)
+                }
               }
             }
           }

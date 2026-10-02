@@ -134,6 +134,7 @@ export interface Pessoa {
   organizacao_id?: string
   cargo?: string
   departamento?: string
+  endereco_residencial?: string
   created: string
   updated: string
   expand?: {
@@ -169,6 +170,9 @@ export interface Lead {
     | 'Importação'
     | 'Outro'
   dados_contato: string
+  cidade?: string
+  estado?: string
+  pais?: string
   status_qualificacao: 'Novo' | 'Qualificado' | 'Desqualificado' | 'Descartado' | 'Convertido'
   cliente_b2b_id?: string
   cliente_b2c_id?: string
@@ -207,6 +211,11 @@ export interface Oportunidade {
   tipo_cliente?: TipoClienteNegocio
   lead_origem_id?: string
   observacoes?: string
+  cidade?: string
+  estado?: string
+  pais?: string
+  cidade_entrega?: string
+  estado_entrega?: string
   origem?: string
   campos_exportacao?: {
     moeda?: string

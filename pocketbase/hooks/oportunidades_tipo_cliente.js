@@ -24,10 +24,15 @@ onRecordCreate((e) => {
     const records = $app.findRecordsByFilter('oportunidades', queryFilter, '-created', 100)
 
     // Busca funis para checar quais etapas são consideradas "is_won"
-    const funis = $app.findRecordsByFilter('funis', 'ativo = true', '-created', 50)
+    let funis = []
+    try {
+      funis = $app.findRecordsByFilter('funis', '1=1', '-created', 50)
+    } catch (_) {}
+
     const wonStagesSet = new Set([
       'ganho',
       'fechado',
+      'fechado ganho',
       'pedido efetivado',
       'venda ganha',
       'concluído',
@@ -35,14 +40,16 @@ onRecordCreate((e) => {
     ])
 
     for (let f of funis) {
-      let etapas = f.get('etapas_ordenadas')
-      if (Array.isArray(etapas)) {
-        for (let et of etapas) {
-          if (et && (et.is_won === true || et.status === 'won')) {
-            if (et.nome) wonStagesSet.add(String(et.nome).toLowerCase().trim())
+      try {
+        let etapas = f.get('etapas_ordenadas')
+        if (Array.isArray(etapas)) {
+          for (let et of etapas) {
+            if (et && (et.is_won === true || et.status === 'won')) {
+              if (et.nome) wonStagesSet.add(String(et.nome).toLowerCase().trim())
+            }
           }
         }
-      }
+      } catch (_) {}
     }
 
     let hasWonDeal = false

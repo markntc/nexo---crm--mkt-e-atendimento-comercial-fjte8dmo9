@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T17:11:28.194Z",
+  "generatedAt": "2026-10-02T19:42:23.028Z",
   "collections": [
     {
       "name": "users",
@@ -421,6 +421,12 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "endereco_residencial",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -508,6 +514,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "cidade",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pais",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -644,6 +668,36 @@
           "required": false,
           "system": false,
           "selectValues": ["Cliente novo", "Recompra"]
+        },
+        {
+          "name": "cidade",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pais",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cidade_entrega",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estado_entrega",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
