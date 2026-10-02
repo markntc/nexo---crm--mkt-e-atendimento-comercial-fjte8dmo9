@@ -40,7 +40,15 @@ import {
 export default function Index() {
   const navigate = useNavigate()
   const { activeBrand, isConsolidated, currentBrandColor } = useBrand()
-  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
+  const {
+    user,
+    isAdmin,
+    isDiretoria,
+    isSupervisor,
+    isVendedor,
+    isRepresentante,
+    escopoVisibilidade,
+  } = useAuth()
 
   const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
   const [atividades, setAtividades] = useState<Atividade[]>([])
@@ -64,16 +72,18 @@ export default function Index() {
       }
 
       // 2. Filtro por escopo de visibilidade:
+      // Representante: escopo FIXO 'proprios' (apenas seus próprios negócios, tarefas e leads)
       // Vendedor: vê apenas seus próprios negócios/atividades/leads se escopoVisibilidade === 'proprios'
       // Supervisor: se escopo for 'equipe', pode ver os itens da equipe ou da marca ativa dele
       if (user && !isAdmin && !isDiretoria) {
-        if (isVendedor && escopoVisibilidade === 'proprios') {
+        if (isRepresentante || (isVendedor && escopoVisibilidade === 'proprios')) {
           oppFilters.push(`vendedor_id = "${user.id}"`)
           ativFilters.push(`responsavel_id = "${user.id}"`)
           leadFilters.push(`criado_por_id = "${user.id}"`)
         } else if (escopoVisibilidade === 'proprios') {
           oppFilters.push(`vendedor_id = "${user.id}"`)
           ativFilters.push(`responsavel_id = "${user.id}"`)
+          leadFilters.push(`criado_por_id = "${user.id}"`)
         }
       }
 
@@ -202,15 +212,17 @@ export default function Index() {
         </div>
 
         <div className="flex items-center space-x-2.5">
-          <Button
-            onClick={() => navigate('/importacao')}
-            variant="outline"
-            size="sm"
-            className="text-xs h-9 border-[#D5DBDB] hover:bg-slate-100"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-[#5D6D7E]" />
-            Importar
-          </Button>
+          {!isRepresentante && (
+            <Button
+              onClick={() => navigate('/importacao')}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 border-[#D5DBDB] hover:bg-slate-100"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-[#5D6D7E]" />
+              Importar
+            </Button>
+          )}
           <Button
             onClick={() => navigate('/negocios?action=new')}
             size="sm"
@@ -566,15 +578,17 @@ export default function Index() {
                 Compromissos pendentes na agenda
               </CardDescription>
             </div>
-            <Button
-              onClick={() => navigate('/tarefas')}
-              variant="ghost"
-              size="sm"
-              className="text-xs text-[#1B4F72] hover:text-[#154360]"
-            >
-              Ver todas
-              <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
+            {!isRepresentante && (
+              <Button
+                onClick={() => navigate('/tarefas')}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-[#1B4F72] hover:text-[#154360]"
+              >
+                Ver todas
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-3 pt-1">
             {proximasTarefas.length === 0 ? (

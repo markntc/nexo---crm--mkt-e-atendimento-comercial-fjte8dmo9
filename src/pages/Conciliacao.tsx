@@ -31,7 +31,7 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
 export default function Conciliacao() {
-  const { podeAcessarConciliacao, isDiretoria } = useAuth()
+  const { podeAcessarConciliacao, isDiretoria, isRepresentante } = useAuth()
   const [duplicidades, setDuplicidades] = useState<Duplicidade[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedCase, setSelectedCase] = useState<Duplicidade | null>(null)
@@ -149,7 +149,7 @@ export default function Conciliacao() {
     )
   }
 
-  if (isDiretoria || !podeAcessarConciliacao) {
+  if (isDiretoria || isRepresentante || !podeAcessarConciliacao) {
     return <Navigate to="/" replace />
   }
 

@@ -39,7 +39,7 @@ interface ParsedRow {
 
 export default function Importacao() {
   const { marcas, activeBrand } = useBrand()
-  const { isDiretoria } = useAuth()
+  const { isDiretoria, isRepresentante } = useAuth()
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
 
@@ -69,7 +69,7 @@ export default function Importacao() {
     errors: number
   } | null>(null)
 
-  if (isDiretoria) {
+  if (isDiretoria || isRepresentante) {
     return <Navigate to="/" replace />
   }
 

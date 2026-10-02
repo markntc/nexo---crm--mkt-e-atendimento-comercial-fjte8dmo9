@@ -34,7 +34,7 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { maskPhone } from '@/lib/formatters'
 import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
-import { getEtapaNome } from '@/lib/relationshipStatus'
+import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 
 export interface AddDealModalProps {
   open: boolean

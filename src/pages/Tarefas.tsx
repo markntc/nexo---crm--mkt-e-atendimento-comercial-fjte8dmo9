@@ -1,6 +1,6 @@
 // src/pages/Tarefas.tsx
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -50,7 +50,15 @@ export default function Tarefas() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { activeBrand, marcas } = useBrand()
-  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
+  const {
+    user,
+    isAdmin,
+    isDiretoria,
+    isSupervisor,
+    isVendedor,
+    isRepresentante,
+    escopoVisibilidade,
+  } = useAuth()
 
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -312,6 +320,10 @@ export default function Tarefas() {
         </div>
       </div>
     )
+  }
+
+  if (isRepresentante) {
+    return <Navigate to="/" replace />
   }
 
   return (

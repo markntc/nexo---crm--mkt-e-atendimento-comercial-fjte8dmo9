@@ -8,7 +8,7 @@ import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C, EtapaConfig } from '@/types'
-import { getEtapaNome } from '@/lib/relationshipStatus'
+import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { AddDealModal } from '@/components/AddDealModal'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
@@ -66,7 +66,15 @@ type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' |
 export default function Pipelines() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { activeBrand, isConsolidated } = useBrand()
-  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
+  const {
+    user,
+    isAdmin,
+    isDiretoria,
+    isSupervisor,
+    isVendedor,
+    isRepresentante,
+    escopoVisibilidade,
+  } = useAuth()
 
   // Modo de visualização (Kanban, Lista, Tabela)
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -206,11 +214,9 @@ export default function Pipelines() {
       }
 
       // Escopo de visibilidade:
-      // Vendedor e Representante: vê apenas seus próprios negócios
+      // Vendedor e Representante: vê apenas seus próprios negócios (Representante é sempre 'proprios')
       // Supervisor: vê a marca ativa (já aplicado via activeBrand)
       // Admin/Diretoria: consolidado ou marca
-      const isRepresentante =
-        (user as unknown as { perfil_global?: string })?.perfil_global === 'Representante'
       if (user && !isAdmin && !isDiretoria) {
         if (isRepresentante || isVendedor || escopoVisibilidade === 'proprios') {
           filters.push(`vendedor_id = "${user.id}"`)

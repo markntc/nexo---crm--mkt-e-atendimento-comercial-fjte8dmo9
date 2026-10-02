@@ -172,12 +172,18 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
 
     setIsSavingUser(true)
     try {
+      const isRep = editPerfilGlobal === 'Representante'
       const permissoes: PermissoesUsuario = {
         marcas_permitidas: editMarcas,
-        papeis_por_marca: editPapeisPorMarca,
-        escopo_visibilidade: editEscopo,
-        pode_conciliar: editPodeConciliar,
-        pode_importar: editPodeImportar,
+        papeis_por_marca: isRep
+          ? editMarcas.reduce<Record<string, PapelMarca>>((acc, mId) => {
+              acc[mId] = 'Representante'
+              return acc
+            }, {})
+          : editPapeisPorMarca,
+        escopo_visibilidade: isRep ? 'proprios' : editEscopo,
+        pode_conciliar: isRep ? false : editPodeConciliar,
+        pode_importar: isRep ? false : editPodeImportar,
       }
 
       const updated = await pb.collection('users').update<Usuario>(selectedUser.id, {
@@ -222,12 +228,18 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
 
     setIsSendingInvite(true)
     try {
+      const isRep = invitePerfil === 'Representante'
       const permissoes: PermissoesUsuario = {
         marcas_permitidas: inviteMarcas.length > 0 ? inviteMarcas : marcas.map((m) => m.id),
-        papeis_por_marca: invitePapeisPorMarca,
-        escopo_visibilidade: inviteEscopo,
-        pode_conciliar: invitePodeConciliar,
-        pode_importar: invitePodeImportar,
+        papeis_por_marca: isRep
+          ? inviteMarcas.reduce<Record<string, PapelMarca>>((acc, mId) => {
+              acc[mId] = 'Representante'
+              return acc
+            }, {})
+          : invitePapeisPorMarca,
+        escopo_visibilidade: isRep ? 'proprios' : inviteEscopo,
+        pode_conciliar: isRep ? false : invitePodeConciliar,
+        pode_importar: isRep ? false : invitePodeImportar,
       }
 
       // Chama o hook server-side `/backend/v1/convidar-usuario`
@@ -419,7 +431,9 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : u.perfil_global === 'Diretoria'
                                     ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                    : u.perfil_global === 'Representante'
+                                      ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                      : 'bg-emerald-50 text-emerald-700 border-emerald-200',
                             )}
                           >
                             {u.perfil_global || 'Vendedor'}
@@ -598,7 +612,15 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
               <Label className="text-xs font-semibold text-slate-700">Papel Global</Label>
               <Select
                 value={invitePerfil}
-                onValueChange={(val) => setInvitePerfil(val as PerfilGlobal)}
+                onValueChange={(val) => {
+                  const p = val as PerfilGlobal
+                  setInvitePerfil(p)
+                  if (p === 'Representante') {
+                    setInviteEscopo('proprios')
+                    setInvitePodeConciliar(false)
+                    setInvitePodeImportar(false)
+                  }
+                }}
               >
                 <SelectTrigger className="h-9 text-xs rounded-xl bg-white">
                   <SelectValue />
@@ -606,10 +628,21 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                 <SelectContent className="rounded-xl">
                   <SelectItem value="Vendedor">Vendedor (operacional)</SelectItem>
                   <SelectItem value="Supervisor">Supervisor de Equipe</SelectItem>
+                  <SelectItem value="Representante">
+                    Representante (externo — escopo fixo: próprios negócios e contatos)
+                  </SelectItem>
                   <SelectItem value="Administrador">Administrador de Marca / Sistema</SelectItem>
                   <SelectItem value="Diretoria">Diretoria (leitura consolidada)</SelectItem>
                 </SelectContent>
               </Select>
+              {invitePerfil === 'Representante' && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-1">
+                  <strong>Regra de Acesso:</strong> O perfil Representante possui escopo de
+                  visibilidade <strong>FIXO em "Próprios"</strong> (vê apenas negócios e contatos
+                  que ele mesmo cadastrou nas marcas autorizadas). Não acessa Consolidado,
+                  Conciliação, Importação, Preferências nem Painéis &amp; Relatórios.
+                </p>
+              )}
             </div>
 
             {/* SELEÇÃO DE MARCAS PERMITIDAS */}
@@ -668,7 +701,8 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Escopo de Negócios</Label>
                 <Select
-                  value={inviteEscopo}
+                  disabled={invitePerfil === 'Representante'}
+                  value={invitePerfil === 'Representante' ? 'proprios' : inviteEscopo}
                   onValueChange={(val) =>
                     setInviteEscopo(val as 'proprios' | 'equipe' | 'marca_inteira')
                   }
@@ -682,16 +716,29 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                     <SelectItem value="marca_inteira">Vê toda a marca</SelectItem>
                   </SelectContent>
                 </Select>
+                {invitePerfil === 'Representante' && (
+                  <span className="text-[10px] text-slate-500">
+                    Fixo em 'Próprios' para Representante
+                  </span>
+                )}
               </div>
 
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-700 font-medium">Aprovar Conciliações</span>
-                  <Switch checked={invitePodeConciliar} onCheckedChange={setInvitePodeConciliar} />
+                  <Switch
+                    disabled={invitePerfil === 'Representante'}
+                    checked={invitePerfil === 'Representante' ? false : invitePodeConciliar}
+                    onCheckedChange={setInvitePodeConciliar}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-700 font-medium">Importar Bases</span>
-                  <Switch checked={invitePodeImportar} onCheckedChange={setInvitePodeImportar} />
+                  <Switch
+                    disabled={invitePerfil === 'Representante'}
+                    checked={invitePerfil === 'Representante' ? false : invitePodeImportar}
+                    onCheckedChange={setInvitePodeImportar}
+                  />
                 </div>
               </div>
             </div>
@@ -745,7 +792,15 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
               <Label className="text-xs font-semibold text-slate-700">Papel Global no Nexus</Label>
               <Select
                 value={editPerfilGlobal}
-                onValueChange={(val) => setEditPerfilGlobal(val as PerfilGlobal)}
+                onValueChange={(val) => {
+                  const p = val as PerfilGlobal
+                  setEditPerfilGlobal(p)
+                  if (p === 'Representante') {
+                    setEditEscopo('proprios')
+                    setEditPodeConciliar(false)
+                    setEditPodeImportar(false)
+                  }
+                }}
               >
                 <SelectTrigger className="h-9 text-xs rounded-xl bg-white">
                   <SelectValue />
@@ -753,10 +808,20 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                 <SelectContent className="rounded-xl">
                   <SelectItem value="Vendedor">Vendedor (operacional)</SelectItem>
                   <SelectItem value="Supervisor">Supervisor de Equipe</SelectItem>
+                  <SelectItem value="Representante">
+                    Representante (externo — escopo fixo: próprios)
+                  </SelectItem>
                   <SelectItem value="Administrador">Administrador</SelectItem>
                   <SelectItem value="Diretoria">Diretoria (somente leitura consolidada)</SelectItem>
                 </SelectContent>
               </Select>
+              {editPerfilGlobal === 'Representante' && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-1">
+                  <strong>Regra de Acesso:</strong> Representante possui escopo de visibilidade{' '}
+                  <strong>FIXO em "Próprios"</strong>. Não acessa Consolidado, Conciliação,
+                  Importação, Preferências nem Painéis &amp; Relatórios.
+                </p>
+              )}
             </div>
 
             {/* MATRIZ DE MARCAS COM PAPEL INDIVIDUAL */}
@@ -817,6 +882,7 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                             <SelectContent className="rounded-xl">
                               <SelectItem value="Vendedor">Vendedor</SelectItem>
                               <SelectItem value="Supervisor">Supervisor</SelectItem>
+                              <SelectItem value="Representante">Representante</SelectItem>
                               <SelectItem value="Administrador de marca">Admin da Marca</SelectItem>
                               <SelectItem value="Diretoria">Diretoria (Read-only)</SelectItem>
                             </SelectContent>
@@ -834,7 +900,8 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Escopo de Negócios</Label>
                 <Select
-                  value={editEscopo}
+                  disabled={editPerfilGlobal === 'Representante'}
+                  value={editPerfilGlobal === 'Representante' ? 'proprios' : editEscopo}
                   onValueChange={(val) =>
                     setEditEscopo(val as 'proprios' | 'equipe' | 'marca_inteira')
                   }
@@ -848,16 +915,29 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
                     <SelectItem value="marca_inteira">Vê toda a marca</SelectItem>
                   </SelectContent>
                 </Select>
+                {editPerfilGlobal === 'Representante' && (
+                  <span className="text-[10px] text-slate-500">
+                    Fixo em 'Próprios' para Representante
+                  </span>
+                )}
               </div>
 
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-700 font-medium">Aprovar Conciliações</span>
-                  <Switch checked={editPodeConciliar} onCheckedChange={setEditPodeConciliar} />
+                  <Switch
+                    disabled={editPerfilGlobal === 'Representante'}
+                    checked={editPerfilGlobal === 'Representante' ? false : editPodeConciliar}
+                    onCheckedChange={setEditPodeConciliar}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-700 font-medium">Importar Bases</span>
-                  <Switch checked={editPodeImportar} onCheckedChange={setEditPodeImportar} />
+                  <Switch
+                    disabled={editPerfilGlobal === 'Representante'}
+                    checked={editPerfilGlobal === 'Representante' ? false : editPodeImportar}
+                    onCheckedChange={setEditPodeImportar}
+                  />
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 // src/pages/Relatorios.tsx
 import React, { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,9 +46,15 @@ export default function Relatorios() {
     currentBrandColor,
     podeVerConsolidado,
   } = useBrand()
-  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
-  const isRepresentante =
-    (user as unknown as { perfil_global?: string })?.perfil_global === 'Representante'
+  const {
+    user,
+    isAdmin,
+    isDiretoria,
+    isSupervisor,
+    isVendedor,
+    isRepresentante,
+    escopoVisibilidade,
+  } = useAuth()
 
   // Se o usuário não puder ver consolidado (Supervisor / Vendedor), aba SEMPRE é 'marca'
   const [activeTab, setActiveTab] = useState<'marca' | 'consolidado'>(
@@ -300,6 +307,10 @@ export default function Relatorios() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  if (isRepresentante) {
+    return <Navigate to="/" replace />
   }
 
   return (

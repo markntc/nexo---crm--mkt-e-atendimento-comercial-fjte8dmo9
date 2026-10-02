@@ -26,8 +26,23 @@ routerAdd(
     const body = e.requestInfo().body || {}
     const email = (body.email || '').trim().toLowerCase()
     const nome = (body.nome || '').trim()
-    const perfilGlobal = body.perfil_global || 'Vendedor'
-    const permissoes = body.permissoes || {}
+    const perfisValidos = ['Administrador', 'Supervisor', 'Vendedor', 'Diretoria', 'Representante']
+    let perfilGlobal = body.perfil_global || 'Vendedor'
+    if (!perfisValidos.includes(perfilGlobal)) {
+      perfilGlobal = 'Vendedor'
+    }
+
+    let permissoes = body.permissoes || {}
+
+    // Regra estrita de segurança NTC: Representante tem escopo fixo em 'proprios', sem conciliação ou importação
+    if (perfilGlobal === 'Representante') {
+      permissoes = {
+        ...permissoes,
+        escopo_visibilidade: 'proprios',
+        pode_conciliar: false,
+        pode_importar: false,
+      }
+    }
 
     if (!email || !nome) {
       return e.json(400, { error: 'Nome e e-mail são obrigatórios.' })

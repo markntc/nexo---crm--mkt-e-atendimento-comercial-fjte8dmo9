@@ -7,13 +7,17 @@ import { Loader2 } from 'lucide-react'
 export interface ProtectedRouteProps {
   children: React.ReactNode
   requireAdmin?: boolean
+  allowedRoles?: ('Administrador' | 'Supervisor' | 'Vendedor' | 'Diretoria' | 'Representante')[]
+  denyRepresentante?: boolean
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requireAdmin = false,
+  allowedRoles,
+  denyRepresentante = false,
 }) => {
-  const { isAuthenticated, isLoading, isAdmin } = useAuth()
+  const { isAuthenticated, isLoading, isAdmin, isRepresentante, perfilGlobal } = useAuth()
 
   if (isLoading) {
     return (
@@ -30,6 +34,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (requireAdmin && !isAdmin) {
     // Acesso não autorizado a rotas restritas a Administrador (ex: /preferencias)
+    return <Navigate to="/" replace />
+  }
+
+  if (denyRepresentante && isRepresentante) {
+    // Representante tem escopo restrito (sem preferências, conciliação, importação, relatórios, tarefas, etc.)
+    return <Navigate to="/" replace />
+  }
+
+  if (allowedRoles && !allowedRoles.includes(perfilGlobal)) {
     return <Navigate to="/" replace />
   }
 

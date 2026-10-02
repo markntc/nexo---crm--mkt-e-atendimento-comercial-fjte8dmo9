@@ -85,7 +85,15 @@ export default function Clientes() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { marcas, activeBrand, isConsolidated } = useBrand()
-  const { user, isAdmin, isDiretoria, isSupervisor, isVendedor, escopoVisibilidade } = useAuth()
+  const {
+    user,
+    isAdmin,
+    isDiretoria,
+    isSupervisor,
+    isVendedor,
+    isRepresentante,
+    escopoVisibilidade,
+  } = useAuth()
 
   // Subnavegação lateral estilo captura 2 do Pipedrive
   const subnavParam = searchParams.get('sub') as ContactSubNav | null
@@ -214,9 +222,14 @@ export default function Clientes() {
       }
 
       // 2. Escopo de visibilidade:
+      // Representante: escopo FIXO 'proprios' (vê apenas cadastros que ele mesmo criou na marca autorizada)
       // Vendedor: se escopo 'proprios', visualiza seus próprios cadastros criados
       if (user && !isAdmin && !isDiretoria) {
-        if (isVendedor && escopoVisibilidade === 'proprios') {
+        if (
+          isRepresentante ||
+          (isVendedor && escopoVisibilidade === 'proprios') ||
+          escopoVisibilidade === 'proprios'
+        ) {
           b2bFilters.push(`criado_por_id = "${user.id}"`)
           b2cFilters.push(`criado_por_id = "${user.id}"`)
           leadFilters.push(`criado_por_id = "${user.id}"`)
@@ -938,19 +951,23 @@ export default function Clientes() {
           </div>
         </button>
 
-        <div className="pt-2 border-t border-[#E3E7EB]/80 my-1" />
+        {!isRepresentante && (
+          <>
+            <div className="pt-2 border-t border-[#E3E7EB]/80 my-1" />
 
-        <button
-          type="button"
-          onClick={() => handleSelectSubNav('duplicatas')}
-          className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all text-left group"
-        >
-          <div className="flex items-center space-x-2.5">
-            <GitMerge className="w-4 h-4 text-slate-500 group-hover:text-emerald-700" />
-            <span>Mesclar duplicatas</span>
-          </div>
-          <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
-        </button>
+            <button
+              type="button"
+              onClick={() => handleSelectSubNav('duplicatas')}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all text-left group"
+            >
+              <div className="flex items-center space-x-2.5">
+                <GitMerge className="w-4 h-4 text-slate-500 group-hover:text-emerald-700" />
+                <span>Mesclar duplicatas</span>
+              </div>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
+            </button>
+          </>
+        )}
       </aside>
 
       {/* ÁREA PRINCIPAL DA LISTAGEM DE CONTATOS */}

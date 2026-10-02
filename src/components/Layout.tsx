@@ -51,9 +51,12 @@ export default function Layout() {
     logout,
     isAdmin,
     isDiretoria,
+    isRepresentante,
     podeVerConsolidado,
     podeAcessarPreferencias,
     podeAcessarConciliacao,
+    podeAcessarRelatorios,
+    podeAcessarImportacao,
     perfilGlobal,
   } = useAuth()
   const { marcas, activeBrand, isConsolidated, setActiveBrandId, currentBrandColor } = useBrand()
@@ -128,9 +131,12 @@ export default function Layout() {
   const isExpanded = isSidebarPinned
 
   // Menu principal do CRM adaptativo por perfil:
-  // - Preferências: visível APENAS para Administrador (oculto para Diretoria, Supervisor, Vendedor)
-  // - Conciliação: visível para Admin, Supervisor, Vendedor; OCULTO para Diretoria
-  // - Importação: oculta para Diretoria (Diretoria tem foco consultivo de BI)
+  // - Representante: menu MÍNIMO (apenas Visão Geral, Negócios e Contatos).
+  //   SEM Conciliação, Importação, Preferências, Painéis & Relatórios, Tarefas.
+  // - Preferências: visível APENAS para Administrador (oculto para Diretoria, Supervisor, Vendedor, Representante)
+  // - Conciliação: visível para Admin, Supervisor, Vendedor; OCULTO para Diretoria e Representante
+  // - Importação: oculta para Diretoria e Representante
+  // - Painéis & Relatórios: oculta para Representante
   const allNavItems = [
     { label: 'Visão Geral', path: '/', icon: LayoutDashboard, visible: true },
     {
@@ -154,7 +160,7 @@ export default function Layout() {
       path: '/tarefas',
       icon: CheckSquare,
       badge: tarefasVencidasCount > 0 ? tarefasVencidasCount : null,
-      visible: true,
+      visible: !isRepresentante,
     },
     {
       label: 'Conciliação',
@@ -168,14 +174,14 @@ export default function Layout() {
       path: '/importacao',
       icon: FileSpreadsheet,
       badge: null,
-      visible: !isDiretoria,
+      visible: podeAcessarImportacao,
     },
     {
       label: 'Painéis & Relatórios',
       path: '/relatorios',
       icon: BarChart3,
       badge: null,
-      visible: true,
+      visible: podeAcessarRelatorios,
     },
     {
       label: 'Preferências',
@@ -688,13 +694,15 @@ export default function Layout() {
                     Preferências
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  onClick={() => navigate('/relatorios')}
-                  className="text-xs cursor-pointer rounded-lg"
-                >
-                  <BarChart3 className="w-4 h-4 mr-2 text-slate-500" />
-                  Painéis & Relatórios
-                </DropdownMenuItem>
+                {podeAcessarRelatorios && (
+                  <DropdownMenuItem
+                    onClick={() => navigate('/relatorios')}
+                    className="text-xs cursor-pointer rounded-lg"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2 text-slate-500" />
+                    Painéis & Relatórios
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}

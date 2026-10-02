@@ -206,6 +206,8 @@ export interface Oportunidade {
   data_fechamento_esperada?: string
   tipo_cliente?: TipoClienteNegocio
   lead_origem_id?: string
+  observacoes?: string
+  origem?: string
   campos_exportacao?: {
     moeda?: string
     incoterm?: string

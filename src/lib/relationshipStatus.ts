@@ -26,13 +26,23 @@ export function getEtapaValorReferencia(item: EtapaItem | undefined | null): num
 /**
  * Verifica se uma etapa é explicitamente definida ou deduzida como etapa de "ganho"
  */
-export function isWonStage(stage?: string | EtapaItem): boolean {
+export function isWonStage(stage?: string | EtapaItem, etapasOrdenadas?: EtapaItem[]): boolean {
   if (!stage) return false
   if (typeof stage === 'object') {
     if (stage.is_won !== undefined) return Boolean(stage.is_won)
     stage = stage.nome
   }
-  const lower = stage.toLowerCase().trim()
+  const stageNome = typeof stage === 'string' ? stage : getEtapaNome(stage)
+
+  // Se houver lista de etapas configuradas do funil, prioriza a flag da etapa
+  if (etapasOrdenadas && etapasOrdenadas.length > 0) {
+    const found = etapasOrdenadas.find((e) => getEtapaNome(e) === stageNome)
+    if (found && typeof found === 'object' && found.is_won !== undefined) {
+      return Boolean(found.is_won)
+    }
+  }
+
+  const lower = stageNome.toLowerCase().trim()
   return (
     lower.includes('ganho') ||
     lower.includes('fechado') ||
@@ -46,13 +56,23 @@ export function isWonStage(stage?: string | EtapaItem): boolean {
 /**
  * Verifica se uma etapa é explicitamente definida ou deduzida como etapa de "perdido"
  */
-export function isLostStage(stage?: string | EtapaItem): boolean {
+export function isLostStage(stage?: string | EtapaItem, etapasOrdenadas?: EtapaItem[]): boolean {
   if (!stage) return false
   if (typeof stage === 'object') {
     if (stage.is_lost !== undefined) return Boolean(stage.is_lost)
     stage = stage.nome
   }
-  const lower = stage.toLowerCase().trim()
+  const stageNome = typeof stage === 'string' ? stage : getEtapaNome(stage)
+
+  // Se houver lista de etapas configuradas do funil, prioriza a flag da etapa
+  if (etapasOrdenadas && etapasOrdenadas.length > 0) {
+    const found = etapasOrdenadas.find((e) => getEtapaNome(e) === stageNome)
+    if (found && typeof found === 'object' && found.is_lost !== undefined) {
+      return Boolean(found.is_lost)
+    }
+  }
+
+  const lower = stageNome.toLowerCase().trim()
   return (
     lower.includes('perdido') ||
     lower.includes('cancelado') ||

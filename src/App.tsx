@@ -62,18 +62,50 @@ export default function App() {
                   <Route path="contatos" element={<Clientes />} />
                   <Route path="clientes" element={<Navigate to="/contatos" replace />} />
                   <Route path="leads" element={<Navigate to="/contatos?sub=leads" replace />} />
-                  <Route path="tarefas" element={<Tarefas />} />
-                  <Route path="conciliacao" element={<Conciliacao />} />
-                  <Route path="importacao" element={<Importacao />} />
+                  <Route
+                    path="tarefas"
+                    element={
+                      <ProtectedRoute denyRepresentante>
+                        <Tarefas />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="conciliacao"
+                    element={
+                      <ProtectedRoute denyRepresentante>
+                        <Conciliacao />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="importacao"
+                    element={
+                      <ProtectedRoute denyRepresentante>
+                        <Importacao />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="preferencias"
                     element={
-                      <ProtectedRoute requireAdmin>
+                      <ProtectedRoute requireAdmin denyRepresentante>
                         <Preferencias />
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="relatorios" element={<Relatorios />} />
+                  <Route
+                    path="relatorios"
+                    element={
+                      <ProtectedRoute denyRepresentante>
+                        <Relatorios />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="usuarios"
+                    element={<Navigate to="/preferencias?tab=usuarios" replace />}
+                  />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

@@ -20,8 +20,10 @@ export interface AuthContextType {
   podeVerConsolidado: boolean
   podeAcessarPreferencias: boolean
   podeAcessarConciliacao: boolean
+  podeAcessarRelatorios: boolean
+  podeAcessarImportacao: boolean
   pode: (
-    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado',
+    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado' | 'relatorios',
     marcaId?: string,
   ) => boolean
   isLoading: boolean
@@ -108,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     !isSupervisor &&
     !isRepresentante &&
     (rawPerfil === 'Vendedor' || !rawPerfil)
-
   const perfilGlobal: PerfilGlobal = isAdmin
     ? 'Administrador'
     : isDiretoria
@@ -153,18 +154,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const podeAcessarConciliacao =
     !isRepresentante && (isAdmin || (!isDiretoria && userPermissoes.pode_conciliar !== false))
 
+  // 7. Relatórios & Painéis: Administrador, Diretoria, Supervisor e Vendedor; OCULTO e BLOQUEADO para Representante
+  const podeAcessarRelatorios = !isRepresentante
+
+  // 8. Importação: Administrador e Vendedor/Supervisor (se autorizado); OCULTO e BLOQUEADO para Diretoria e Representante
+  const podeAcessarImportacao =
+    !isRepresentante && !isDiretoria && (isAdmin || userPermissoes.pode_importar !== false)
+
   const pode = (
-    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado',
+    acao: 'preferencias' | 'conciliacao' | 'importacao' | 'consolidado' | 'relatorios',
     marcaId?: string,
   ): boolean => {
     if (acao === 'preferencias') return podeAcessarPreferencias
     if (acao === 'consolidado') return podeVerConsolidado
     if (acao === 'conciliacao') return podeAcessarConciliacao
-    if (acao === 'importacao') {
-      if (isAdmin) return true
-      if (isDiretoria || isRepresentante) return false
-      return userPermissoes.pode_importar !== false
-    }
+    if (acao === 'relatorios') return podeAcessarRelatorios
+    if (acao === 'importacao') return podeAcessarImportacao
     if (marcaId && marcasAutorizadasIds !== null) {
       return marcasAutorizadasIds.includes(marcaId)
     }
@@ -188,6 +193,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         podeVerConsolidado,
         podeAcessarPreferencias,
         podeAcessarConciliacao,
+        podeAcessarRelatorios,
+        podeAcessarImportacao,
         pode,
         isLoading,
         login,
