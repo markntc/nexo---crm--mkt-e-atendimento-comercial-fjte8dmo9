@@ -26,6 +26,7 @@ import {
   Calendar,
   Clock,
   Sparkles,
+  MapPin,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
