@@ -101,6 +101,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
   const [isNewOrgCandidate, setIsNewOrgCandidate] = useState(false)
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
+  const orgInputRef = useRef<HTMLInputElement>(null)
 
   // 3. Título
   const [titulo, setTitulo] = useState('')
@@ -113,7 +114,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 5. Funil
   const [funilId, setFunilId] = useState<string>('')
 
-  // 6. Etapa do funil (chevrons verdes + dropdown + adicionar nova etapa)
+  // 6. Etapa do funil (chevrons verdes + adicionar nova etapa)
   const [etapaAtual, setEtapaAtual] = useState<string>('')
   const [isAddingNewEtapa, setIsAddingNewEtapa] = useState(false)
   const [novaEtapaNome, setNovaEtapaNome] = useState('')
@@ -363,11 +364,37 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
 
     // Se a pessoa tiver organização vinculada, pré-seleciona
+    let linkedOrg: ClienteB2B | undefined
     if (p.organizacao_id && !selectedOrgId) {
-      const org = organizacoes.find((o) => o.id === p.organizacao_id)
-      if (org) {
-        setSelectedOrgId(org.id)
-        setOrgSearch(org.razao_social)
+      linkedOrg = organizacoes.find((o) => o.id === p.organizacao_id)
+      if (linkedOrg) {
+        setSelectedOrgId(linkedOrg.id)
+        setOrgSearch(linkedOrg.razao_social)
+      }
+    }
+
+    // Herança geográfica automática:
+    // Se a pessoa tiver vínculo com organização, usa localidade da organização.
+    // Senão, usa endereco_residencial da pessoa física.
+    const orgParaLocalidade =
+      linkedOrg || (selectedOrgId ? organizacoes.find((o) => o.id === selectedOrgId) : undefined)
+    if (orgParaLocalidade?.endereco_corporativo) {
+      const loc = extrairCidadeEstado(orgParaLocalidade.endereco_corporativo)
+      if (loc.cidade) setCidadeFaturamento(loc.cidade)
+      if (loc.estado) setEstadoFaturamento(loc.estado)
+      if (loc.pais) setPaisFaturamento(loc.pais)
+      if (!entregaDiferente) {
+        setCidadeEntrega(loc.cidade)
+        setEstadoEntrega(loc.estado)
+      }
+    } else if (p.endereco_residencial) {
+      const loc = extrairCidadeEstado(p.endereco_residencial)
+      if (loc.cidade) setCidadeFaturamento(loc.cidade)
+      if (loc.estado) setEstadoFaturamento(loc.estado)
+      if (loc.pais) setPaisFaturamento(loc.pais)
+      if (!entregaDiferente) {
+        setCidadeEntrega(loc.cidade)
+        setEstadoEntrega(loc.estado)
       }
     }
   }
@@ -380,13 +407,36 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     handleUpdateTitleSuggestion(personSearch.trim())
   }
 
-  // Ação de seleção de organização
+  // Ação de seleção ou criação inline de organização
   const handleSelectOrg = (o: ClienteB2B) => {
     setSelectedOrgId(o.id)
     setOrgSearch(o.razao_social)
+    setIsNewOrgCandidate(false)
     setIsOrgDropdownOpen(false)
     if (!personSearch && !userEditedTitle) {
       setTitulo(o.razao_social)
+    }
+
+    // Herança geográfica automática a partir do endereço corporativo da organização
+    if (o.endereco_corporativo) {
+      const loc = extrairCidadeEstado(o.endereco_corporativo)
+      if (loc.cidade) setCidadeFaturamento(loc.cidade)
+      if (loc.estado) setEstadoFaturamento(loc.estado)
+      if (loc.pais) setPaisFaturamento(loc.pais)
+      if (!entregaDiferente) {
+        setCidadeEntrega(loc.cidade)
+        setEstadoEntrega(loc.estado)
+      }
+    }
+  }
+
+  const handleCreateNewOrgCandidate = () => {
+    if (!orgSearch.trim()) return
+    setSelectedOrgId(null)
+    setIsNewOrgCandidate(true)
+    setIsOrgDropdownOpen(false)
+    if (!personSearch && !userEditedTitle) {
+      setTitulo(orgSearch.trim())
     }
   }
 
@@ -507,11 +557,25 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const activeMarcaId = activeBrand?.id || (marcas[0]?.id ?? '')
       const currentUserId = proprietarioId || user?.id || pb.authStore.record?.id
 
+      // 1. Criação da Organização (se foi marcada como NOVA inline)
+      let finalOrgId = selectedOrgId
+      if (isNewOrgCandidate && orgSearch.trim()) {
+        const novaOrg = await pb.collection('organizacoes').create({
+          razao_social: orgSearch.trim(),
+          nome_fantasia: orgSearch.trim(),
+          marca_captura_id: activeMarcaId,
+          origem_sistema: 'Cadastro via Pipedrive Negócio',
+          data_criacao: new Date().toISOString(),
+          criado_por_id: currentUserId,
+        })
+        finalOrgId = novaOrg.id
+      }
+
       let finalPessoaId = selectedPersonId
       const primaryPhone = phones.find((p) => p.number.trim())?.number || ''
       const primaryEmail = emails.find((e) => e.address.trim())?.address || ''
 
-      // 1. Criação ou atualização da Pessoa na collection `pessoas`
+      // 2. Criação ou atualização da Pessoa na collection `pessoas`
       if (isNewPersonCandidate && personSearch.trim()) {
         const novaPessoa = await pb.collection('pessoas').create({
           nome_completo: personSearch.trim(),
@@ -519,20 +583,20 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           telefone: primaryPhone,
           email_principal: primaryEmail,
           marca_captura_id: activeMarcaId,
-          organizacao_id: selectedOrgId || null,
+          organizacao_id: finalOrgId || null,
           origem_sistema: 'Cadastro via Pipedrive Negócio',
           data_criacao: new Date().toISOString(),
           criado_por_id: currentUserId,
         })
         finalPessoaId = novaPessoa.id
-      } else if (finalPessoaId && (primaryPhone || primaryEmail)) {
+      } else if (finalPessoaId && (primaryPhone || primaryEmail || finalOrgId)) {
         // Atualiza a pessoa vinculada com os novos contatos se alterados
         await pb
           .collection('pessoas')
           .update(finalPessoaId, {
             ...(primaryPhone ? { telefone: primaryPhone } : {}),
             ...(primaryEmail ? { email_principal: primaryEmail } : {}),
-            ...(selectedOrgId ? { organizacao_id: selectedOrgId } : {}),
+            ...(finalOrgId ? { organizacao_id: finalOrgId } : {}),
           })
           .catch(() => {})
       }
@@ -553,11 +617,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         }
       }
 
-      // 2. Classificação Automática: "Cliente novo" vs "Recompra"
+      // 3. Classificação Automática: "Cliente novo" vs "Recompra"
       // Se a pessoa ou organização vinculada tiver negócio ganho anterior -> "Recompra", senão -> "Cliente novo"
       let tipoClienteClassificado: 'Cliente novo' | 'Recompra' = 'Cliente novo'
       const checkFilters: string[] = []
-      if (selectedOrgId) checkFilters.push(`cliente_b2b_id = "${selectedOrgId}"`)
+      if (finalOrgId) checkFilters.push(`cliente_b2b_id = "${finalOrgId}"`)
       if (finalPessoaId) checkFilters.push(`cliente_b2c_id = "${finalPessoaId}"`)
 
       if (checkFilters.length > 0) {
@@ -585,13 +649,17 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         }
       }
 
+      // Localidade final: se editou entrega, usa entrega; senão herda faturamento
+      const finalCidadeEntrega = cidadeEntrega.trim() || cidadeFaturamento.trim() || null
+      const finalEstadoEntrega = estadoEntrega.trim() || estadoFaturamento.trim() || null
+
       const novoNegocio = await pb.collection('oportunidades').create({
         titulo: titulo.trim(),
         valor_estimado: numValor,
         funil_id: funilId || null,
         etapa_atual: etapaAtual || 'Primeiro contato',
         marca_id: activeMarcaId,
-        cliente_b2b_id: selectedOrgId || null,
+        cliente_b2b_id: finalOrgId || null,
         cliente_b2c_id: finalPessoaId || null,
         documento_faturamento: documentoFaturamento,
         data_fechamento_esperada: dataFechamentoIso,
@@ -601,6 +669,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         id_canal_origem: idCanalOrigem.trim() || null,
         visibilidade: visibilidade,
         observacoes: notaObservacoes.trim() || null,
+        cidade: cidadeFaturamento.trim() || null,
+        estado: estadoFaturamento.trim() || null,
+        pais: paisFaturamento.trim() || 'Brasil',
+        cidade_entrega: finalCidadeEntrega,
+        estado_entrega: finalEstadoEntrega,
         proxima_acao_data: new Date(followUpData).toISOString(),
         proxima_acao_descricao: followUpDesc.trim(),
         status: 'aberto',
@@ -621,6 +694,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         title: 'Negócio adicionado com sucesso!',
         description: `"${titulo.trim()}" foi criado e vinculado ao funil.`,
       })
+
+      // Se a entidade não tiver cidade/estado, sugere completar na ficha
+      if (!cidadeFaturamento.trim() && !estadoFaturamento.trim()) {
+        toast({
+          title: 'Endereço não informado',
+          description:
+            'Sugerimos completar a localidade e o endereço diretamente na ficha do cliente.',
+        })
+      }
 
       // Limpa e fecha modal
       onOpenChange(false)
@@ -686,7 +768,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
-                      <TooltipContent className="text-xs">
+                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                         Pessoa física responsável ou contato decisor deste negócio.
                       </TooltipContent>
                     </Tooltip>
@@ -766,7 +848,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
-                      <TooltipContent className="text-xs">
+                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                         Empresa ou entidade B2B à qual este negócio está vinculado.
                       </TooltipContent>
                     </Tooltip>
@@ -778,21 +860,30 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                     <Building2 className="w-4 h-4" />
                   </div>
                   <Input
+                    ref={orgInputRef}
                     placeholder=""
                     value={orgSearch}
                     onChange={(e) => {
                       setOrgSearch(e.target.value)
+                      setIsNewOrgCandidate(false)
                       setSelectedOrgId(null)
                       setIsOrgDropdownOpen(true)
                     }}
                     onFocus={() => setIsOrgDropdownOpen(true)}
-                    className="pl-9 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                    className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                   />
+
+                  {/* Badge "NOVO" azul no canto do campo estilo captura Pipedrive */}
+                  {isNewOrgCandidate && (
+                    <span className="absolute right-2 top-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0284C7] text-white tracking-wide">
+                      NOVO
+                    </span>
+                  )}
                 </div>
 
-                {/* Dropdown de organizações */}
+                {/* Dropdown de organizações com opção "+ Adicionar [nome]" com badge NOVO */}
                 {isOrgDropdownOpen && orgSearch && (
-                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-44 overflow-y-auto p-1 text-xs">
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 text-xs">
                     {filteredOrgs.map((o) => (
                       <div
                         key={o.id}
@@ -808,11 +899,20 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                         )}
                       </div>
                     ))}
-                    {filteredOrgs.length === 0 && (
-                      <div className="p-2 text-center text-slate-400 text-xs">
-                        Nenhuma organização encontrada.
+
+                    {/* Botão "+ Adicionar [nome]" com badge NOVO */}
+                    <div
+                      onClick={handleCreateNewOrgCandidate}
+                      className="p-2 mt-1 border-t border-slate-100 hover:bg-blue-50/70 rounded-lg cursor-pointer flex items-center justify-between text-[#0284C7] font-bold"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Adicionar "{orgSearch.trim()}"</span>
                       </div>
-                    )}
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0284C7] text-white">
+                        NOVO
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -841,7 +941,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
-                      <TooltipContent className="text-xs">
+                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                         Valor total estimado desta oportunidade na moeda de faturamento.
                       </TooltipContent>
                     </Tooltip>
@@ -894,6 +994,84 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 </div>
               </div>
 
+              {/* Bloco discreto: Local de entrega (opcional) & Faturamento */}
+              <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
+                    <MapPin className="w-3.5 h-3.5 text-[#017848]" />
+                    <span>Localidade de Faturamento & Entrega</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEntregaDiferente(!entregaDiferente)}
+                    className="text-[11px] text-[#0284C7] hover:underline font-semibold"
+                  >
+                    {entregaDiferente ? 'Entrega no mesmo local' : 'Local de entrega diferente?'}
+                  </button>
+                </div>
+
+                {/* Localidade de Faturamento pré-preenchida da entidade */}
+                <div className="grid grid-cols-12 gap-2 text-xs">
+                  <div className="col-span-7">
+                    <Label className="text-[10px] text-slate-500">Cidade (Faturamento)</Label>
+                    <Input
+                      placeholder="ex: Campinas"
+                      value={cidadeFaturamento}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setCidadeFaturamento(val)
+                        if (!entregaDiferente) setCidadeEntrega(val)
+                      }}
+                      className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB]"
+                    />
+                  </div>
+                  <div className="col-span-5">
+                    <Label className="text-[10px] text-slate-500">UF</Label>
+                    <Input
+                      placeholder="SP"
+                      maxLength={2}
+                      value={estadoFaturamento}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase()
+                        setEstadoFaturamento(val)
+                        if (!entregaDiferente) setEstadoEntrega(val)
+                      }}
+                      className="h-8 text-xs bg-white uppercase rounded-lg border-[#D5DBDB]"
+                    />
+                  </div>
+                </div>
+
+                {/* Local de Entrega diferente (opcional) */}
+                {entregaDiferente && (
+                  <div className="pt-2 border-t border-slate-200 grid grid-cols-12 gap-2 text-xs">
+                    <div className="col-span-12">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                        Local de entrega (opcional)
+                      </span>
+                    </div>
+                    <div className="col-span-7">
+                      <Label className="text-[10px] text-slate-500">Cidade de Entrega</Label>
+                      <Input
+                        placeholder="ex: Ubatuba"
+                        value={cidadeEntrega}
+                        onChange={(e) => setCidadeEntrega(e.target.value)}
+                        className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB]"
+                      />
+                    </div>
+                    <div className="col-span-5">
+                      <Label className="text-[10px] text-slate-500">UF de Entrega</Label>
+                      <Input
+                        placeholder="SP"
+                        maxLength={2}
+                        value={estadoEntrega}
+                        onChange={(e) => setEstadoEntrega(e.target.value.toUpperCase())}
+                        className="h-8 text-xs bg-white uppercase rounded-lg border-[#D5DBDB]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* 5. Funil */}
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-700">Funil</Label>
@@ -911,17 +1089,19 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 </Select>
               </div>
 
-              {/* 6. Etapa do funil — Chevrons verdes estilo Pipedrive + Dropdown + Adicionar nova etapa */}
+              {/* 6. Etapa do funil — Chevrons verdes estilo Pipedrive + Adicionar nova etapa (somente Admin) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-slate-700">Etapa do funil</Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingNewEtapa(!isAddingNewEtapa)}
-                    className="text-xs text-[#0284C7] hover:underline font-semibold"
-                  >
-                    + Adicionar nova etapa
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingNewEtapa(!isAddingNewEtapa)}
+                      className="text-xs text-[#0284C7] hover:underline font-semibold"
+                    >
+                      + Adicionar nova etapa
+                    </button>
+                  )}
                 </div>
 
                 {/* Barra de chevrons verdes Pipedrive */}
@@ -951,8 +1131,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </div>
                 )}
 
-                {/* Input inline para adicionar nova etapa */}
-                {isAddingNewEtapa && (
+                {/* Input inline para adicionar nova etapa (somente Admin) */}
+                {isAdmin && isAddingNewEtapa && (
                   <div className="flex items-center space-x-2 pt-1">
                     <Input
                       placeholder="Nome da nova etapa..."
@@ -990,7 +1170,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
-                      <TooltipContent className="text-xs">
+                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                         Classificação qualitativa do negócio (quente, prioritário, cold).
                       </TooltipContent>
                     </Tooltip>
@@ -1020,7 +1200,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
-                      <TooltipContent className="text-xs">
+                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                         Previsão de assinatura de contrato ou efetivação do pedido.
                       </TooltipContent>
                     </Tooltip>
@@ -1323,7 +1503,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                     <TooltipTrigger asChild>
                       <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                     </TooltipTrigger>
-                    <TooltipContent className="text-xs">
+                    <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
                       Limite de caracteres para notas e histórico do negócio.
                     </TooltipContent>
                   </Tooltip>

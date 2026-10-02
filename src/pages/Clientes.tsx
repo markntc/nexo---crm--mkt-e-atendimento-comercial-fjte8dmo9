@@ -278,7 +278,7 @@ export default function Clientes() {
         pb
           .collection('funis')
           .getFullList<Funil>({
-            filter: activeBrand ? `marca_id = "${activeBrand.id}" && ativo = true` : 'ativo = true',
+            filter: activeBrand ? `marca_id = "${activeBrand.id}"` : undefined,
           })
           .catch(() => []),
       ])
