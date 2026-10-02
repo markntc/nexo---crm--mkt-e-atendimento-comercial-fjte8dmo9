@@ -333,22 +333,7 @@ export default function Layout() {
 
         {/* Sidebar Brand Identity — exibe a marca ativa sem controle duplicado de troca (quem troca é o header) */}
         <div className="p-2 border-b border-[#2C243B]">
-          {isExpanded ? (
-            <div className="flex items-center space-x-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/5">
-              <span
-                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/40"
-                style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
-              />
-              <div className="min-w-0">
-                <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 leading-none">
-                  Marca Ativa
-                </p>
-                <p className="text-xs font-semibold text-white truncate mt-0.5">
-                  {isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'NTC'}
-                </p>
-              </div>
-            </div>
-          ) : (
+          {isExpanded ? null : (
             <div
               className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mx-auto"
               title={isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'Marca Ativa'}
