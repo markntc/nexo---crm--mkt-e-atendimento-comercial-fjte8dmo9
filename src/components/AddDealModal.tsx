@@ -1000,7 +1000,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
                     <MapPin className="w-3.5 h-3.5 text-[#017848]" />
-                    <span>Localidade de Faturamento & Entrega</span>
+                    <span>Localidade de Faturamento e Entrega</span>
                   </div>
                   <button
                     type="button"
