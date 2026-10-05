@@ -171,43 +171,8 @@ export function GeoSelector({
     <div className={cn('space-y-2', compact && 'space-y-1.5')}>
       {label && <Label className="text-xs font-semibold text-slate-700 block">{label}</Label>}
       <div className="grid grid-cols-12 gap-2">
-        {/* Campo País */}
-        <div className="col-span-12 sm:col-span-4">
-          <Label htmlFor={`${idPrefix}-pais`} className="text-xs font-medium text-slate-600">
-            {paisLabel}
-          </Label>
-          <Select
-            value={isOutroPais ? 'Outro' : pais || PAIS_PADRAO}
-            onValueChange={handlePaisChange}
-            disabled={disabled}
-          >
-            <SelectTrigger
-              id={`${idPrefix}-pais`}
-              className="h-9 w-full bg-white text-xs border-slate-200"
-            >
-              <SelectValue placeholder="Selecione o país" />
-            </SelectTrigger>
-            <SelectContent className="z-[9999]">
-              {PAISES_CANONICOS.map((p) => (
-                <SelectItem key={p} value={p} className="text-xs">
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {isOutroPais && (
-            <Input
-              value={outroPaisNome}
-              onChange={(e) => handleOutroPaisInput(e.target.value)}
-              placeholder="Digite o nome do país"
-              disabled={disabled}
-              className="mt-1 h-8 text-xs bg-white border-slate-200"
-            />
-          )}
-        </div>
-
-        {/* Campo Cidade */}
-        <div className={cn('col-span-12', isBrasil ? 'sm:col-span-5' : 'sm:col-span-8')}>
+        {/* 1. Campo Cidade (Cidade primeiro) */}
+        <div className={cn('col-span-12', isBrasil ? 'sm:col-span-5' : 'sm:col-span-7')}>
           <Label htmlFor={`${idPrefix}-cidade`} className="text-xs font-medium text-slate-600">
             {cidadeLabel}
             {required && <span className="text-red-500 ml-0.5">*</span>}
@@ -337,8 +302,8 @@ export function GeoSelector({
           )}
         </div>
 
-        {/* Campo UF (apenas Brasil ou Estado livre no exterior) */}
-        {isBrasil ? (
+        {/* 2. Campo UF (depois de Cidade) */}
+        {isBrasil && (
           <div className="col-span-12 sm:col-span-3">
             <Label htmlFor={`${idPrefix}-uf`} className="text-xs font-medium text-slate-600">
               {estadoLabel}
@@ -360,8 +325,45 @@ export function GeoSelector({
               </SelectContent>
             </Select>
           </div>
-        ) : (
-          <div className="col-span-12 sm:col-span-12 mt-1">
+        )}
+
+        {/* 3. Campo País (por último na linha) */}
+        <div className={cn('col-span-12', isBrasil ? 'sm:col-span-4' : 'sm:col-span-5')}>
+          <Label htmlFor={`${idPrefix}-pais`} className="text-xs font-medium text-slate-600">
+            {paisLabel}
+          </Label>
+          <Select
+            value={isOutroPais ? 'Outro' : pais || PAIS_PADRAO}
+            onValueChange={handlePaisChange}
+            disabled={disabled}
+          >
+            <SelectTrigger
+              id={`${idPrefix}-pais`}
+              className="h-9 w-full bg-white text-xs border-slate-200"
+            >
+              <SelectValue placeholder="Selecione o país" />
+            </SelectTrigger>
+            <SelectContent className="z-[9999]">
+              {PAISES_CANONICOS.map((p) => (
+                <SelectItem key={p} value={p} className="text-xs">
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isOutroPais && (
+            <Input
+              value={outroPaisNome}
+              onChange={(e) => handleOutroPaisInput(e.target.value)}
+              placeholder="Digite o nome do país"
+              disabled={disabled}
+              className="mt-1 h-8 text-xs bg-white border-slate-200"
+            />
+          )}
+        </div>
+
+        {!isBrasil && (
+          <div className="col-span-12 mt-1">
             <p className="text-[11px] text-slate-400 italic">
               Destino internacional selecionado ({pais}). Municípios e estados seguem formato do
               país.

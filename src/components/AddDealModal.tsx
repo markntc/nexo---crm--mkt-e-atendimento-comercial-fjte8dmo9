@@ -1309,11 +1309,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 )}
               </div>
 
-              {/* 5. Funil */}
-              <div className="space-y-1">
+              {/* 5. Funil — Linha dedicada com largura plena */}
+              <div className="space-y-1 w-full">
                 <Label className="text-xs font-semibold text-slate-700">Funil</Label>
                 <Select value={funilId} onValueChange={setFunilId}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
+                  <SelectTrigger className="h-9 w-full text-xs rounded-lg border-[#D5DBDB] bg-white">
                     <SelectValue placeholder="Selecione o funil..." />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
@@ -1326,8 +1326,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 </Select>
               </div>
 
-              {/* 6. Etapa do funil — Chevrons verdes estilo Pipedrive + Adicionar nova etapa (somente Admin) */}
-              <div className="space-y-2">
+              {/* 6. Etapa do funil — Linha dedicada abaixo, largura plena, sem rolagem horizontal (flex-wrap) */}
+              <div className="space-y-2 w-full">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-slate-700">Etapa do funil</Label>
                   {isAdmin && (
@@ -1341,9 +1341,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   )}
                 </div>
 
-                {/* Barra de chevrons verdes Pipedrive */}
+                {/* Seletor de etapas estilo Pipedrive em flex-wrap para não exigir rolagem horizontal */}
                 {etapasList.length > 0 && (
-                  <div className="flex items-center gap-1 overflow-x-auto py-1">
+                  <div className="flex flex-wrap items-center gap-1.5 py-1 w-full">
                     {etapasList.map((et, idx) => {
                       const isActive = idx <= currentEtapaIndex
                       const isCurrent = et === etapaAtual
@@ -1354,14 +1354,14 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                           onClick={() => setEtapaAtual(et)}
                           title={et}
                           className={cn(
-                            'relative h-7 px-2.5 text-[11px] font-bold transition-all flex items-center justify-center shrink-0 rounded-md',
+                            'relative h-7 px-2.5 text-[11px] font-bold transition-all flex items-center justify-center rounded-md',
                             isActive
                               ? 'bg-[#017848] text-white shadow-xs'
                               : 'bg-[#E5E9EC] text-slate-600 hover:bg-slate-300',
                             isCurrent && 'ring-2 ring-offset-1 ring-[#017848]',
                           )}
                         >
-                          <span className="truncate max-w-[100px]">{et}</span>
+                          <span className="truncate max-w-[140px]">{et}</span>
                         </button>
                       )
                     })}
@@ -1370,12 +1370,12 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
                 {/* Input inline para adicionar nova etapa (somente Admin) */}
                 {isAdmin && isAddingNewEtapa && (
-                  <div className="flex items-center space-x-2 pt-1">
+                  <div className="flex items-center space-x-2 pt-1 w-full">
                     <Input
                       placeholder="Nome da nova etapa..."
                       value={novaEtapaNome}
                       onChange={(e) => setNovaEtapaNome(e.target.value)}
-                      className="h-8 text-xs rounded-lg"
+                      className="h-8 text-xs rounded-lg flex-1"
                     />
                     <Button
                       type="button"
