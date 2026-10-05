@@ -1,17 +1,13 @@
 // src/data/ibgeMunicipios.ts
-// Base de municípios brasileiros organizada por UF.
-// Contém os mais de 5.500 municípios do Brasil (IBGE), indexados por UF e normalizados.
+// Base de municípios brasileiros completa do IBGE organizada por UF.
+// Contém os 5.570 municípios do Brasil indexados por UF com busca de alta performance e normalização sem acentos.
+
+import { MUNICIPIOS_POR_UF } from './ibgeCompactData'
 
 export interface MunicipioIBGE {
   nome: string
   uf: string
 }
-
-// Cidades mais frequentes ou polos regionais por UF, além de municípios-chave
-// Para permitir busca instantânea no bundle sem latência.
-import { BASE_MUNICIPIOS_DATA } from './municipiosBase'
-
-export const MUNICIPIOS_IBGE: MunicipioIBGE[] = BASE_MUNICIPIOS_DATA
 
 export function normalizarTexto(texto: string): string {
   return texto
@@ -21,53 +17,125 @@ export function normalizarTexto(texto: string): string {
     .trim()
 }
 
+// Lazy cache de objetos MunicipioIBGE por UF e geral para evitar alocações excessivas
+let cachedAllMunicipios: MunicipioIBGE[] | null = null
+const cachedByUf: Record<string, MunicipioIBGE[]> = {}
+
+export function getMunicipiosPorUf(uf: string): MunicipioIBGE[] {
+  const ufUpper = uf.toUpperCase()
+  if (cachedByUf[ufUpper]) {
+    return cachedByUf[ufUpper]
+  }
+
+  const pipeString = MUNICIPIOS_POR_UF[ufUpper]
+  if (!pipeString) return []
+
+  const list: MunicipioIBGE[] = pipeString.split('|').map((nome) => ({
+    nome,
+    uf: ufUpper,
+  }))
+
+  cachedByUf[ufUpper] = list
+  return list
+}
+
+export function getAllMunicipios(): MunicipioIBGE[] {
+  if (cachedAllMunicipios) {
+    return cachedAllMunicipios
+  }
+
+  const list: MunicipioIBGE[] = []
+  for (const uf of Object.keys(MUNICIPIOS_POR_UF)) {
+    list.push(...getMunicipiosPorUf(uf))
+  }
+
+  cachedAllMunicipios = list
+  return list
+}
+
+// Mantido para compatibilidade reversa com quem importar MUNICIPIOS_IBGE
+export const MUNICIPIOS_IBGE: MunicipioIBGE[] = new Proxy([] as MunicipioIBGE[], {
+  get(target, prop, receiver) {
+    const all = getAllMunicipios()
+    return Reflect.get(all, prop, receiver)
+  },
+})
+
 /**
  * Busca municípios por query (case/acento-insensitivo).
  * Prioriza:
- * 1. Cidades que começam com a query
- * 2. Cidades que contêm a query
+ * 1. Cidades cujo nome começa com a query
+ * 2. Cidades cujo nome contém a query
  * Pode opcionalmente filtrar por UF.
  */
-export function buscarMunicipios(query: string, ufFiltro?: string, limite = 30): MunicipioIBGE[] {
+export function buscarMunicipios(query: string, ufFiltro?: string, limite = 50): MunicipioIBGE[] {
+  const ufNorm = ufFiltro?.toUpperCase().trim()
+
   if (!query || query.trim().length === 0) {
-    if (ufFiltro) {
-      return MUNICIPIOS_IBGE.filter((m) => m.uf === ufFiltro).slice(0, limite)
+    if (ufNorm && MUNICIPIOS_POR_UF[ufNorm]) {
+      return getMunicipiosPorUf(ufNorm).slice(0, limite)
     }
     return []
   }
 
   const qNorm = normalizarTexto(query)
-  const ufNorm = ufFiltro?.toUpperCase()
-
   const startsWithList: MunicipioIBGE[] = []
   const containsList: MunicipioIBGE[] = []
 
-  for (const m of MUNICIPIOS_IBGE) {
-    if (ufNorm && m.uf !== ufNorm) continue
-
-    const nomeNorm = normalizarTexto(m.nome)
-    if (nomeNorm.startsWith(qNorm)) {
-      startsWithList.push(m)
-      if (startsWithList.length >= limite) break
-    } else if (nomeNorm.includes(qNorm)) {
-      containsList.push(m)
+  // Se tem UF definida, busca apenas dentro daquela UF (muito mais rápido)
+  if (ufNorm && MUNICIPIOS_POR_UF[ufNorm]) {
+    const list = getMunicipiosPorUf(ufNorm)
+    for (const m of list) {
+      const nomeNorm = normalizarTexto(m.nome)
+      if (nomeNorm.startsWith(qNorm)) {
+        startsWithList.push(m)
+        if (startsWithList.length >= limite) return startsWithList
+      } else if (nomeNorm.includes(qNorm)) {
+        containsList.push(m)
+      }
     }
+    return [...startsWithList, ...containsList].slice(0, limite)
   }
 
-  const resultado = [...startsWithList, ...containsList].slice(0, limite)
-  return resultado
+  // Busca global por todas as UFs
+  for (const uf of Object.keys(MUNICIPIOS_POR_UF)) {
+    const list = getMunicipiosPorUf(uf)
+    for (const m of list) {
+      const nomeNorm = normalizarTexto(m.nome)
+      if (nomeNorm.startsWith(qNorm)) {
+        startsWithList.push(m)
+        if (startsWithList.length >= limite * 2) break
+      } else if (nomeNorm.includes(qNorm)) {
+        if (containsList.length < limite) {
+          containsList.push(m)
+        }
+      }
+    }
+    if (startsWithList.length >= limite) break
+  }
+
+  return [...startsWithList, ...containsList].slice(0, limite)
 }
 
 /**
  * Encontra município exato (case/acento-insensitivo) por nome e opcionalmente UF.
  */
 export function encontrarMunicipio(nome: string, uf?: string): MunicipioIBGE | undefined {
-  if (!nome) return undefined
+  if (!nome || !nome.trim()) return undefined
   const qNorm = normalizarTexto(nome)
-  const ufNorm = uf?.toUpperCase()
+  const ufNorm = uf?.toUpperCase().trim()
 
-  return MUNICIPIOS_IBGE.find((m) => {
-    if (ufNorm && m.uf !== ufNorm) return false
-    return normalizarTexto(m.nome) === qNorm
-  })
+  if (ufNorm && MUNICIPIOS_POR_UF[ufNorm]) {
+    const list = getMunicipiosPorUf(ufNorm)
+    return list.find((m) => normalizarTexto(m.nome) === qNorm)
+  }
+
+  // Busca em todas as UFs
+  for (const curUf of Object.keys(MUNICIPIOS_POR_UF)) {
+    const list = getMunicipiosPorUf(curUf)
+    const match = list.find((m) => normalizarTexto(m.nome) === qNorm)
+    if (match) return match
+  }
+
+  return undefined
 }

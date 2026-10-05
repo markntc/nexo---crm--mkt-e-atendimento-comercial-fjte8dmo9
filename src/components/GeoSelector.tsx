@@ -169,6 +169,7 @@ export function GeoSelector({
 
   return (
     <div className={cn('space-y-2', compact && 'space-y-1.5')}>
+      {label && <Label className="text-xs font-semibold text-slate-700 block">{label}</Label>}
       <div className="grid grid-cols-12 gap-2">
         {/* Campo País */}
         <div className="col-span-12 sm:col-span-4">

@@ -1,7 +1,12 @@
 // src/lib/geoUtils.ts
 // Utilitários de geolocalização e extração de endereço para CRM NTC
 
-import { MUNICIPIOS_IBGE, normalizarTexto, encontrarMunicipio } from '../data/ibgeMunicipios'
+import {
+  MUNICIPIOS_IBGE,
+  normalizarTexto,
+  encontrarMunicipio,
+  buscarMunicipios,
+} from '../data/ibgeMunicipios'
 
 export const ESTADOS_BRASIL = [
   'AC',
@@ -161,14 +166,23 @@ export function extrairCidadeEstado(texto?: string | null): Localidade {
     }
   }
 
-  // 3. Tenta encontrar qualquer município da base pelo final da string
-  const normTexto = normalizarTexto(str)
-  for (const m of MUNICIPIOS_IBGE) {
-    const mNorm = normalizarTexto(m.nome)
-    if (normTexto.endsWith(mNorm) || normTexto.includes(mNorm)) {
+  // 3. Tenta encontrar município da base pelo texto digitado
+  const matchDireto = encontrarMunicipio(str)
+  if (matchDireto) {
+    return {
+      cidade: matchDireto.nome,
+      estado: matchDireto.uf,
+      pais: 'Brasil',
+    }
+  }
+
+  const candidatos = buscarMunicipios(str, undefined, 5)
+  if (candidatos.length > 0) {
+    const exato = candidatos.find((c) => normalizarTexto(c.nome) === normalizarTexto(str))
+    if (exato) {
       return {
-        cidade: m.nome,
-        estado: m.uf,
+        cidade: exato.nome,
+        estado: exato.uf,
         pais: 'Brasil',
       }
     }
