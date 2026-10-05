@@ -106,6 +106,7 @@ export default function Pipelines() {
     | {
         titulo?: string
         valor?: number | string
+        etapa_atual?: string
         cliente_b2b_id?: string
         cliente_b2c_id?: string
         documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
@@ -931,6 +932,9 @@ export default function Pipelines() {
                         type="button"
                         onClick={() => {
                           setNewEtapa(etapa)
+                          setDealModalInitialValues({
+                            etapa_atual: etapa,
+                          })
                           setIsNewOppModalOpen(true)
                         }}
                         title={`Adicionar negócio em ${etapa}`}
@@ -1449,6 +1453,7 @@ export default function Pipelines() {
           setDealModalInitialValues({
             titulo: `${opp.titulo} (Cópia)`,
             valor: opp.valor_estimado,
+            etapa_atual: opp.etapa_atual,
             cliente_b2b_id: opp.cliente_b2b_id || opp.organizacao_id,
             cliente_b2c_id: opp.cliente_b2c_id || opp.pessoa_id,
             documento_faturamento: opp.documento_faturamento,
@@ -1464,12 +1469,17 @@ export default function Pipelines() {
         open={isNewOppModalOpen}
         onOpenChange={(val) => {
           setIsNewOppModalOpen(val)
-          if (!val) setDealModalInitialValues(undefined)
+          if (!val) {
+            setDealModalInitialValues(undefined)
+            setNewEtapa('')
+          }
         }}
         defaultFunilId={activeFunilId}
+        defaultEtapaNome={newEtapa || dealModalInitialValues?.etapa_atual}
         initialValues={dealModalInitialValues}
         onSuccess={() => {
           setDealModalInitialValues(undefined)
+          setNewEtapa('')
           loadOportunidades()
         }}
       />

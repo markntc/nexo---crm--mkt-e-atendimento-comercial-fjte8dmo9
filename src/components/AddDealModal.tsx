@@ -42,9 +42,11 @@ export interface AddDealModalProps {
   onOpenChange: (open: boolean) => void
   onSuccess?: (createdDealId: string) => void
   defaultFunilId?: string
+  defaultEtapaNome?: string
   initialValues?: {
     titulo?: string
     valor?: number | string
+    etapa_atual?: string
     cliente_b2b_id?: string
     cliente_b2c_id?: string
     documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
@@ -75,6 +77,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   onOpenChange,
   onSuccess,
   defaultFunilId,
+  defaultEtapaNome,
   initialValues,
 }) => {
   const { activeBrand, marcas } = useBrand()
@@ -225,11 +228,17 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         // Inicializa Funil
         const initialFunil = funisRes.find((f) => f.id === defaultFunilId) || funisRes[0] || null
 
+        const requestedEtapa = initialValues?.etapa_atual || defaultEtapaNome
+
         if (initialFunil) {
           setFunilId(initialFunil.id)
           const etapasList = initialFunil.etapas_ordenadas || []
-          if (etapasList.length > 0) {
-            setEtapaAtual(getEtapaNome(etapasList[0]))
+          const nomesEtapas = etapasList.map(getEtapaNome)
+
+          if (requestedEtapa && nomesEtapas.includes(requestedEtapa)) {
+            setEtapaAtual(requestedEtapa)
+          } else if (etapasList.length > 0) {
+            setEtapaAtual(nomesEtapas[0])
           }
         }
 
@@ -324,7 +333,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
 
     loadData()
-  }, [open, activeBrand, defaultFunilId, user?.id, initialValues])
+  }, [open, activeBrand, defaultFunilId, defaultEtapaNome, user?.id, initialValues])
 
   // Garante que o proprietário sempre venha preenchido com o usuário logado ao abrir o modal
   useEffect(() => {
@@ -339,10 +348,32 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     if (!open) return
 
     const isElementInsideModalOrPortal = (el: HTMLElement | null): boolean => {
-      if (!el) return false
+      if (!el) return true
+
       // Se o elemento não estiver mais conectado ao DOM (ex: opção de Select Radix desmontada na seleção),
       // trata como interno para não disparar falso fechamento por clique fora.
       if (!el.isConnected || !document.contains(el)) return true
+
+      // Quando um Select/Dropdown do Radix está aberto, a biblioteca aplica pointer-events: none no body.
+      // Um clique no gatilho do Select ou em outros elementos nesse estado pode ser resolvido contra document.body/html.
+      // Se document.body estiver com pointer-events: none, qualquer clique é considerado interno.
+      if (typeof window !== 'undefined' && document.body) {
+        const bodyPointerEvents = window.getComputedStyle(document.body).pointerEvents
+        if (bodyPointerEvents === 'none') {
+          return true
+        }
+      }
+
+      // Alvos body ou html nunca devem ser tratados como clique fora para fechar o modal
+      // (o backdrop/overlay legítimo é um elemento de overlay fixo sob o dialog portal, não o body).
+      if (
+        el === document.body ||
+        el === document.documentElement ||
+        el.tagName === 'BODY' ||
+        el.tagName === 'HTML'
+      ) {
+        return true
+      }
 
       return !!(
         el.closest('[role="dialog"]') ||
