@@ -66,19 +66,35 @@ export function GeoSelector({
   const [isOutroPais, setIsOutroPais] = useState(false)
   const [outroPaisNome, setOutroPaisNome] = useState('')
 
+  // Refs para eliminar condição de corrida entre seleção de item IBGE e fechamento/blur do popover
+  const searchQueryRef = useRef(searchQuery)
+  searchQueryRef.current = searchQuery
+  const justSelectedRef = useRef(false)
+  const estadoRef = useRef(estado)
+  estadoRef.current = estado
+
   const isBrasil = (pais || PAIS_PADRAO).toLowerCase() === 'brasil'
 
   // Ao fechar ou perder o foco do popover de busca brasileira:
-  // se o usuário digitou algo e não selecionou da lista, aceita a digitação livre normalizada
+  // se o usuário digitou algo e não acabou de selecionar da lista, aceita a digitação livre normalizada
   const handleBrasilBlurOrClose = (nextOpen: boolean) => {
-    if (!nextOpen && searchQuery.trim().length > 0) {
-      const digitadoNormalizado = toTitleCase(searchQuery.trim())
-      onChange({
-        cidade: digitadoNormalizado,
-        estado,
-        pais: 'Brasil',
-      })
-      setSearchQuery('')
+    if (!nextOpen) {
+      if (justSelectedRef.current) {
+        // Se uma seleção explícita da lista acabou de ocorrer, nunca sobrescrever com texto livre
+        justSelectedRef.current = false
+        setSearchQuery('')
+      } else {
+        const currentQuery = searchQueryRef.current.trim()
+        if (currentQuery.length > 0) {
+          const digitadoNormalizado = toTitleCase(currentQuery)
+          onChange({
+            cidade: digitadoNormalizado,
+            estado: estadoRef.current,
+            pais: 'Brasil',
+          })
+          setSearchQuery('')
+        }
+      }
     }
     setOpenCombobox(nextOpen)
   }
@@ -140,13 +156,14 @@ export function GeoSelector({
   }
 
   const handleSelecionarMunicipio = (m: MunicipioIBGE) => {
+    justSelectedRef.current = true
+    setSearchQuery('')
     onChange({
       cidade: m.nome,
       estado: m.uf,
       pais: 'Brasil',
     })
     setOpenCombobox(false)
-    setSearchQuery('')
   }
 
   const handleCidadeLivreChange = (val: string) => {
@@ -207,25 +224,19 @@ export function GeoSelector({
                     placeholder="Digite o nome do município..."
                     value={searchQuery}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && searchQuery.trim().length > 0) {
-                        e.preventDefault()
-                        onChange({
-                          cidade: toTitleCase(searchQuery.trim()),
-                          estado,
-                          pais: 'Brasil',
-                        })
-                        setOpenCombobox(false)
-                        setSearchQuery('')
-                      }
-                    }}
-                    onBlur={() => {
-                      if (searchQuery.trim().length > 0) {
-                        onChange({
-                          cidade: toTitleCase(searchQuery.trim()),
-                          estado,
-                          pais: 'Brasil',
-                        })
-                        setSearchQuery('')
+                      if (e.key === 'Enter') {
+                        const currentQuery = searchQueryRef.current.trim()
+                        if (currentQuery.length > 0) {
+                          e.preventDefault()
+                          justSelectedRef.current = true
+                          onChange({
+                            cidade: toTitleCase(currentQuery),
+                            estado: estadoRef.current,
+                            pais: 'Brasil',
+                          })
+                          setOpenCombobox(false)
+                          setSearchQuery('')
+                        }
                       }
                     }}
                     onValueChange={setSearchQuery}
@@ -241,9 +252,11 @@ export function GeoSelector({
                           <button
                             type="button"
                             onClick={() => {
+                              justSelectedRef.current = true
+                              const currentQuery = searchQueryRef.current.trim()
                               onChange({
-                                cidade: toTitleCase(searchQuery),
-                                estado,
+                                cidade: toTitleCase(currentQuery),
+                                estado: estadoRef.current,
                                 pais: 'Brasil',
                               })
                               setOpenCombobox(false)
