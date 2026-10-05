@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T14:34:27.482Z",
+  "generatedAt": "2026-10-05T17:33:08.821Z",
   "collections": [
     {
       "name": "users",
@@ -785,7 +785,15 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Ligação", "Reunião", "Visita", "E-mail", "WhatsApp", "Outro"]
+          "selectValues": [
+            "Ligação",
+            "Reunião",
+            "Visita",
+            "E-mail",
+            "WhatsApp",
+            "Outro",
+            "Follow-up"
+          ]
         },
         {
           "name": "descricao",
