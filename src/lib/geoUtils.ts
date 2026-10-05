@@ -1,6 +1,8 @@
 // src/lib/geoUtils.ts
 // Utilitários de geolocalização e extração de endereço para CRM NTC
 
+import { MUNICIPIOS_IBGE, normalizarTexto, encontrarMunicipio } from '../data/ibgeMunicipios'
+
 export const ESTADOS_BRASIL = [
   'AC',
   'AL',
@@ -39,8 +41,76 @@ export interface Localidade {
   pais: string
 }
 
+export const ESTADOS_NOMES: Record<UF, string> = {
+  AC: 'Acre',
+  AL: 'Alagoas',
+  AP: 'Amapá',
+  AM: 'Amazonas',
+  BA: 'Bahia',
+  CE: 'Ceará',
+  DF: 'Distrito Federal',
+  ES: 'Espírito Santo',
+  GO: 'Goiás',
+  MA: 'Maranhão',
+  MT: 'Mato Grosso',
+  MS: 'Mato Grosso do Sul',
+  MG: 'Minas Gerais',
+  PA: 'Pará',
+  PB: 'Paraíba',
+  PR: 'Paraná',
+  PE: 'Pernambuco',
+  PI: 'Piauí',
+  RJ: 'Rio de Janeiro',
+  RN: 'Rio Grande do Norte',
+  RS: 'Rio Grande do Sul',
+  RO: 'Rondônia',
+  RR: 'Roraima',
+  SC: 'Santa Catarina',
+  SP: 'São Paulo',
+  SE: 'Sergipe',
+  TO: 'Tocantins',
+}
+
+/**
+ * Converte qualquer texto de estado/UF (nome extenso ou sigla) para a sigla canônica de 2 letras.
+ */
+export function normalizarUf(rawUf?: string | null): UF | '' {
+  if (!rawUf) return ''
+  const trimmed = rawUf.trim().toUpperCase()
+  if (ESTADOS_BRASIL.includes(trimmed as UF)) return trimmed as UF
+
+  const norm = normalizarTexto(rawUf)
+  for (const [sigla, nome] of Object.entries(ESTADOS_NOMES)) {
+    if (normalizarTexto(nome) === norm) {
+      return sigla as UF
+    }
+  }
+
+  return ''
+}
+
+/**
+ * Converte string para Title Case canônico preservando preposições da língua portuguesa.
+ */
+export function toTitleCase(str: string): string {
+  if (!str) return ''
+  const preposicoes = ['de', 'da', 'do', 'dos', 'das', 'e', 'em', "d'"]
+  return str
+    .trim()
+    .split(/\s+/)
+    .map((word, idx) => {
+      const lower = word.toLowerCase()
+      if (idx > 0 && preposicoes.includes(lower)) {
+        return lower
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
+
 /**
  * Extrai cidade e estado de uma string de endereço ou texto livre brasileiro.
+ * Casando contra a base de municípios IBGE sempre que possível.
  * Exemplos:
  * "Av. Beira Mar, 1200, Angra dos Reis - RJ" -> { cidade: "Angra dos Reis", estado: "RJ", pais: "Brasil" }
  * "Canabrava do Norte MT" -> { cidade: "Canabrava do Norte", estado: "MT", pais: "Brasil" }
@@ -55,18 +125,21 @@ export function extrairCidadeEstado(texto?: string | null): Localidade {
 
   const str = texto.trim()
 
-  // 1. Tenta padrão com hífen ou barra ou vírgula seguido de UF: "Angra dos Reis - RJ" ou "São Paulo/SP"
+  // 1. Tenta padrão com hífen, barra ou vírgula seguido de UF: "Angra dos Reis - RJ" ou "São Paulo/SP"
   const regexHifenUF = /[-–—/,]\s*([A-Za-z]{2})\s*$/i
   const matchHifen = str.match(regexHifenUF)
   if (matchHifen) {
     const possivelUf = matchHifen[1].toUpperCase()
     if (ESTADOS_BRASIL.includes(possivelUf as UF)) {
-      // Pega o que está antes do separador
       const antes = str.slice(0, matchHifen.index).trim()
-      // Se houver vírgulas antes (ex: "Av. Beira Mar, 1200, Angra dos Reis"), a cidade é o último segmento
       const partes = antes.split(/,\s*/)
-      const cidade = partes[partes.length - 1].trim()
-      return { cidade, estado: possivelUf, pais: 'Brasil' }
+      const cidadeCandidata = partes[partes.length - 1].trim()
+      const matchIbge = encontrarMunicipio(cidadeCandidata, possivelUf)
+      return {
+        cidade: matchIbge ? matchIbge.nome : toTitleCase(cidadeCandidata),
+        estado: possivelUf,
+        pais: 'Brasil',
+      }
     }
   }
 
@@ -78,17 +151,35 @@ export function extrairCidadeEstado(texto?: string | null): Localidade {
     if (ESTADOS_BRASIL.includes(possivelUf as UF)) {
       const antes = str.slice(0, matchEspaco.index).trim()
       const partes = antes.split(/,\s*/)
-      const cidade = partes[partes.length - 1].trim()
-      return { cidade, estado: possivelUf, pais: 'Brasil' }
+      const cidadeCandidata = partes[partes.length - 1].trim()
+      const matchIbge = encontrarMunicipio(cidadeCandidata, possivelUf)
+      return {
+        cidade: matchIbge ? matchIbge.nome : toTitleCase(cidadeCandidata),
+        estado: possivelUf,
+        pais: 'Brasil',
+      }
     }
   }
 
-  // 3. Fallback: não conseguiu determinar UF formalmente
-  return { cidade: str, estado: '', pais: 'Brasil' }
+  // 3. Tenta encontrar qualquer município da base pelo final da string
+  const normTexto = normalizarTexto(str)
+  for (const m of MUNICIPIOS_IBGE) {
+    const mNorm = normalizarTexto(m.nome)
+    if (normTexto.endsWith(mNorm) || normTexto.includes(mNorm)) {
+      return {
+        cidade: m.nome,
+        estado: m.uf,
+        pais: 'Brasil',
+      }
+    }
+  }
+
+  // 4. Fallback: não conseguiu determinar UF formalmente
+  return { cidade: toTitleCase(str), estado: '', pais: 'Brasil' }
 }
 
 /**
- * Valida se uma string aparenta ser um município formal (não apenas "Represa", "Marina", "Lago", etc.)
+ * Valida se uma string aparenta ser um município formal
  */
 export function isCidadeValida(cidade: string, estado: string): boolean {
   if (!cidade || !cidade.trim()) return false

@@ -36,6 +36,7 @@ import { maskPhone } from '@/lib/formatters'
 import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
+import { GeoSelector } from './GeoSelector'
 
 export interface AddDealModalProps {
   open: boolean
@@ -57,6 +58,7 @@ export interface AddDealModalProps {
     pais?: string
     cidade_entrega?: string
     estado_entrega?: string
+    pais_entrega?: string
   }
 }
 
@@ -153,6 +155,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [paisFaturamento, setPaisFaturamento] = useState('Brasil')
   const [cidadeEntrega, setCidadeEntrega] = useState('')
   const [estadoEntrega, setEstadoEntrega] = useState('')
+  const [paisEntrega, setPaisEntrega] = useState('Brasil')
   const [entregaDiferente, setEntregaDiferente] = useState(false)
 
   // Painel Direito: PESSOA
@@ -278,6 +281,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             setEstadoEntrega(initialValues.estado_entrega)
             setEntregaDiferente(true)
           }
+          if (initialValues.pais_entrega) {
+            setPaisEntrega(initialValues.pais_entrega)
+          }
 
           if (initialValues.cliente_b2b_id) {
             const org = orgsRes.find((o) => o.id === initialValues.cliente_b2b_id)
@@ -292,6 +298,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 if (!initialValues.cidade_entrega) {
                   setCidadeEntrega(loc.cidade)
                   setEstadoEntrega(loc.estado)
+                  setPaisEntrega(loc.pais || 'Brasil')
                 }
               }
             }
@@ -320,6 +327,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 if (!initialValues.cidade_entrega) {
                   setCidadeEntrega(loc.cidade)
                   setEstadoEntrega(loc.estado)
+                  setPaisEntrega(loc.pais || 'Brasil')
                 }
               }
             }
@@ -496,6 +504,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       if (!entregaDiferente) {
         setCidadeEntrega(loc.cidade)
         setEstadoEntrega(loc.estado)
+        setPaisEntrega(loc.pais || 'Brasil')
       }
     } else if (p.endereco_residencial) {
       const loc = extrairCidadeEstado(p.endereco_residencial)
@@ -505,6 +514,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       if (!entregaDiferente) {
         setCidadeEntrega(loc.cidade)
         setEstadoEntrega(loc.estado)
+        setPaisEntrega(loc.pais || 'Brasil')
       }
     }
   }
@@ -536,6 +546,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       if (!entregaDiferente) {
         setCidadeEntrega(loc.cidade)
         setEstadoEntrega(loc.estado)
+        setPaisEntrega(loc.pais || 'Brasil')
       }
     }
   }
@@ -762,6 +773,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       // Localidade final: se editou entrega, usa entrega; senão herda faturamento
       const finalCidadeEntrega = cidadeEntrega.trim() || cidadeFaturamento.trim() || null
       const finalEstadoEntrega = estadoEntrega.trim() || estadoFaturamento.trim() || null
+      const finalPaisEntrega = paisEntrega.trim() || paisFaturamento.trim() || 'Brasil'
 
       const novoNegocio = await pb.collection('oportunidades').create({
         titulo: titulo.trim(),
@@ -783,6 +795,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         pais: paisFaturamento.trim() || 'Brasil',
         cidade_entrega: finalCidadeEntrega,
         estado_entrega: finalEstadoEntrega,
+        pais_entrega: finalPaisEntrega,
         proxima_acao_data: new Date(followUpData).toISOString(),
         proxima_acao_descricao: followUpDesc.trim(),
         status: 'aberto',
@@ -1128,7 +1141,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               </div>
 
               {/* Bloco discreto: Local de entrega (opcional) & Faturamento */}
-              <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-2">
+              <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
                     <MapPin className="w-3.5 h-3.5 text-[#017848]" />
@@ -1136,7 +1149,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setEntregaDiferente(!entregaDiferente)}
+                    onClick={() => {
+                      const proximo = !entregaDiferente
+                      setEntregaDiferente(proximo)
+                      if (!proximo) {
+                        setCidadeEntrega(cidadeFaturamento)
+                        setEstadoEntrega(estadoFaturamento)
+                        setPaisEntrega(paisFaturamento)
+                      }
+                    }}
                     className="text-[11px] text-[#0284C7] hover:underline font-semibold"
                   >
                     {entregaDiferente ? 'Entrega no mesmo local' : 'Local de entrega diferente?'}
@@ -1144,63 +1165,50 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 </div>
 
                 {/* Localidade de Faturamento pré-preenchida da entidade */}
-                <div className="grid grid-cols-12 gap-2 text-xs">
-                  <div className="col-span-7">
-                    <Label className="text-[10px] text-slate-500">Cidade (Faturamento)</Label>
-                    <Input
-                      placeholder="ex: Campinas"
-                      value={cidadeFaturamento}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setCidadeFaturamento(val)
-                        if (!entregaDiferente) setCidadeEntrega(val)
-                      }}
-                      className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB]"
-                    />
-                  </div>
-                  <div className="col-span-5">
-                    <Label className="text-[10px] text-slate-500">UF</Label>
-                    <Input
-                      placeholder="SP"
-                      maxLength={2}
-                      value={estadoFaturamento}
-                      onChange={(e) => {
-                        const val = e.target.value.toUpperCase()
-                        setEstadoFaturamento(val)
-                        if (!entregaDiferente) setEstadoEntrega(val)
-                      }}
-                      className="h-8 text-xs bg-white uppercase rounded-lg border-[#D5DBDB]"
-                    />
-                  </div>
+                <div>
+                  <GeoSelector
+                    idPrefix="fat"
+                    paisLabel="País (Faturamento)"
+                    cidadeLabel="Cidade (Faturamento)"
+                    estadoLabel="UF"
+                    cidade={cidadeFaturamento}
+                    estado={estadoFaturamento}
+                    pais={paisFaturamento}
+                    onChange={(geo) => {
+                      setCidadeFaturamento(geo.cidade)
+                      setEstadoFaturamento(geo.estado)
+                      setPaisFaturamento(geo.pais)
+                      if (!entregaDiferente) {
+                        setCidadeEntrega(geo.cidade)
+                        setEstadoEntrega(geo.estado)
+                        setPaisEntrega(geo.pais)
+                      }
+                    }}
+                  />
                 </div>
 
                 {/* Local de Entrega diferente (opcional) */}
                 {entregaDiferente && (
-                  <div className="pt-2 border-t border-slate-200 grid grid-cols-12 gap-2 text-xs">
-                    <div className="col-span-12">
+                  <div className="pt-3 border-t border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
                         Local de entrega (opcional)
                       </span>
                     </div>
-                    <div className="col-span-7">
-                      <Label className="text-[10px] text-slate-500">Cidade de Entrega</Label>
-                      <Input
-                        placeholder="ex: Ubatuba"
-                        value={cidadeEntrega}
-                        onChange={(e) => setCidadeEntrega(e.target.value)}
-                        className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB]"
-                      />
-                    </div>
-                    <div className="col-span-5">
-                      <Label className="text-[10px] text-slate-500">UF de Entrega</Label>
-                      <Input
-                        placeholder="SP"
-                        maxLength={2}
-                        value={estadoEntrega}
-                        onChange={(e) => setEstadoEntrega(e.target.value.toUpperCase())}
-                        className="h-8 text-xs bg-white uppercase rounded-lg border-[#D5DBDB]"
-                      />
-                    </div>
+                    <GeoSelector
+                      idPrefix="ent"
+                      paisLabel="País de Entrega"
+                      cidadeLabel="Cidade de Entrega"
+                      estadoLabel="UF de Entrega"
+                      cidade={cidadeEntrega}
+                      estado={estadoEntrega}
+                      pais={paisEntrega}
+                      onChange={(geo) => {
+                        setCidadeEntrega(geo.cidade)
+                        setEstadoEntrega(geo.estado)
+                        setPaisEntrega(geo.pais)
+                      }}
+                    />
                   </div>
                 )}
               </div>

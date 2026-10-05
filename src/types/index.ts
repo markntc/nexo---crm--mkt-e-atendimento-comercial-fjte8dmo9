@@ -100,6 +100,9 @@ export interface Organizacao {
   razao_social: string
   nome_fantasia?: string
   inscricao_estadual?: string
+  cidade?: string
+  estado?: string
+  pais?: string
   endereco_corporativo?: string
   email_principal?: string
   telefone?: string
@@ -134,6 +137,9 @@ export interface Pessoa {
   organizacao_id?: string
   cargo?: string
   departamento?: string
+  cidade?: string
+  estado?: string
+  pais?: string
   endereco_residencial?: string
   created: string
   updated: string
@@ -216,6 +222,7 @@ export interface Oportunidade {
   pais?: string
   cidade_entrega?: string
   estado_entrega?: string
+  pais_entrega?: string
   origem?: string
   campos_exportacao?: {
     moeda?: string
