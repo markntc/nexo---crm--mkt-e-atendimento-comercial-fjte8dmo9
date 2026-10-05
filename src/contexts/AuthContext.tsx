@@ -47,16 +47,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(record)
     })
 
-    // Se houver token armazenado, tenta revalidar
+    // Se houver token armazenado, tenta revalidar na montagem
     if (pb.authStore.isValid) {
       pb.collection('users')
         .authRefresh()
         .then((res) => {
           setUser(res.record)
         })
-        .catch(() => {
-          pb.authStore.clear()
-          setUser(null)
+        .catch((err) => {
+          // Só limpa o authStore se o token estiver explicitamente inválido ou expirado (status 401/403)
+          // Se for erro transitório de rede (offline, timeout), não derruba a sessão local
+          const isAuthError = err?.status === 401 || err?.status === 403
+          if (isAuthError) {
+            pb.authStore.clear()
+            setUser(null)
+          } else {
+            console.warn('Falha transitória no authRefresh inicial, mantendo sessão em cache:', err)
+          }
         })
         .finally(() => {
           setIsLoading(false)
@@ -69,6 +76,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribe()
     }
   }, [])
+
+  // Renovação periódica de sessão automática enquanto o usuário estiver ativo na aplicação
+  useEffect(() => {
+    // Se não estiver logado, não precisa agendar renovação
+    if (!user || !pb.authStore.isValid) return
+
+    let lastActivityTime = Date.now()
+    let isRefreshing = false
+
+    const handleUserActivity = () => {
+      lastActivityTime = Date.now()
+    }
+
+    // Monitora interações do usuário (cliques, digitação, rolagem, toques)
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    activityEvents.forEach((evt) => {
+      window.addEventListener(evt, handleUserActivity, { passive: true })
+    })
+
+    // Checagem a cada 10 minutos (600.000 ms)
+    // Se o usuário interagiu nas últimas 2 horas, realiza authRefresh proativo
+    const intervalId = window.setInterval(
+      async () => {
+        if (isRefreshing) return
+        if (!pb.authStore.isValid) return
+
+        const inactiveTimeMs = Date.now() - lastActivityTime
+        const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+
+        // Se o usuário esteve ativo nas últimas 2h, renova o token
+        if (inactiveTimeMs < TWO_HOURS_MS) {
+          try {
+            isRefreshing = true
+            const res = await pb.collection('users').authRefresh()
+            setUser(res.record)
+          } catch (err: any) {
+            const isAuthExpired = err?.status === 401 || err?.status === 403
+            if (isAuthExpired) {
+              console.warn('Sessão expirada no backend, redirecionando para login.')
+              pb.authStore.clear()
+              setUser(null)
+            } else {
+              console.warn('Tentativa periódica de authRefresh encontrou erro transitório:', err)
+            }
+          } finally {
+            isRefreshing = false
+          }
+        }
+      },
+      10 * 60 * 1000,
+    )
+
+    // Também renova quando a aba voltar a ficar visível se o usuário esteve ativo
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && pb.authStore.isValid && !isRefreshing) {
+        const inactiveTimeMs = Date.now() - lastActivityTime
+        const THIRTY_MINUTES_MS = 30 * 60 * 1000
+        if (inactiveTimeMs < THIRTY_MINUTES_MS) {
+          try {
+            isRefreshing = true
+            const res = await pb.collection('users').authRefresh()
+            setUser(res.record)
+          } catch (err: any) {
+            if (err?.status === 401 || err?.status === 403) {
+              pb.authStore.clear()
+              setUser(null)
+            }
+          } finally {
+            isRefreshing = false
+          }
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(intervalId)
+      activityEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleUserActivity)
+      })
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [user])
 
   const login = async (email: string, pass: string) => {
     const res = await pb.collection('users').authWithPassword(email, pass)

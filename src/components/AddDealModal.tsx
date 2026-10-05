@@ -334,9 +334,27 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   }, [open, user?.id, proprietarioId])
 
   // Rastreia se o mousedown ocorreu fora do painel do modal (no backdrop/overlay)
-  // para fechar apenas se mousedown E mouseup ocorrerem fora do painel
+  // para fechar apenas se mousedown E mouseup ocorrerem estritamente fora do painel.
   useEffect(() => {
     if (!open) return
+
+    const isElementInsideModalOrPortal = (el: HTMLElement | null): boolean => {
+      if (!el) return false
+      // Se o elemento não estiver mais conectado ao DOM (ex: opção de Select Radix desmontada na seleção),
+      // trata como interno para não disparar falso fechamento por clique fora.
+      if (!el.isConnected || !document.contains(el)) return true
+
+      return !!(
+        el.closest('[role="dialog"]') ||
+        el.closest('[data-radix-popper-content-wrapper]') ||
+        el.closest('[role="listbox"]') ||
+        el.closest('[role="combobox"]') ||
+        el.closest('[data-radix-focus-guard]') ||
+        el.closest('[data-radix-select-viewport]') ||
+        el.closest('[data-radix-portal]') ||
+        el.closest('.radix-select-content')
+      )
+    }
 
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
@@ -345,12 +363,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         return
       }
 
-      // Verifica se o clique começou dentro do painel do modal ou em portais conhecidos
-      const insideDialog = target.closest('[role="dialog"]')
-      const insideRadixPopper = target.closest('[data-radix-popper-content-wrapper]')
-      const insideSelect = target.closest('[role="listbox"]') || target.closest('[role="combobox"]')
-
-      if (insideDialog || insideRadixPopper || insideSelect) {
+      // Se o clique começou dentro do modal ou de portais/seletores Radix, não é outside
+      if (isElementInsideModalOrPortal(target)) {
         mouseDownOutsideRef.current = false
       } else {
         mouseDownOutsideRef.current = true
@@ -363,13 +377,20 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       }
 
       const target = e.target as HTMLElement | null
-      const insideDialog = target?.closest('[role="dialog"]')
-      const insideRadixPopper = target?.closest('[data-radix-popper-content-wrapper]')
-      const insideSelect =
-        target?.closest('[role="listbox"]') || target?.closest('[role="combobox"]')
 
-      // Se mouseup também ocorreu fora, fecha o modal com segurança
-      if (!insideDialog && !insideRadixPopper && !insideSelect) {
+      // Blindagem contra nós desmontados / órfãos:
+      // Ao selecionar ou clicar em itens de Select Radix, o SelectContent é desmontado imediatamente.
+      // O mouseup subsequente dispara contra um nó órfão (target nulo ou desconectado do documento).
+      // Se target for nulo ou desconectado de document, tratar como INTERNO (não fechar o modal).
+      if (!target || !target.isConnected || !document.contains(target)) {
+        mouseDownOutsideRef.current = false
+        return
+      }
+
+      const isInside = isElementInsideModalOrPortal(target)
+
+      // Só fecha se ambos (mousedown e mouseup) forem estritamente fora do modal e fora de portais
+      if (!isInside) {
         onOpenChange(false)
       }
 
