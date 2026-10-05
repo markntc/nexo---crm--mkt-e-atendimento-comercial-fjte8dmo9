@@ -66,6 +66,21 @@ export function GeoSelector({
 
   const isBrasil = (pais || PAIS_PADRAO).toLowerCase() === 'brasil'
 
+  // Ao fechar ou perder o foco do popover de busca brasileira:
+  // se o usuário digitou algo e não selecionou da lista, aceita a digitação livre normalizada
+  const handleBrasilBlurOrClose = (nextOpen: boolean) => {
+    if (!nextOpen && searchQuery.trim().length > 0) {
+      const digitadoNormalizado = toTitleCase(searchQuery.trim())
+      onChange({
+        cidade: digitadoNormalizado,
+        estado,
+        pais: 'Brasil',
+      })
+      setSearchQuery('')
+    }
+    setOpenCombobox(nextOpen)
+  }
+
   // Sincroniza estado de país se for valor livre customizado
   useEffect(() => {
     if (pais && !PAISES_CANONICOS.includes(pais as (typeof PAISES_CANONICOS)[number])) {
@@ -196,7 +211,7 @@ export function GeoSelector({
           </Label>
 
           {isBrasil ? (
-            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+            <Popover open={openCombobox} onOpenChange={handleBrasilBlurOrClose}>
               <PopoverTrigger asChild>
                 <Button
                   id={`${idPrefix}-cidade`}
@@ -223,6 +238,28 @@ export function GeoSelector({
                   <CommandInput
                     placeholder="Digite o nome do município..."
                     value={searchQuery}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchQuery.trim().length > 0) {
+                        e.preventDefault()
+                        onChange({
+                          cidade: toTitleCase(searchQuery.trim()),
+                          estado,
+                          pais: 'Brasil',
+                        })
+                        setOpenCombobox(false)
+                        setSearchQuery('')
+                      }
+                    }}
+                    onBlur={() => {
+                      if (searchQuery.trim().length > 0) {
+                        onChange({
+                          cidade: toTitleCase(searchQuery.trim()),
+                          estado,
+                          pais: 'Brasil',
+                        })
+                        setSearchQuery('')
+                      }
+                    }}
                     onValueChange={setSearchQuery}
                     className="h-9 text-xs"
                   />

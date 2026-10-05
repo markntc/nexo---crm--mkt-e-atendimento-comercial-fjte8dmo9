@@ -6,6 +6,8 @@ import { useBrand } from '@/contexts/BrandContext'
 import type { Lead, Funil, ClienteB2B, ClienteB2C } from '@/types'
 import { formatDateBR } from '@/lib/formatters'
 import { getEtapaNome } from '@/lib/relationshipStatus'
+import { GeoSelector } from '@/components/GeoSelector'
+import { extrairCidadeEstado } from '@/lib/geoUtils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +59,9 @@ export default function Leads() {
   const [newOrigem, setNewOrigem] = useState<Lead['origem']>('Formulário Web')
   const [newDadosContato, setNewDadosContato] = useState('')
   const [newMarcaId, setNewMarcaId] = useState('')
+  const [newCidade, setNewCidade] = useState('')
+  const [newEstado, setNewEstado] = useState('')
+  const [newPais, setNewPais] = useState('Brasil')
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
 
   // Modal Converter Lead em Oportunidade
@@ -137,6 +142,9 @@ export default function Leads() {
         marca_id: mId,
         origem: newOrigem,
         dados_contato: newDadosContato.trim(),
+        cidade: newCidade.trim() || null,
+        estado: newEstado.trim() || null,
+        pais: newPais.trim() || 'Brasil',
         status_qualificacao: 'Novo',
         criado_por_id: pb.authStore.record?.id,
       })
@@ -147,6 +155,9 @@ export default function Leads() {
       })
       setIsNewLeadOpen(false)
       setNewDadosContato('')
+      setNewCidade('')
+      setNewEstado('')
+      setNewPais('Brasil')
       fetchLeads()
     } catch (err) {
       console.error('Erro ao criar lead:', err)
@@ -167,8 +178,39 @@ export default function Leads() {
 
     setIsConverting(true)
     try {
-      // 1. Cria a oportunidade
-      await pb.collection('oportunidades').create({
+      // Determinar localidade canônica
+      let finalCidade = selectedLeadToConvert.cidade || ''
+      let finalEstado = selectedLeadToConvert.estado || ''
+      let finalPais = selectedLeadToConvert.pais || 'Brasil'
+
+      if (!finalCidade && !finalEstado && selectedLeadToConvert.dados_contato) {
+        const extraido = extrairCidadeEstado(selectedLeadToConvert.dados_contato)
+        if (extraido) {
+          finalCidade = extraido.cidade
+          finalEstado = extraido.estado
+          finalPais = extraido.pais
+        }
+      }
+
+      // Se ainda não tiver pessoa nem organização vinculada, cria a pessoa com a localidade
+      let pessoaId = selectedLeadToConvert.cliente_b2c_id || null
+      if (!pessoaId && !selectedLeadToConvert.cliente_b2b_id) {
+        const novaPessoa = await pb.collection('pessoas').create({
+          nome_completo: selectedLeadToConvert.dados_contato,
+          cpf: '00000000000',
+          cidade: finalCidade || null,
+          estado: finalEstado || null,
+          pais: finalPais || 'Brasil',
+          marca_captura_id: selectedLeadToConvert.marca_id || (activeBrand?.id ?? marcas[0]?.id),
+          origem_sistema: `Lead (${selectedLeadToConvert.origem})`,
+          data_criacao: new Date().toISOString(),
+          criado_por_id: pb.authStore.record?.id,
+        })
+        pessoaId = novaPessoa.id
+      }
+
+      // 1. Cria a oportunidade herdando a localidade e rastreando o lead
+      const novaOportunidade = await pb.collection('oportunidades').create({
         marca_id: selectedLeadToConvert.marca_id,
         funil_id: convFunilId,
         titulo: convTitulo,
@@ -176,14 +218,42 @@ export default function Leads() {
         etapa_atual: convEtapa,
         vendedor_id: pb.authStore.record?.id,
         cliente_b2b_id: selectedLeadToConvert.cliente_b2b_id || null,
-        cliente_b2c_id: selectedLeadToConvert.cliente_b2c_id || null,
+        cliente_b2c_id: pessoaId,
+        lead_origem_id: selectedLeadToConvert.id,
+        cidade: finalCidade || null,
+        estado: finalEstado || null,
+        pais: finalPais || 'Brasil',
         proxima_acao_data: convFollowUpData ? new Date(convFollowUpData).toISOString() : null,
         proxima_acao_descricao: convFollowUpDesc,
       })
 
-      // 2. Atualiza o status do lead para "Convertido"
+      // 2. Trava de follow-up: criar atividade com compensação atômica
+      if (convFollowUpData) {
+        try {
+          await pb.collection('atividades').create({
+            oportunidade_id: novaOportunidade.id,
+            marca_id: selectedLeadToConvert.marca_id,
+            responsavel_id: pb.authStore.record?.id,
+            tipo: 'Follow-up',
+            descricao: convFollowUpDesc.trim() || 'Ação comercial agendada no lead',
+            data_vencimento: new Date(convFollowUpData).toISOString(),
+            concluida: false,
+          })
+        } catch (ativErr) {
+          console.error('Falha ao agendar follow-up da oportunidade de lead:', ativErr)
+          try {
+            await pb.collection('oportunidades').delete(novaOportunidade.id)
+          } catch (delErr) {
+            console.error('Falha ao deletar oportunidade:', delErr)
+          }
+          throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+        }
+      }
+
+      // 3. Atualiza o status do lead para "Convertido"
       await pb.collection('leads').update(selectedLeadToConvert.id, {
         status_qualificacao: 'Convertido',
+        convertido_para_id: novaOportunidade.id,
       })
 
       toast({
@@ -474,6 +544,20 @@ export default function Leads() {
                 value={newDadosContato}
                 onChange={(e) => setNewDadosContato(e.target.value)}
                 className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <GeoSelector
+                label="Localidade do Lead"
+                cidade={newCidade}
+                estado={newEstado}
+                pais={newPais}
+                onChange={(geo) => {
+                  setNewCidade(geo.cidade)
+                  setNewEstado(geo.estado)
+                  setNewPais(geo.pais)
+                }}
               />
             </div>
 

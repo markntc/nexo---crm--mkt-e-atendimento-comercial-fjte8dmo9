@@ -35,6 +35,9 @@ import {
   Repeat,
   AlertOctagon,
   UserCheck,
+  MapPin,
+  Truck,
+  Globe2,
 } from 'lucide-react'
 
 export default function Relatorios() {
@@ -287,6 +290,43 @@ export default function Relatorios() {
   })
 
   const marcaValorData = Object.values(marcaValorMap).filter((m) => m.valor > 0)
+
+  // Painel de Distribuição Geográfica de Vendas
+  // Alternador: Faturamento (padrão) x Entrega
+  const [geoFiltroTipo, setGeoFiltroTipo] = useState<'faturamento' | 'entrega'>('faturamento')
+
+  // Agrupamento por Estado e detalhe por Cidade + Estado
+  const geoEstadoMap: Record<
+    string,
+    {
+      estado: string
+      valor: number
+      count: number
+      cidades: Record<string, { cidade: string; valor: number; count: number }>
+    }
+  > = {}
+
+  oportunidades.forEach((o) => {
+    const rawEstado = geoFiltroTipo === 'faturamento' ? o.estado : o.estado_entrega
+    const rawCidade = geoFiltroTipo === 'faturamento' ? o.cidade : o.cidade_entrega
+    const estado = rawEstado ? rawEstado.toUpperCase().trim() : 'Não informado'
+    const cidade = rawCidade ? rawCidade.trim() : 'Não informada'
+    const valor = o.valor_estimado || 0
+
+    if (!geoEstadoMap[estado]) {
+      geoEstadoMap[estado] = { estado, valor: 0, count: 0, cidades: {} }
+    }
+    geoEstadoMap[estado].valor += valor
+    geoEstadoMap[estado].count += 1
+
+    if (!geoEstadoMap[estado].cidades[cidade]) {
+      geoEstadoMap[estado].cidades[cidade] = { cidade, valor: 0, count: 0 }
+    }
+    geoEstadoMap[estado].cidades[cidade].valor += valor
+    geoEstadoMap[estado].cidades[cidade].count += 1
+  })
+
+  const geoEstadosData = Object.values(geoEstadoMap).sort((a, b) => b.valor - a.valor)
 
   // Exportar dados atuais em CSV
   const handleExportCSV = () => {
@@ -787,6 +827,165 @@ export default function Relatorios() {
               </Card>
             )}
           </div>
+
+          {/* NOVO PAINEL: DISTRIBUIÇÃO GEOGRÁFICA DE VENDAS */}
+          <Card className="border-[#D5DBDB] bg-white shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-[#1C2833] flex items-center space-x-2">
+                    <Globe2 className="w-4 h-4 text-[#1B4F72]" />
+                    <span>Distribuição Geográfica de Vendas</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#5D6D7E]">
+                    Concentração regional do pipeline e fechamentos por Estado (UF) e Cidade
+                  </CardDescription>
+                </div>
+
+                {/* Alternador Faturamento vs Entrega */}
+                <div className="flex items-center space-x-1.5 p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setGeoFiltroTipo('faturamento')}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5',
+                      geoFiltroTipo === 'faturamento'
+                        ? 'bg-white text-[#1B4F72] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Faturamento (Padrão)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGeoFiltroTipo('entrega')}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5',
+                      geoFiltroTipo === 'entrega'
+                        ? 'bg-white text-[#1B4F72] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Entrega / Obra</span>
+                  </button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4">
+              {geoEstadosData.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[#5D6D7E]">
+                  Nenhum dado geográfico encontrado para o escopo selecionado.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  {/* Gráfico de barras horizontais por Estado */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Ranking por Estado (
+                      {geoFiltroTipo === 'faturamento' ? 'Faturamento' : 'Entrega'})
+                    </h4>
+                    <div className="h-72 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={geoEstadosData.slice(0, 10).map((g) => ({
+                            uf: g.estado,
+                            valor: g.valor,
+                            count: g.count,
+                          }))}
+                          layout="vertical"
+                          margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                        >
+                          <XAxis
+                            type="number"
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                          />
+                          <YAxis
+                            dataKey="uf"
+                            type="category"
+                            width={45}
+                            tick={{ fontSize: 11, fontWeight: 'bold' }}
+                          />
+                          <Tooltip
+                            formatter={(val: number) => [formatCurrencyBRL(val), 'Volume']}
+                            contentStyle={{
+                              borderRadius: '8px',
+                              border: '1px solid #D5DBDB',
+                              fontSize: '12px',
+                            }}
+                          />
+                          <Bar
+                            dataKey="valor"
+                            fill={activeTab === 'consolidado' ? '#1B4F72' : currentBrandColor}
+                            radius={[0, 4, 4, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Tabela detalhada por Estado e Cidades */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Detalhamento por Estado e Municípios
+                    </h4>
+                    <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1 border border-slate-100 rounded-xl p-2 bg-slate-50/50">
+                      {geoEstadosData.map((ufItem) => {
+                        const cidadesOrdenadas = Object.values(ufItem.cidades).sort(
+                          (a, b) => b.valor - a.valor,
+                        )
+                        return (
+                          <div
+                            key={ufItem.estado}
+                            className="bg-white border border-slate-200 rounded-lg p-2.5 text-xs space-y-1.5 shadow-2xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900 flex items-center space-x-1.5">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px] font-mono">
+                                  {ufItem.estado}
+                                </span>
+                                <span className="text-slate-500 font-normal">
+                                  ({ufItem.count} negócio{ufItem.count > 1 ? 's' : ''})
+                                </span>
+                              </span>
+                              <span className="font-bold text-emerald-700">
+                                {formatCurrencyBRL(ufItem.valor)}
+                              </span>
+                            </div>
+
+                            {/* Cidades dentro do estado */}
+                            <div className="pt-1 border-t border-slate-100 space-y-1">
+                              {cidadesOrdenadas.slice(0, 4).map((c) => (
+                                <div
+                                  key={c.cidade}
+                                  className="flex items-center justify-between text-[11px] text-slate-600 pl-2"
+                                >
+                                  <span className="truncate max-w-[200px]">
+                                    • {c.cidade} ({c.count})
+                                  </span>
+                                  <span className="font-mono text-slate-700">
+                                    {formatCurrencyBRL(c.valor)}
+                                  </span>
+                                </div>
+                              ))}
+                              {cidadesOrdenadas.length > 4 && (
+                                <div className="text-[10px] text-slate-400 pl-2 italic">
+                                  + {cidadesOrdenadas.length - 4} outra(s) cidade(s)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

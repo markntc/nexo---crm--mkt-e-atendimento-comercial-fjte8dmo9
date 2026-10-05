@@ -20,6 +20,8 @@ import type {
 } from '@/types'
 import { getClientStatusSets, getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { AddDealModal } from '@/components/AddDealModal'
+import { GeoSelector } from '@/components/GeoSelector'
+import { extrairCidadeEstado } from '@/lib/geoUtils'
 import { Repeat } from 'lucide-react'
 import {
   formatCurrencyBRL,
@@ -126,6 +128,9 @@ export default function Clientes() {
   const [newLeadOrigem, setNewLeadOrigem] = useState<Lead['origem']>('Formulário Web')
   const [newLeadDados, setNewLeadDados] = useState('')
   const [newLeadMarcaId, setNewLeadMarcaId] = useState('')
+  const [newLeadCidade, setNewLeadCidade] = useState('')
+  const [newLeadEstado, setNewLeadEstado] = useState('')
+  const [newLeadPais, setNewLeadPais] = useState('Brasil')
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
 
   // Edição de Lead
@@ -183,6 +188,9 @@ export default function Clientes() {
   const [newFantasia, setNewFantasia] = useState('')
   const [newIE, setNewIE] = useState('')
   const [newEndereco, setNewEndereco] = useState('')
+  const [newCidade, setNewCidade] = useState('')
+  const [newEstado, setNewEstado] = useState('')
+  const [newPais, setNewPais] = useState('Brasil')
   const [newCpf, setNewCpf] = useState('')
   const [newNomeCompleto, setNewNomeCompleto] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -467,6 +475,9 @@ export default function Clientes() {
           nome_fantasia: newFantasia.trim(),
           inscricao_estadual: newIE.trim(),
           endereco_corporativo: newEndereco.trim(),
+          cidade: newCidade.trim() || null,
+          estado: newEstado.trim() || null,
+          pais: newPais.trim() || 'Brasil',
           email_principal: newEmail.trim(),
           telefone: newTelefone ? maskPhone(newTelefone) : '',
           marca_captura_id: marcaId,
@@ -506,6 +517,9 @@ export default function Clientes() {
           nome_completo: newNomeCompleto.trim(),
           email_principal: newEmail.trim(),
           telefone: newTelefone ? maskPhone(newTelefone) : '',
+          cidade: newCidade.trim() || null,
+          estado: newEstado.trim() || null,
+          pais: newPais.trim() || 'Brasil',
           marca_captura_id: marcaId,
           origem_sistema: 'Cadastro Manual Pipedrive NTC',
           data_criacao: new Date().toISOString(),
@@ -537,6 +551,9 @@ export default function Clientes() {
     setNewFantasia('')
     setNewIE('')
     setNewEndereco('')
+    setNewCidade('')
+    setNewEstado('')
+    setNewPais('Brasil')
     setNewCpf('')
     setNewNomeCompleto('')
     setNewEmail('')
@@ -655,6 +672,9 @@ export default function Clientes() {
       await pb.collection('leads').create({
         origem: newLeadOrigem,
         dados_contato: newLeadDados.trim(),
+        cidade: newLeadCidade.trim() || null,
+        estado: newLeadEstado.trim() || null,
+        pais: newLeadPais.trim() || 'Brasil',
         marca_origem_id: marcaId,
         status_qualificacao: 'Novo',
       })
@@ -664,6 +684,9 @@ export default function Clientes() {
       })
       setIsNewLeadOpen(false)
       setNewLeadDados('')
+      setNewLeadCidade('')
+      setNewLeadEstado('')
+      setNewLeadPais('Brasil')
       fetchContatos()
     } catch (err) {
       console.error('Erro ao criar lead:', err)
@@ -786,17 +809,34 @@ export default function Clientes() {
         activeBrand?.id ||
         marcas[0]?.id
 
-      // 1. Criar Pessoa física na base de contatos
+      // Determinar cidade/estado/país canônicos do Lead (com extrator caso não estejam separados)
+      let finalCidade = selectedLeadToConvert.cidade || ''
+      let finalEstado = selectedLeadToConvert.estado || ''
+      let finalPais = selectedLeadToConvert.pais || 'Brasil'
+
+      if (!finalCidade && !finalEstado && selectedLeadToConvert.dados_contato) {
+        const extraido = extrairCidadeEstado(selectedLeadToConvert.dados_contato)
+        if (extraido) {
+          finalCidade = extraido.cidade
+          finalEstado = extraido.estado
+          finalPais = extraido.pais
+        }
+      }
+
+      // 1. Criar Pessoa física na base de contatos com localidade propagada
       const novaPessoa = await pb.collection('pessoas').create({
         nome_completo: selectedLeadToConvert.dados_contato,
         cpf: '00000000000', // CPF provisório para pré-cadastro
+        cidade: finalCidade || null,
+        estado: finalEstado || null,
+        pais: finalPais || 'Brasil',
         marca_captura_id: marcaId,
         origem_sistema: `Lead (${selectedLeadToConvert.origem})`,
         data_criacao: new Date().toISOString(),
         criado_por_id: currentUserId,
       })
 
-      // 2. Criar Negócio/Oportunidade com rastreamento lead_origem_id
+      // 2. Criar Negócio/Oportunidade com rastreamento lead_origem_id e localidade herdada
       const novaOportunidade = await pb.collection('oportunidades').create({
         titulo: convTitulo.trim() || `Negócio - ${selectedLeadToConvert.dados_contato}`,
         valor_estimado: convValor,
@@ -807,20 +847,34 @@ export default function Clientes() {
         cliente_b2c_id: novaPessoa.id,
         lead_origem_id: selectedLeadToConvert.id,
         tipo_documento_faturamento: 'CPF',
+        cidade: finalCidade || null,
+        estado: finalEstado || null,
+        pais: finalPais || 'Brasil',
         responsavel_id: currentUserId,
         status: 'aberto',
       })
 
-      // 3. Trava de follow-up: criar tarefa obrigatória
-      await pb.collection('atividades').create({
-        oportunidade_id: novaOportunidade.id,
-        marca_id: marcaId,
-        responsavel_id: currentUserId,
-        tipo: 'Follow-up',
-        descricao: convFollowUpDesc.trim() || 'Primeiro contato com cliente qualificado',
-        data_vencimento: new Date(convFollowUpData).toISOString(),
-        concluida: false,
-      })
+      // 3. Trava de follow-up: criar tarefa obrigatória com compensação
+      try {
+        await pb.collection('atividades').create({
+          oportunidade_id: novaOportunidade.id,
+          marca_id: marcaId,
+          responsavel_id: currentUserId,
+          tipo: 'Follow-up',
+          descricao: convFollowUpDesc.trim() || 'Primeiro contato com cliente qualificado',
+          data_vencimento: new Date(convFollowUpData).toISOString(),
+          concluida: false,
+        })
+      } catch (ativErr) {
+        console.error('Falha ao agendar follow-up da conversão de lead, compensando:', ativErr)
+        try {
+          await pb.collection('oportunidades').delete(novaOportunidade.id)
+          await pb.collection('pessoas').delete(novaPessoa.id)
+        } catch (delErr) {
+          console.error('Falha na compensação:', delErr)
+        }
+        throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+      }
 
       // 4. Marcar o lead como Convertido e vincular à oportunidade
       await pb.collection('leads').update(selectedLeadToConvert.id, {
@@ -2228,6 +2282,21 @@ export default function Clientes() {
                     />
                   </div>
                 </div>
+
+                {/* Localidade Residencial da Pessoa */}
+                <div className="pt-2 border-t border-slate-100">
+                  <GeoSelector
+                    label="Localidade Residencial"
+                    cidade={newCidade}
+                    estado={newEstado}
+                    pais={newPais}
+                    onChange={(geo) => {
+                      setNewCidade(geo.cidade)
+                      setNewEstado(geo.estado)
+                      setNewPais(geo.pais)
+                    }}
+                  />
+                </div>
               </>
             ) : (
               /* CAMPOS ORGANIZAÇÃO */
@@ -2291,18 +2360,32 @@ export default function Clientes() {
 
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-600">
-                    Endereço Corporativo
+                    Endereço Corporativo (Logradouro/Número)
                   </Label>
                   <Input
-                    placeholder="Logradouro, número, cidade - UF"
+                    placeholder="ex: Av. Paulista, 1000 - Cj 52"
                     value={newEndereco}
                     onChange={(e) => setNewEndereco(e.target.value)}
                     className="h-9 text-xs rounded-xl"
                   />
                 </div>
+
+                {/* Localidade Corporativa via GeoSelector */}
+                <div className="pt-2 border-t border-slate-100">
+                  <GeoSelector
+                    label="Localidade Corporativa"
+                    cidade={newCidade}
+                    estado={newEstado}
+                    pais={newPais}
+                    onChange={(geo) => {
+                      setNewCidade(geo.cidade)
+                      setNewEstado(geo.estado)
+                      setNewPais(geo.pais)
+                    }}
+                  />
+                </div>
               </>
             )}
-
             {/* CAMPOS COMUNS */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -2581,6 +2664,20 @@ export default function Clientes() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <GeoSelector
+                label="Localidade do Lead"
+                cidade={newLeadCidade}
+                estado={newLeadEstado}
+                pais={newLeadPais}
+                onChange={(geo) => {
+                  setNewLeadCidade(geo.cidade)
+                  setNewLeadEstado(geo.estado)
+                  setNewLeadPais(geo.pais)
+                }}
+              />
             </div>
 
             <DialogFooter className="pt-2">

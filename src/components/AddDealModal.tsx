@@ -801,16 +801,26 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         status: 'aberto',
       })
 
-      // 3. Trava de follow-up: cria atividade correspondente
-      await pb.collection('atividades').create({
-        oportunidade_id: novoNegocio.id,
-        marca_id: activeMarcaId,
-        responsavel_id: currentUserId,
-        tipo: 'Follow-up',
-        descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
-        data_vencimento: new Date(followUpData).toISOString(),
-        concluida: false,
-      })
+      // 3. Trava de follow-up: cria atividade correspondente (com compensação atômica)
+      try {
+        await pb.collection('atividades').create({
+          oportunidade_id: novoNegocio.id,
+          marca_id: activeMarcaId,
+          responsavel_id: currentUserId,
+          tipo: 'Follow-up',
+          descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
+          data_vencimento: new Date(followUpData).toISOString(),
+          concluida: false,
+        })
+      } catch (ativErr) {
+        console.error('Falha ao agendar follow-up, compensando oportunidade:', ativErr)
+        try {
+          await pb.collection('oportunidades').delete(novoNegocio.id)
+        } catch (delErr) {
+          console.error('Falha na compensação da oportunidade:', delErr)
+        }
+        throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+      }
 
       toast({
         title: 'Negócio adicionado com sucesso!',
