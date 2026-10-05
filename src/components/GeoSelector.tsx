@@ -36,6 +36,7 @@ export interface GeoSelectorProps {
   estado: string
   pais?: string
   onChange: (value: GeoValue) => void
+  label?: string
   cidadeLabel?: string
   estadoLabel?: string
   paisLabel?: string
@@ -50,6 +51,7 @@ export function GeoSelector({
   estado,
   pais = PAIS_PADRAO,
   onChange,
+  label,
   cidadeLabel = 'Cidade',
   estadoLabel = 'UF',
   paisLabel = 'País',

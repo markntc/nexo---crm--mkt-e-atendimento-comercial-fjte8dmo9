@@ -38,8 +38,10 @@ import {
   Briefcase,
   Loader2,
   Copy,
+  Edit,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { AddDealModal } from '@/components/AddDealModal'
 
 interface OpportunityDrawerProps {
   opportunityId: string | null
@@ -70,6 +72,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [documentoFaturamento, setDocumentoFaturamento] = useState<'CPF' | 'CNPJ' | 'AMBOS' | ''>(
     '',
   )
+
+  // Modal de edição completa (AddDealModal em modo edit)
+  const [editDealModalOpen, setEditDealModalOpen] = useState(false)
 
   // Modal Nova Atividade
   const [newAtivOpen, setNewAtivOpen] = useState(false)
@@ -351,6 +356,16 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     )}
                   </div>
                   <div className="flex items-center space-x-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditDealModalOpen(true)}
+                      className="text-xs h-8 border-[#017848] text-[#017848] hover:bg-emerald-50 font-semibold"
+                      title="Editar todos os campos do negócio (origem, valor, localidade, contatos, etc.)"
+                    >
+                      <Edit className="w-3.5 h-3.5 mr-1" />
+                      Editar
+                    </Button>
                     {onDuplicate && (
                       <Button
                         variant="outline"
@@ -924,6 +939,46 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL DE EDIÇÃO COMPLETA DO NEGÓCIO */}
+      {opportunity && editDealModalOpen && (
+        <AddDealModal
+          open={editDealModalOpen}
+          onOpenChange={setEditDealModalOpen}
+          mode="edit"
+          dealId={opportunity.id}
+          defaultFunilId={opportunity.funil_id}
+          defaultEtapaNome={opportunity.etapa_atual}
+          initialValues={{
+            titulo: opportunity.titulo,
+            valor: opportunity.valor_estimado,
+            funil_id: opportunity.funil_id,
+            etapa_atual: opportunity.etapa_atual,
+            cliente_b2b_id: opportunity.cliente_b2b_id || opportunity.organizacao_id,
+            cliente_b2c_id: opportunity.cliente_b2c_id || opportunity.pessoa_id,
+            organizacao_id: opportunity.cliente_b2b_id || opportunity.organizacao_id,
+            pessoa_id: opportunity.cliente_b2c_id || opportunity.pessoa_id,
+            vendedor_id: opportunity.vendedor_id,
+            documento_faturamento: opportunity.documento_faturamento,
+            observacoes: opportunity.observacoes,
+            origem: opportunity.origem,
+            cidade: opportunity.cidade,
+            estado: opportunity.estado,
+            pais: opportunity.pais,
+            cidade_entrega: opportunity.cidade_entrega,
+            estado_entrega: opportunity.estado_entrega,
+            pais_entrega: opportunity.pais_entrega,
+            proxima_acao_data: opportunity.proxima_acao_data,
+            proxima_acao_descricao: opportunity.proxima_acao_descricao,
+            data_fechamento_esperada: opportunity.data_fechamento_esperada,
+            tipo_cliente: opportunity.tipo_cliente,
+          }}
+          onSuccess={() => {
+            fetchDetail(opportunity.id)
+            onUpdate()
+          }}
+        />
+      )}
     </>
   )
 }

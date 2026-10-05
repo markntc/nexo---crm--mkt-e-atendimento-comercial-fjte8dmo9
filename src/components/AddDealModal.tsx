@@ -41,24 +41,35 @@ import { GeoSelector } from './GeoSelector'
 export interface AddDealModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess?: (createdDealId: string) => void
+  onSuccess?: (dealId: string) => void
   defaultFunilId?: string
   defaultEtapaNome?: string
+  mode?: 'create' | 'edit'
+  dealId?: string
   initialValues?: {
     titulo?: string
     valor?: number | string
     etapa_atual?: string
+    funil_id?: string
     cliente_b2b_id?: string
     cliente_b2c_id?: string
+    organizacao_id?: string
+    pessoa_id?: string
+    vendedor_id?: string
     documento_faturamento?: 'CPF' | 'CNPJ' | 'AMBOS'
     observacoes?: string
     origem?: string
+    id_canal_origem?: string
     cidade?: string
     estado?: string
     pais?: string
     cidade_entrega?: string
     estado_entrega?: string
     pais_entrega?: string
+    proxima_acao_data?: string
+    proxima_acao_descricao?: string
+    data_fechamento_esperada?: string
+    tipo_cliente?: string
   }
 }
 
@@ -80,8 +91,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   onSuccess,
   defaultFunilId,
   defaultEtapaNome,
+  mode = 'create',
+  dealId,
   initialValues,
 }) => {
+  const isEditMode = mode === 'edit' || !!dealId
   const { activeBrand, marcas } = useBrand()
   const { user, isAdmin } = useAuth()
   const mouseDownOutsideRef = useRef(false)
@@ -223,14 +237,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setOrganizacoes(orgsRes)
         setUsersList(usersRes)
 
-        // Inicializa proprietário com o usuário logado se ainda não preenchido
-        if (user?.id) {
-          setProprietarioId((prev) => prev || user.id)
-        }
-
-        // Inicializa Funil
-        const initialFunil = funisRes.find((f) => f.id === defaultFunilId) || funisRes[0] || null
-
+        // Preenche com initialValues se fornecido (ex: Recompra, Duplicar ou Edição)
+        const targetFunilId = initialValues?.funil_id || defaultFunilId
+        const initialFunil = funisRes.find((f) => f.id === targetFunilId) || funisRes[0] || null
         const requestedEtapa = initialValues?.etapa_atual || defaultEtapaNome
 
         if (initialFunil) {
@@ -245,7 +254,12 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           }
         }
 
-        // Preenche com initialValues se fornecido (ex: Recompra ou Duplicar)
+        if (initialValues?.vendedor_id) {
+          setProprietarioId(initialValues.vendedor_id)
+        } else if (user?.id) {
+          setProprietarioId((prev) => prev || user.id)
+        }
+
         if (initialValues) {
           if (initialValues.titulo) {
             setTitulo(initialValues.titulo)
@@ -263,6 +277,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           if (initialValues.origem) {
             setCanalOrigem(initialValues.origem)
           }
+          if (initialValues.id_canal_origem) {
+            setIdCanalOrigem(initialValues.id_canal_origem)
+          }
 
           if (initialValues.cidade) {
             setCidadeFaturamento(initialValues.cidade)
@@ -273,20 +290,49 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           if (initialValues.pais) {
             setPaisFaturamento(initialValues.pais)
           }
+
+          // Checa se há entrega preenchida ou diferente de faturamento
+          const temEntregaInformada = !!(
+            initialValues.cidade_entrega ||
+            initialValues.estado_entrega ||
+            (initialValues.pais_entrega && initialValues.pais_entrega !== 'Brasil')
+          )
+          const entregaDiferenteDeFaturamento =
+            (initialValues.cidade_entrega &&
+              initialValues.cidade_entrega !== initialValues.cidade) ||
+            (initialValues.estado_entrega &&
+              initialValues.estado_entrega !== initialValues.estado) ||
+            (initialValues.pais_entrega && initialValues.pais_entrega !== initialValues.pais)
+
           if (initialValues.cidade_entrega) {
             setCidadeEntrega(initialValues.cidade_entrega)
-            setEntregaDiferente(true)
           }
           if (initialValues.estado_entrega) {
             setEstadoEntrega(initialValues.estado_entrega)
-            setEntregaDiferente(true)
           }
           if (initialValues.pais_entrega) {
             setPaisEntrega(initialValues.pais_entrega)
           }
 
-          if (initialValues.cliente_b2b_id) {
-            const org = orgsRes.find((o) => o.id === initialValues.cliente_b2b_id)
+          if (temEntregaInformada && entregaDiferenteDeFaturamento) {
+            setEntregaDiferente(true)
+          } else {
+            setEntregaDiferente(false)
+          }
+
+          if (initialValues.proxima_acao_data) {
+            setFollowUpData(initialValues.proxima_acao_data.split('T')[0])
+          }
+          if (initialValues.proxima_acao_descricao) {
+            setFollowUpDesc(initialValues.proxima_acao_descricao)
+          }
+          if (initialValues.data_fechamento_esperada) {
+            setDataFechamento(initialValues.data_fechamento_esperada.split('T')[0])
+          }
+
+          const targetOrgId = initialValues.cliente_b2b_id || initialValues.organizacao_id
+          if (targetOrgId) {
+            const org = orgsRes.find((o) => o.id === targetOrgId)
             if (org) {
               setSelectedOrgId(org.id)
               setOrgSearch(org.razao_social)
@@ -304,8 +350,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             }
           }
 
-          if (initialValues.cliente_b2c_id) {
-            const p = pessoasRes.find((x) => x.id === initialValues.cliente_b2c_id)
+          const targetPessoaId = initialValues.cliente_b2c_id || initialValues.pessoa_id
+          if (targetPessoaId) {
+            const p = pessoasRes.find((x) => x.id === targetPessoaId)
             if (p) {
               setSelectedPersonId(p.id)
               setPersonSearch(p.nome_completo)
@@ -315,11 +362,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               if (p.email_principal) {
                 setEmails([{ id: '1', address: p.email_principal, tipo: 'Comercial' }])
               }
-              if (
-                !initialValues.cidade &&
-                !initialValues.cliente_b2b_id &&
-                p.endereco_residencial
-              ) {
+              if (!initialValues.cidade && !targetOrgId && p.endereco_residencial) {
                 const loc = extrairCidadeEstado(p.endereco_residencial)
                 if (loc.cidade) setCidadeFaturamento(loc.cidade)
                 if (loc.estado) setEstadoFaturamento(loc.estado)
@@ -650,7 +693,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
-  // Submissão do Modal: Salva Pessoa (se nova ou editada) + Salva Negócio + Follow-up
+  // Submissão do Modal: Salva Pessoa (se nova ou editada) + Salva/Atualiza Negócio + Follow-up
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -678,9 +721,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const activeMarcaId = activeBrand?.id || (marcas[0]?.id ?? '')
       const currentUserId = proprietarioId || user?.id || pb.authStore.record?.id
 
-      // 1. Criação da Organização (se foi marcada como NOVA inline)
+      // 1. Criação da Organização (se foi marcada como NOVA inline - apenas no modo criação ou se explicitamente novo)
       let finalOrgId = selectedOrgId
-      if (isNewOrgCandidate && orgSearch.trim()) {
+      if (!isEditMode && isNewOrgCandidate && orgSearch.trim()) {
         const novaOrg = await pb.collection('organizacoes').create({
           razao_social: orgSearch.trim(),
           nome_fantasia: orgSearch.trim(),
@@ -697,7 +740,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const primaryEmail = emails.find((e) => e.address.trim())?.address || ''
 
       // 2. Criação ou atualização da Pessoa na collection `pessoas`
-      if (isNewPersonCandidate && personSearch.trim()) {
+      if (!isEditMode && isNewPersonCandidate && personSearch.trim()) {
         const novaPessoa = await pb.collection('pessoas').create({
           nome_completo: personSearch.trim(),
           cpf: '00000000000', // CPF placeholder conforme convenção pré-cadastro
@@ -722,7 +765,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           .catch(() => {})
       }
 
-      // 2. Criação do Negócio / Oportunidade
+      // 2. Preparação do payload do Negócio / Oportunidade
       const numValor = parseFloat(valor.replace(/[^0-9,-]/g, '').replace(',', '.')) || 0
 
       let dataFechamentoIso: string | null = null
@@ -770,12 +813,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         }
       }
 
-      // Localidade final: se editou entrega, usa entrega; senão herda faturamento
-      const finalCidadeEntrega = cidadeEntrega.trim() || cidadeFaturamento.trim() || null
-      const finalEstadoEntrega = estadoEntrega.trim() || estadoFaturamento.trim() || null
-      const finalPaisEntrega = paisEntrega.trim() || paisFaturamento.trim() || 'Brasil'
+      // Localidade final: se entregaDiferente marcada e possui entrega, usa entrega; senão herda faturamento
+      const finalCidadeEntrega =
+        (entregaDiferente ? cidadeEntrega.trim() : '') || cidadeFaturamento.trim() || null
+      const finalEstadoEntrega =
+        (entregaDiferente ? estadoEntrega.trim() : '') || estadoFaturamento.trim() || null
+      const finalPaisEntrega =
+        (entregaDiferente ? paisEntrega.trim() : '') || paisFaturamento.trim() || 'Brasil'
 
-      const novoNegocio = await pb.collection('oportunidades').create({
+      const dealPayload = {
         titulo: titulo.trim(),
         valor_estimado: numValor,
         funil_id: funilId || null,
@@ -783,6 +829,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         marca_id: activeMarcaId,
         cliente_b2b_id: finalOrgId || null,
         cliente_b2c_id: finalPessoaId || null,
+        organizacao_id: finalOrgId || null,
+        pessoa_id: finalPessoaId || null,
         documento_faturamento: documentoFaturamento,
         data_fechamento_esperada: dataFechamentoIso,
         tipo_cliente: tipoClienteClassificado,
@@ -798,67 +846,105 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         pais_entrega: finalPaisEntrega,
         proxima_acao_data: new Date(followUpData).toISOString(),
         proxima_acao_descricao: followUpDesc.trim(),
-        status: 'aberto',
-      })
+      }
 
-      // 3. Trava de follow-up: cria atividade correspondente (com compensação atômica)
-      try {
-        await pb.collection('atividades').create({
-          oportunidade_id: novoNegocio.id,
-          marca_id: activeMarcaId,
-          responsavel_id: currentUserId,
-          tipo: 'Follow-up',
-          descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
-          data_vencimento: new Date(followUpData).toISOString(),
-          concluida: false,
-        })
-      } catch (ativErr) {
-        console.error('Falha ao agendar follow-up, compensando oportunidade:', ativErr)
+      if (isEditMode && dealId) {
+        // MODO EDIÇÃO: Atualiza negócio existente
+        await pb.collection('oportunidades').update(dealId, dealPayload)
+
+        // Cria ou atualiza atividade de follow-up associada
         try {
-          await pb.collection('oportunidades').delete(novoNegocio.id)
-        } catch (delErr) {
-          console.error('Falha na compensação da oportunidade:', delErr)
+          await pb.collection('atividades').create({
+            oportunidade_id: dealId,
+            marca_id: activeMarcaId,
+            responsavel_id: currentUserId,
+            tipo: 'Follow-up',
+            descricao: followUpDesc.trim() || 'Follow-up atualizado na edição do negócio',
+            data_vencimento: new Date(followUpData).toISOString(),
+            concluida: false,
+          })
+        } catch (ativErr) {
+          console.warn('Aviso ao registrar atividade de follow-up na edição:', ativErr)
         }
-        throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
-      }
 
-      toast({
-        title: 'Negócio adicionado com sucesso!',
-        description: `"${titulo.trim()}" foi criado e vinculado ao funil.`,
-      })
-
-      // Se a entidade não tiver cidade/estado, sugere completar na ficha
-      if (!cidadeFaturamento.trim() && !estadoFaturamento.trim()) {
         toast({
-          title: 'Endereço não informado',
-          description:
-            'Sugerimos completar a localidade e o endereço diretamente na ficha do cliente.',
+          title: 'Negócio atualizado com sucesso!',
+          description: `"${titulo.trim()}" foi atualizado com todas as alterações.`,
         })
-      }
 
-      // Limpa e fecha modal
-      // Reset de campos para novo cadastro
-      setTitulo('')
-      setUserEditedTitle(false)
-      setValor('')
-      setSelectedPersonId(null)
-      setPersonSearch('')
-      setSelectedOrgId(null)
-      setOrgSearch('')
-      setNotaObservacoes('')
-      setProprietarioId(user?.id || '')
+        onOpenChange(false)
+        if (onSuccess) {
+          onSuccess(dealId)
+        }
+      } else {
+        // MODO CRIAÇÃO: Cria novo negócio
+        const novoNegocio = await pb.collection('oportunidades').create({
+          ...dealPayload,
+          status: 'aberto',
+        })
 
-      // Fecha modal e dispara callback
-      onOpenChange(false)
-      if (onSuccess) {
-        onSuccess(novoNegocio.id)
+        // Trava de follow-up: cria atividade correspondente (com compensação atômica)
+        try {
+          await pb.collection('atividades').create({
+            oportunidade_id: novoNegocio.id,
+            marca_id: activeMarcaId,
+            responsavel_id: currentUserId,
+            tipo: 'Follow-up',
+            descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
+            data_vencimento: new Date(followUpData).toISOString(),
+            concluida: false,
+          })
+        } catch (ativErr) {
+          console.error('Falha ao agendar follow-up, compensando oportunidade:', ativErr)
+          try {
+            await pb.collection('oportunidades').delete(novoNegocio.id)
+          } catch (delErr) {
+            console.error('Falha na compensação da oportunidade:', delErr)
+          }
+          throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+        }
+
+        toast({
+          title: 'Negócio adicionado com sucesso!',
+          description: `"${titulo.trim()}" foi criado e vinculado ao funil.`,
+        })
+
+        // Se a entidade não tiver cidade/estado, sugere completar na ficha
+        if (!cidadeFaturamento.trim() && !estadoFaturamento.trim()) {
+          toast({
+            title: 'Endereço não informado',
+            description:
+              'Sugerimos completar a localidade e o endereço diretamente na ficha do cliente.',
+          })
+        }
+
+        // Limpa e fecha modal
+        setTitulo('')
+        setUserEditedTitle(false)
+        setValor('')
+        setSelectedPersonId(null)
+        setPersonSearch('')
+        setSelectedOrgId(null)
+        setOrgSearch('')
+        setNotaObservacoes('')
+        setProprietarioId(user?.id || '')
+
+        onOpenChange(false)
+        if (onSuccess) {
+          onSuccess(novoNegocio.id)
+        }
       }
     } catch (err: unknown) {
-      console.error('Erro ao adicionar negócio:', err)
-      const msg = err instanceof Error ? err.message : 'Falha ao salvar negócio'
+      console.error(isEditMode ? 'Erro ao atualizar negócio:' : 'Erro ao adicionar negócio:', err)
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isEditMode
+            ? 'Falha ao atualizar negócio'
+            : 'Falha ao salvar negócio'
       toast({
         variant: 'destructive',
-        title: 'Erro ao criar negócio',
+        title: isEditMode ? 'Erro ao salvar alterações' : 'Erro ao criar negócio',
         description: msg,
       })
     } finally {
@@ -904,7 +990,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         {/* CABEÇALHO DO MODAL */}
         <DialogHeader className="px-6 py-4 border-b border-[#E3E7EB] flex flex-row items-center justify-between text-left shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
-            Adicionar negócio
+            {isEditMode ? 'Editar negócio' : 'Adicionar negócio'}
           </DialogTitle>
         </DialogHeader>
 
@@ -1661,10 +1747,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                    <span>Salvando...</span>
+                    <span>{isEditMode ? 'Salvando...' : 'Criando...'}</span>
                   </>
                 ) : (
-                  <span>Salvar</span>
+                  <span>{isEditMode ? 'Salvar alterações' : 'Salvar'}</span>
                 )}
               </Button>
             </div>
