@@ -9,7 +9,7 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Expires', '0')
 
   return e.json(200, {
-    version: '0.0.48',
+    version: '0.0.49',
     updated_at: new Date().toISOString(),
     timestamp: Date.now(),
     status: 'ok',
