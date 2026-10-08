@@ -192,12 +192,12 @@ export default function Leads() {
         }
       }
 
-      // Se ainda não tiver pessoa nem organização vinculada, cria a pessoa com a localidade
+      // Se ainda não tiver pessoa nem organização vinculada, cria a pessoa com a localidade (sem documento obrigatório)
       let pessoaId = selectedLeadToConvert.cliente_b2c_id || null
       if (!pessoaId && !selectedLeadToConvert.cliente_b2b_id) {
         const novaPessoa = await pb.collection('pessoas').create({
           nome_completo: selectedLeadToConvert.dados_contato,
-          cpf: '00000000000',
+          cpf: null,
           cidade: finalCidade || null,
           estado: finalEstado || null,
           pais: finalPais || 'Brasil',

@@ -458,7 +458,8 @@ export default function Clientes() {
     }
 
     if (newTipo === 'b2b') {
-      if (!isValidCNPJ(newCnpj)) {
+      const cleanCnpj = newCnpj.replace(/\D/g, '')
+      if (cleanCnpj && !isValidCNPJ(cleanCnpj)) {
         setValidationError('O CNPJ informado possui dígitos verificadores inválidos.')
         return
       }
@@ -469,8 +470,26 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
+        // Busca deduplicação inteligente se CNPJ informado
+        if (cleanCnpj) {
+          const orgExistente = await pb
+            .collection('organizacoes')
+            .getFullList<ClienteB2B>({
+              filter: `cnpj = "${cleanCnpj}"`,
+              limit: 1,
+            })
+            .catch(() => [])
+          if (orgExistente.length > 0) {
+            setValidationError(
+              `Já existe uma organização com este CNPJ: "${orgExistente[0].razao_social}".`,
+            )
+            setIsSubmitting(false)
+            return
+          }
+        }
+
         await pb.collection('organizacoes').create({
-          cnpj: maskCNPJ(newCnpj),
+          cnpj: cleanCnpj ? maskCNPJ(cleanCnpj) : null,
           razao_social: newRazao.trim(),
           nome_fantasia: newFantasia.trim(),
           inscricao_estadual: newIE.trim(),
@@ -493,15 +512,21 @@ export default function Clientes() {
         setIsNewContactOpen(false)
         resetForm()
         fetchContatos()
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao salvar organização'
-        setValidationError(msg)
+      } catch (err: any) {
+        const errStr = JSON.stringify(err || '')
+        if (errStr.includes('idx_organizacoes_cnpj_unique') || errStr.includes('cnpj')) {
+          setValidationError('Já existe uma organização cadastrada com este CNPJ no sistema.')
+        } else {
+          const msg = err instanceof Error ? err.message : 'Falha ao salvar organização'
+          setValidationError(msg)
+        }
       } finally {
         setIsSubmitting(false)
       }
     } else {
       // B2C / Pessoa
-      if (!isValidCPF(newCpf)) {
+      const cleanCpf = newCpf.replace(/\D/g, '')
+      if (cleanCpf && !isValidCPF(cleanCpf)) {
         setValidationError('O CPF informado possui dígitos verificadores inválidos.')
         return
       }
@@ -512,8 +537,26 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
+        // Busca deduplicação inteligente se CPF informado
+        if (cleanCpf) {
+          const pessoaExistente = await pb
+            .collection('pessoas')
+            .getFullList<ClienteB2C>({
+              filter: `cpf = "${cleanCpf}"`,
+              limit: 1,
+            })
+            .catch(() => [])
+          if (pessoaExistente.length > 0) {
+            setValidationError(
+              `Já existe uma pessoa cadastrada com este CPF: "${pessoaExistente[0].nome_completo}".`,
+            )
+            setIsSubmitting(false)
+            return
+          }
+        }
+
         await pb.collection('pessoas').create({
-          cpf: maskCPF(newCpf),
+          cpf: cleanCpf ? maskCPF(cleanCpf) : null,
           nome_completo: newNomeCompleto.trim(),
           email_principal: newEmail.trim(),
           telefone: newTelefone ? maskPhone(newTelefone) : '',
@@ -536,9 +579,14 @@ export default function Clientes() {
         setIsNewContactOpen(false)
         resetForm()
         fetchContatos()
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao salvar pessoa'
-        setValidationError(msg)
+      } catch (err: any) {
+        const errStr = JSON.stringify(err || '')
+        if (errStr.includes('idx_pessoas_cpf_unique') || errStr.includes('cpf')) {
+          setValidationError('Já existe uma pessoa cadastrada com este CPF no sistema.')
+        } else {
+          const msg = err instanceof Error ? err.message : 'Falha ao salvar pessoa'
+          setValidationError(msg)
+        }
       } finally {
         setIsSubmitting(false)
       }
@@ -823,10 +871,10 @@ export default function Clientes() {
         }
       }
 
-      // 1. Criar Pessoa física na base de contatos com localidade propagada
+      // 1. Criar Pessoa física na base de contatos com localidade propagada (sem documento obrigatório)
       const novaPessoa = await pb.collection('pessoas').create({
         nome_completo: selectedLeadToConvert.dados_contato,
-        cpf: '00000000000', // CPF provisório para pré-cadastro
+        cpf: null,
         cidade: finalCidade || null,
         estado: finalEstado || null,
         pais: finalPais || 'Brasil',
@@ -2207,7 +2255,9 @@ export default function Clientes() {
               <>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-slate-600">CPF (Validado)</Label>
+                    <Label className="text-xs font-semibold text-slate-600">
+                      CPF <span className="text-slate-400 font-normal">(opcional)</span>
+                    </Label>
                     {newCpf && (
                       <span
                         className={cn(
@@ -2220,8 +2270,7 @@ export default function Clientes() {
                     )}
                   </div>
                   <Input
-                    required
-                    placeholder="000.000.000-00"
+                    placeholder="000.000.000-00 (opcional)"
                     value={newCpf}
                     onChange={(e) => setNewCpf(maskCPF(e.target.value))}
                     className="h-9 text-xs font-mono rounded-xl"
@@ -2303,7 +2352,9 @@ export default function Clientes() {
               <>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-slate-600">CNPJ (Validado)</Label>
+                    <Label className="text-xs font-semibold text-slate-600">
+                      CNPJ <span className="text-slate-400 font-normal">(opcional)</span>
+                    </Label>
                     {newCnpj && (
                       <span
                         className={cn(
@@ -2316,8 +2367,7 @@ export default function Clientes() {
                     )}
                   </div>
                   <Input
-                    required
-                    placeholder="00.000.000/0000-00"
+                    placeholder="00.000.000/0000-00 (opcional)"
                     value={newCnpj}
                     onChange={(e) => setNewCnpj(maskCNPJ(e.target.value))}
                     className="h-9 text-xs font-mono rounded-xl"

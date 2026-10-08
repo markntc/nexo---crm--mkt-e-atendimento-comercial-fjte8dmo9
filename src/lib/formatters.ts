@@ -110,6 +110,10 @@ export function isValidCPF(cpfRaw: string): boolean {
 /**
  * Máscara formatada para CNPJ (00.000.000/0000-00)
  */
+export function onlyDigits(value: string | null | undefined): string {
+  return (value || '').replace(/\D/g, '')
+}
+
 export function maskCNPJ(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 14)
   return digits

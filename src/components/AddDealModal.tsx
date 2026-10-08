@@ -32,7 +32,7 @@ import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import { maskPhone } from '@/lib/formatters'
+import { maskPhone, maskCNPJ, maskCPF, isValidCNPJ, isValidCPF, onlyDigits } from '@/lib/formatters'
 import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
@@ -112,6 +112,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 1. Pessoa de contato (busca + criação com badge NOVO)
   const [personSearch, setPersonSearch] = useState('')
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
+  const [newPersonCpf, setNewPersonCpf] = useState('')
   const [isNewPersonCandidate, setIsNewPersonCandidate] = useState(false)
   const [isPersonDropdownOpen, setIsPersonDropdownOpen] = useState(false)
   const personInputRef = useRef<HTMLInputElement>(null)
@@ -119,9 +120,14 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 2. Organização (busca / seleção + criação inline com badge NOVO)
   const [orgSearch, setOrgSearch] = useState('')
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
+  const [newOrgCnpj, setNewOrgCnpj] = useState('')
   const [isNewOrgCandidate, setIsNewOrgCandidate] = useState(false)
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
   const orgInputRef = useRef<HTMLInputElement>(null)
+
+  // Erros de validação inline de documentos
+  const [orgCnpjError, setOrgCnpjError] = useState<string | null>(null)
+  const [personCpfError, setPersonCpfError] = useState<string | null>(null)
 
   // 3. Título
   const [titulo, setTitulo] = useState('')
@@ -512,6 +518,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const handleSelectPerson = (p: ClienteB2C) => {
     setSelectedPersonId(p.id)
     setPersonSearch(p.nome_completo)
+    setNewPersonCpf(p.cpf || '')
+    setPersonCpfError(null)
     setIsNewPersonCandidate(false)
     setIsPersonDropdownOpen(false)
     handleUpdateTitleSuggestion(p.nome_completo)
@@ -574,6 +582,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const handleSelectOrg = (o: ClienteB2B) => {
     setSelectedOrgId(o.id)
     setOrgSearch(o.razao_social)
+    setNewOrgCnpj(o.cnpj || '')
+    setOrgCnpjError(null)
     setIsNewOrgCandidate(false)
     setIsOrgDropdownOpen(false)
     if (!personSearch && !userEditedTitle) {
@@ -715,45 +725,161 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       return
     }
 
+    // Valida formato dos documentos caso informados
+    const cleanOrgCnpj = onlyDigits(newOrgCnpj)
+    if (cleanOrgCnpj && !isValidCNPJ(cleanOrgCnpj)) {
+      setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos e dígitos verificadores válidos)')
+      toast({
+        variant: 'destructive',
+        title: 'CNPJ inválido',
+        description: 'Verifique o número do CNPJ informado no campo da organização.',
+      })
+      return
+    }
+
+    const cleanPersonCpf = onlyDigits(newPersonCpf)
+    if (cleanPersonCpf && !isValidCPF(cleanPersonCpf)) {
+      setPersonCpfError('CPF inválido (deve conter 11 dígitos e dígitos verificadores válidos)')
+      toast({
+        variant: 'destructive',
+        title: 'CPF inválido',
+        description: 'Verifique o número do CPF informado no campo da pessoa.',
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
       const activeMarcaId = activeBrand?.id || (marcas[0]?.id ?? '')
       const currentUserId = proprietarioId || user?.id || pb.authStore.record?.id
 
-      // 1. Criação da Organização (se foi marcada como NOVA inline - apenas no modo criação ou se explicitamente novo)
+      // 1. Organização: Deduplicação e Vinculação Inteligente
       let finalOrgId = selectedOrgId
       if (!isEditMode && isNewOrgCandidate && orgSearch.trim()) {
-        const novaOrg = await pb.collection('organizacoes').create({
-          razao_social: orgSearch.trim(),
-          nome_fantasia: orgSearch.trim(),
-          marca_captura_id: activeMarcaId,
-          origem_sistema: 'Cadastro via Pipedrive Negócio',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: currentUserId,
-        })
-        finalOrgId = novaOrg.id
+        // Se informou CNPJ, busca previamente no backend por CNPJ idêntico
+        let orgExistente: ClienteB2B | null = null
+        if (cleanOrgCnpj) {
+          try {
+            const found = await pb.collection('organizacoes').getFullList<ClienteB2B>({
+              filter: `cnpj = "${cleanOrgCnpj}"`,
+              limit: 1,
+            })
+            if (found.length > 0) {
+              orgExistente = found[0]
+            }
+          } catch (findErr) {
+            console.warn('Erro ao verificar CNPJ existente:', findErr)
+          }
+        }
+
+        if (orgExistente) {
+          finalOrgId = orgExistente.id
+          setSelectedOrgId(orgExistente.id)
+          setOrgSearch(orgExistente.razao_social)
+          setIsNewOrgCandidate(false)
+          toast({
+            title: 'Organização vinculada',
+            description: `Organização "${orgExistente.razao_social}" já cadastrada com este CNPJ; negócio foi vinculado automaticamente.`,
+          })
+        } else {
+          try {
+            const novaOrg = await pb.collection('organizacoes').create({
+              razao_social: orgSearch.trim(),
+              nome_fantasia: orgSearch.trim(),
+              cnpj: cleanOrgCnpj || null,
+              marca_captura_id: activeMarcaId,
+              origem_sistema: 'Cadastro via Pipedrive Negócio',
+              data_criacao: new Date().toISOString(),
+              criado_por_id: currentUserId,
+            })
+            finalOrgId = novaOrg.id
+          } catch (createOrgErr: any) {
+            // Se falhou por duplicidade de CNPJ no backend
+            const errStr = JSON.stringify(createOrgErr || '')
+            if (
+              errStr.includes('idx_organizacoes_cnpj_unique') ||
+              errStr.includes('cnpj') ||
+              createOrgErr?.data?.cnpj
+            ) {
+              setOrgCnpjError('Já existe uma organização com este CNPJ.')
+              toast({
+                variant: 'destructive',
+                title: 'Organização já cadastrada',
+                description: 'Já existe uma organização com este CNPJ no sistema.',
+              })
+              setIsSubmitting(false)
+              return
+            }
+            throw createOrgErr
+          }
+        }
       }
 
       let finalPessoaId = selectedPersonId
       const primaryPhone = phones.find((p) => p.number.trim())?.number || ''
       const primaryEmail = emails.find((e) => e.address.trim())?.address || ''
 
-      // 2. Criação ou atualização da Pessoa na collection `pessoas`
+      // 2. Pessoa: Deduplicação e Vinculação Inteligente
       if (!isEditMode && isNewPersonCandidate && personSearch.trim()) {
-        const novaPessoa = await pb.collection('pessoas').create({
-          nome_completo: personSearch.trim(),
-          cpf: '00000000000', // CPF placeholder conforme convenção pré-cadastro
-          telefone: primaryPhone,
-          email_principal: primaryEmail,
-          marca_captura_id: activeMarcaId,
-          organizacao_id: finalOrgId || null,
-          origem_sistema: 'Cadastro via Pipedrive Negócio',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: currentUserId,
-        })
-        finalPessoaId = novaPessoa.id
-      } else if (finalPessoaId && (primaryPhone || primaryEmail || finalOrgId)) {
+        let pessoaExistente: ClienteB2C | null = null
+        if (cleanPersonCpf) {
+          try {
+            const foundP = await pb.collection('pessoas').getFullList<ClienteB2C>({
+              filter: `cpf = "${cleanPersonCpf}"`,
+              limit: 1,
+            })
+            if (foundP.length > 0) {
+              pessoaExistente = foundP[0]
+            }
+          } catch (findPErr) {
+            console.warn('Erro ao verificar CPF existente:', findPErr)
+          }
+        }
+
+        if (pessoaExistente) {
+          finalPessoaId = pessoaExistente.id
+          setSelectedPersonId(pessoaExistente.id)
+          setPersonSearch(pessoaExistente.nome_completo)
+          setIsNewPersonCandidate(false)
+          toast({
+            title: 'Pessoa vinculada',
+            description: `Pessoa "${pessoaExistente.nome_completo}" já cadastrada com este CPF; negócio foi vinculado automaticamente.`,
+          })
+        } else {
+          try {
+            const novaPessoa = await pb.collection('pessoas').create({
+              nome_completo: personSearch.trim(),
+              cpf: cleanPersonCpf || null,
+              telefone: primaryPhone,
+              email_principal: primaryEmail,
+              marca_captura_id: activeMarcaId,
+              organizacao_id: finalOrgId || null,
+              origem_sistema: 'Cadastro via Pipedrive Negócio',
+              data_criacao: new Date().toISOString(),
+              criado_por_id: currentUserId,
+            })
+            finalPessoaId = novaPessoa.id
+          } catch (createPesErr: any) {
+            const errStr = JSON.stringify(createPesErr || '')
+            if (
+              errStr.includes('idx_pessoas_cpf_unique') ||
+              errStr.includes('cpf') ||
+              createPesErr?.data?.cpf
+            ) {
+              setPersonCpfError('Já existe uma pessoa cadastrada com este CPF.')
+              toast({
+                variant: 'destructive',
+                title: 'Pessoa já cadastrada',
+                description: 'Já existe uma pessoa cadastrada com este CPF no sistema.',
+              })
+              setIsSubmitting(false)
+              return
+            }
+            throw createPesErr
+          }
+        }
+      } else if (finalPessoaId && (primaryPhone || primaryEmail || finalOrgId || cleanPersonCpf)) {
         // Atualiza a pessoa vinculada com os novos contatos se alterados
         await pb
           .collection('pessoas')
@@ -761,6 +887,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             ...(primaryPhone ? { telefone: primaryPhone } : {}),
             ...(primaryEmail ? { email_principal: primaryEmail } : {}),
             ...(finalOrgId ? { organizacao_id: finalOrgId } : {}),
+            ...(cleanPersonCpf ? { cpf: cleanPersonCpf } : {}),
           })
           .catch(() => {})
       }
@@ -924,8 +1051,12 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setValor('')
         setSelectedPersonId(null)
         setPersonSearch('')
+        setNewPersonCpf('')
+        setPersonCpfError(null)
         setSelectedOrgId(null)
         setOrgSearch('')
+        setNewOrgCnpj('')
+        setOrgCnpjError(null)
         setNotaObservacoes('')
         setProprietarioId(user?.id || '')
 
@@ -1158,6 +1289,47 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Campo opcional de CNPJ para a Organização (exibido quando selecionada ou em criação) */}
+              {(isNewOrgCandidate || selectedOrgId || orgSearch.trim()) && (
+                <div className="space-y-1 pl-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-medium text-slate-600">
+                      CNPJ da Organização{' '}
+                      <span className="text-slate-400 font-normal">(opcional)</span>
+                    </Label>
+                  </div>
+                  <Input
+                    placeholder="00.000.000/0000-00 (opcional)"
+                    value={newOrgCnpj}
+                    onChange={(e) => {
+                      const masked = maskCNPJ(e.target.value)
+                      setNewOrgCnpj(masked)
+                      const digits = onlyDigits(masked)
+                      if (!digits || isValidCNPJ(digits)) {
+                        setOrgCnpjError(null)
+                      } else if (digits.length === 14) {
+                        setOrgCnpjError('CNPJ inválido (verifique os números)')
+                      }
+                    }}
+                    onBlur={() => {
+                      const digits = onlyDigits(newOrgCnpj)
+                      if (digits && !isValidCNPJ(digits)) {
+                        setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
+                      } else {
+                        setOrgCnpjError(null)
+                      }
+                    }}
+                    className={cn(
+                      'h-8 text-xs rounded-lg border-[#D5DBDB] bg-slate-50/50',
+                      orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
+                    )}
+                  />
+                  {orgCnpjError && (
+                    <p className="text-[11px] font-semibold text-red-600 mt-0.5">{orgCnpjError}</p>
+                  )}
+                </div>
+              )}
 
               {/* 3. Título */}
               <div className="space-y-1">
@@ -1561,6 +1733,42 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             <div className="md:col-span-5 p-6 bg-slate-50/50 space-y-5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-[#E3E7EB] pb-2">
                 Pessoa
+              </div>
+
+              {/* CPF da Pessoa (Opcional) */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">
+                  CPF <span className="text-slate-400 font-normal">(opcional)</span>
+                </Label>
+                <Input
+                  placeholder="000.000.000-00 (opcional)"
+                  value={newPersonCpf}
+                  onChange={(e) => {
+                    const masked = maskCPF(e.target.value)
+                    setNewPersonCpf(masked)
+                    const digits = onlyDigits(masked)
+                    if (!digits || isValidCPF(digits)) {
+                      setPersonCpfError(null)
+                    } else if (digits.length === 11) {
+                      setPersonCpfError('CPF inválido (verifique os números)')
+                    }
+                  }}
+                  onBlur={() => {
+                    const digits = onlyDigits(newPersonCpf)
+                    if (digits && !isValidCPF(digits)) {
+                      setPersonCpfError('CPF inválido (deve conter 11 dígitos válidos)')
+                    } else {
+                      setPersonCpfError(null)
+                    }
+                  }}
+                  className={cn(
+                    'h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]',
+                    personCpfError && 'border-red-500 focus:border-red-500 bg-red-50/20',
+                  )}
+                />
+                {personCpfError && (
+                  <p className="text-[11px] font-semibold text-red-600 mt-0.5">{personCpfError}</p>
+                )}
               </div>
 
               {/* 1. Telefone + dropdown de tipo ("Comercial") + "+ Adicionar telefone" */}

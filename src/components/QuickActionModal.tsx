@@ -272,48 +272,96 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           description: 'Oportunidade inserida na esteira com follow-up ativo.',
         })
       } else if (type === 'pessoa') {
-        if (!isValidCPF(pesCpf)) {
+        const cleanCpf = pesCpf.replace(/\D/g, '')
+        if (cleanCpf && !isValidCPF(cleanCpf)) {
           throw new Error('O CPF informado possui dígitos verificadores inválidos.')
         }
         if (!pesNome.trim()) {
           throw new Error('O Nome Completo é obrigatório.')
         }
-        await pb.collection('pessoas').create({
-          marca_captura_id: marcaId,
-          cpf: maskCPF(pesCpf),
-          nome_completo: pesNome.trim(),
-          email_principal: pesEmail.trim() || null,
-          telefone: pesTelefone ? maskPhone(pesTelefone) : null,
-          origem_sistema: 'Ação Rápida Pipedrive NTC',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: user?.id,
-          organizacao_id: pesOrgId || null,
-          cargo: pesCargo.trim() || null,
-          departamento: pesDepto.trim() || null,
-        })
+        // Deduplicação inteligente se CPF informado
+        if (cleanCpf) {
+          const existente = await pb
+            .collection('pessoas')
+            .getFullList({
+              filter: `cpf = "${cleanCpf}"`,
+              limit: 1,
+            })
+            .catch(() => [])
+          if (existente.length > 0) {
+            throw new Error(
+              `Já existe uma pessoa cadastrada com este CPF: "${existente[0].nome_completo}".`,
+            )
+          }
+        }
+        try {
+          await pb.collection('pessoas').create({
+            marca_captura_id: marcaId,
+            cpf: cleanCpf ? maskCPF(cleanCpf) : null,
+            nome_completo: pesNome.trim(),
+            email_principal: pesEmail.trim() || null,
+            telefone: pesTelefone ? maskPhone(pesTelefone) : null,
+            origem_sistema: 'Ação Rápida Pipedrive NTC',
+            data_criacao: new Date().toISOString(),
+            criado_por_id: user?.id,
+            organizacao_id: pesOrgId || null,
+            cargo: pesCargo.trim() || null,
+            departamento: pesDepto.trim() || null,
+          })
+        } catch (pesErr: any) {
+          const errStr = JSON.stringify(pesErr || '')
+          if (errStr.includes('idx_pessoas_cpf_unique') || errStr.includes('cpf')) {
+            throw new Error('Já existe uma pessoa cadastrada com este CPF no sistema.')
+          }
+          throw pesErr
+        }
         toast({
           title: 'Pessoa criada com sucesso',
           description: 'Registro individual adicionado à base de contatos.',
         })
       } else if (type === 'organizacao') {
-        if (!isValidCNPJ(orgCnpj)) {
+        const cleanCnpj = orgCnpj.replace(/\D/g, '')
+        if (cleanCnpj && !isValidCNPJ(cleanCnpj)) {
           throw new Error('O CNPJ informado possui dígitos verificadores inválidos.')
         }
         if (!orgRazao.trim()) {
           throw new Error('A Razão Social é obrigatória.')
         }
-        await pb.collection('organizacoes').create({
-          marca_captura_id: marcaId,
-          cnpj: maskCNPJ(orgCnpj),
-          razao_social: orgRazao.trim(),
-          nome_fantasia: orgFantasia.trim() || null,
-          email_principal: orgEmail.trim() || null,
-          telefone: orgTelefone ? maskPhone(orgTelefone) : null,
-          endereco_corporativo: orgEndereco.trim() || null,
-          origem_sistema: 'Ação Rápida Pipedrive NTC',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: user?.id,
-        })
+        // Deduplicação inteligente se CNPJ informado
+        if (cleanCnpj) {
+          const existente = await pb
+            .collection('organizacoes')
+            .getFullList({
+              filter: `cnpj = "${cleanCnpj}"`,
+              limit: 1,
+            })
+            .catch(() => [])
+          if (existente.length > 0) {
+            throw new Error(
+              `Já existe uma organização cadastrada com este CNPJ: "${existente[0].razao_social}".`,
+            )
+          }
+        }
+        try {
+          await pb.collection('organizacoes').create({
+            marca_captura_id: marcaId,
+            cnpj: cleanCnpj ? maskCNPJ(cleanCnpj) : null,
+            razao_social: orgRazao.trim(),
+            nome_fantasia: orgFantasia.trim() || null,
+            email_principal: orgEmail.trim() || null,
+            telefone: orgTelefone ? maskPhone(orgTelefone) : null,
+            endereco_corporativo: orgEndereco.trim() || null,
+            origem_sistema: 'Ação Rápida Pipedrive NTC',
+            data_criacao: new Date().toISOString(),
+            criado_por_id: user?.id,
+          })
+        } catch (orgErr: any) {
+          const errStr = JSON.stringify(orgErr || '')
+          if (errStr.includes('idx_organizacoes_cnpj_unique') || errStr.includes('cnpj')) {
+            throw new Error('Já existe uma organização com este CNPJ no sistema.')
+          }
+          throw orgErr
+        }
         toast({
           title: 'Organização criada com sucesso',
           description: 'Empresa cadastrada na base de organizações.',
@@ -533,7 +581,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-slate-600">
-                    CPF (Validado) <span className="text-red-500">*</span>
+                    CPF <span className="text-slate-400 font-normal">(opcional)</span>
                   </Label>
                   {pesCpf && (
                     <span
@@ -544,8 +592,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
                   )}
                 </div>
                 <Input
-                  required
-                  placeholder="000.000.000-00"
+                  placeholder="000.000.000-00 (opcional)"
                   value={pesCpf}
                   onChange={(e) => setPesCpf(maskCPF(e.target.value))}
                   className="h-9 text-xs font-mono rounded-xl"
@@ -635,7 +682,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold text-slate-600">
-                    CNPJ (Validado) <span className="text-red-500">*</span>
+                    CNPJ <span className="text-slate-400 font-normal">(opcional)</span>
                   </Label>
                   {orgCnpj && (
                     <span
@@ -646,8 +693,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
                   )}
                 </div>
                 <Input
-                  required
-                  placeholder="00.000.000/0000-00"
+                  placeholder="00.000.000/0000-00 (opcional)"
                   value={orgCnpj}
                   onChange={(e) => setOrgCnpj(maskCNPJ(e.target.value))}
                   className="h-9 text-xs font-mono rounded-xl"

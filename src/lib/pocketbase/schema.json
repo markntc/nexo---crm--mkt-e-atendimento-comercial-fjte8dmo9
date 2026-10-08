@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T16:30:44.867Z",
+  "generatedAt": "2026-10-08T16:45:00.829Z",
   "collections": [
     {
       "name": "users",
@@ -231,7 +231,7 @@
         {
           "name": "cnpj",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -336,8 +336,8 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_clientes_b2b_cnpj` ON `organizacoes` (`cnpj`)",
-        "CREATE INDEX `idx_clientes_b2b_marca` ON `organizacoes` (`marca_captura_id`)"
+        "CREATE INDEX `idx_clientes_b2b_marca` ON `organizacoes` (`marca_captura_id`)",
+        "CREATE UNIQUE INDEX `idx_organizacoes_cnpj_unique` ON `organizacoes` (`cnpj`) WHERE `cnpj` != '' AND `cnpj` IS NOT NULL"
       ]
     },
     {
@@ -354,7 +354,7 @@
         {
           "name": "cpf",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -466,8 +466,8 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_clientes_b2c_cpf` ON `pessoas` (`cpf`)",
-        "CREATE INDEX `idx_clientes_b2c_marca` ON `pessoas` (`marca_captura_id`)"
+        "CREATE INDEX `idx_clientes_b2c_marca` ON `pessoas` (`marca_captura_id`)",
+        "CREATE UNIQUE INDEX `idx_pessoas_cpf_unique` ON `pessoas` (`cpf`) WHERE `cpf` != '' AND `cpf` IS NOT NULL"
       ]
     },
     {
