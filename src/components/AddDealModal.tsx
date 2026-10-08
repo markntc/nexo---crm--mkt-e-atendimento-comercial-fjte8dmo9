@@ -753,134 +753,17 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     try {
       const activeMarcaId = activeBrand?.id || (marcas[0]?.id ?? '')
       const currentUserId = proprietarioId || user?.id || pb.authStore.record?.id
-
-      // 1. Organização: Deduplicação e Vinculação Inteligente
-      let finalOrgId = selectedOrgId
-      if (!isEditMode && isNewOrgCandidate && orgSearch.trim()) {
-        // Se informou CNPJ, busca previamente no backend por CNPJ idêntico
-        let orgExistente: ClienteB2B | null = null
-        if (cleanOrgCnpj) {
-          try {
-            const found = await pb.collection('organizacoes').getFullList<ClienteB2B>({
-              filter: `cnpj = "${cleanOrgCnpj}"`,
-              limit: 1,
-            })
-            if (found.length > 0) {
-              orgExistente = found[0]
-            }
-          } catch (findErr) {
-            console.warn('Erro ao verificar CNPJ existente:', findErr)
-          }
-        }
-
-        if (orgExistente) {
-          finalOrgId = orgExistente.id
-          setSelectedOrgId(orgExistente.id)
-          setOrgSearch(orgExistente.razao_social)
-          setIsNewOrgCandidate(false)
-          toast({
-            title: 'Organização vinculada',
-            description: `Organização "${orgExistente.razao_social}" já cadastrada com este CNPJ; negócio foi vinculado automaticamente.`,
-          })
-        } else {
-          try {
-            const novaOrg = await pb.collection('organizacoes').create({
-              razao_social: orgSearch.trim(),
-              nome_fantasia: orgSearch.trim(),
-              cnpj: cleanOrgCnpj || null,
-              marca_captura_id: activeMarcaId,
-              origem_sistema: 'Cadastro via Pipedrive Negócio',
-              data_criacao: new Date().toISOString(),
-              criado_por_id: currentUserId,
-            })
-            finalOrgId = novaOrg.id
-          } catch (createOrgErr: any) {
-            // Se falhou por duplicidade de CNPJ no backend
-            const errStr = JSON.stringify(createOrgErr || '')
-            if (
-              errStr.includes('idx_organizacoes_cnpj_unique') ||
-              errStr.includes('cnpj') ||
-              createOrgErr?.data?.cnpj
-            ) {
-              setOrgCnpjError('Já existe uma organização com este CNPJ.')
-              toast({
-                variant: 'destructive',
-                title: 'Organização já cadastrada',
-                description: 'Já existe uma organização com este CNPJ no sistema.',
-              })
-              setIsSubmitting(false)
-              return
-            }
-            throw createOrgErr
-          }
-        }
-      }
-
-      let finalPessoaId = selectedPersonId
       const primaryPhone = phones.find((p) => p.number.trim())?.number || ''
       const primaryEmail = emails.find((e) => e.address.trim())?.address || ''
 
-      // 2. Pessoa: Deduplicação e Vinculação Inteligente
-      if (!isEditMode && isNewPersonCandidate && personSearch.trim()) {
-        let pessoaExistente: ClienteB2C | null = null
-        if (cleanPersonCpf) {
-          try {
-            const foundP = await pb.collection('pessoas').getFullList<ClienteB2C>({
-              filter: `cpf = "${cleanPersonCpf}"`,
-              limit: 1,
-            })
-            if (foundP.length > 0) {
-              pessoaExistente = foundP[0]
-            }
-          } catch (findPErr) {
-            console.warn('Erro ao verificar CPF existente:', findPErr)
-          }
-        }
-
-        if (pessoaExistente) {
-          finalPessoaId = pessoaExistente.id
-          setSelectedPersonId(pessoaExistente.id)
-          setPersonSearch(pessoaExistente.nome_completo)
-          setIsNewPersonCandidate(false)
-          toast({
-            title: 'Pessoa vinculada',
-            description: `Pessoa "${pessoaExistente.nome_completo}" já cadastrada com este CPF; negócio foi vinculado automaticamente.`,
-          })
-        } else {
-          try {
-            const novaPessoa = await pb.collection('pessoas').create({
-              nome_completo: personSearch.trim(),
-              cpf: cleanPersonCpf || null,
-              telefone: primaryPhone,
-              email_principal: primaryEmail,
-              marca_captura_id: activeMarcaId,
-              organizacao_id: finalOrgId || null,
-              origem_sistema: 'Cadastro via Pipedrive Negócio',
-              data_criacao: new Date().toISOString(),
-              criado_por_id: currentUserId,
-            })
-            finalPessoaId = novaPessoa.id
-          } catch (createPesErr: any) {
-            const errStr = JSON.stringify(createPesErr || '')
-            if (
-              errStr.includes('idx_pessoas_cpf_unique') ||
-              errStr.includes('cpf') ||
-              createPesErr?.data?.cpf
-            ) {
-              setPersonCpfError('Já existe uma pessoa cadastrada com este CPF.')
-              toast({
-                variant: 'destructive',
-                title: 'Pessoa já cadastrada',
-                description: 'Já existe uma pessoa cadastrada com este CPF no sistema.',
-              })
-              setIsSubmitting(false)
-              return
-            }
-            throw createPesErr
-          }
-        }
-      } else if (finalPessoaId && (primaryPhone || primaryEmail || finalOrgId || cleanPersonCpf)) {
-        // Atualiza a pessoa vinculada com os novos contatos se alterados
+      // Em modo de edição: se houver pessoa vinculada, atualiza contatos
+      let finalOrgId = selectedOrgId
+      let finalPessoaId = selectedPersonId
+      if (
+        isEditMode &&
+        finalPessoaId &&
+        (primaryPhone || primaryEmail || finalOrgId || cleanPersonCpf)
+      ) {
         await pb
           .collection('pessoas')
           .update(finalPessoaId, {
@@ -1004,31 +887,106 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           onSuccess(dealId)
         }
       } else {
-        // MODO CRIAÇÃO: Cria novo negócio
-        const novoNegocio = await pb.collection('oportunidades').create({
-          ...dealPayload,
-          status: 'aberto',
-        })
+        // MODO CRIAÇÃO: Executa em transação única no servidor (/backend/v1/negocios/criar-completo)
+        // Todo o pacote (organização nova/deduplicada, pessoa nova/deduplicada, oportunidade e follow-up)
+        // é processado atomicamente. Se qualquer passo falhar, nenhum registro é salvo.
 
-        // Trava de follow-up: cria atividade correspondente (com compensação atômica)
-        try {
-          await pb.collection('atividades').create({
-            oportunidade_id: novoNegocio.id,
-            marca_id: activeMarcaId,
-            responsavel_id: currentUserId,
+        const atomicPayload = {
+          marca_id: activeMarcaId,
+          vendedor_id: currentUserId,
+          nova_organizacao:
+            isNewOrgCandidate && orgSearch.trim() && !selectedOrgId
+              ? {
+                  razao_social: orgSearch.trim(),
+                  nome_fantasia: orgSearch.trim(),
+                  cnpj: cleanOrgCnpj || null,
+                  cidade: cidadeFaturamento.trim() || null,
+                  estado: estadoFaturamento.trim() || null,
+                  pais: paisFaturamento.trim() || 'Brasil',
+                  origem_sistema: 'Cadastro via Pipedrive Negócio',
+                }
+              : null,
+          nova_pessoa:
+            isNewPersonCandidate && personSearch.trim() && !selectedPersonId
+              ? {
+                  nome_completo: personSearch.trim(),
+                  cpf: cleanPersonCpf || null,
+                  telefone: primaryPhone || null,
+                  email_principal: primaryEmail || null,
+                  cidade: cidadeFaturamento.trim() || null,
+                  estado: estadoFaturamento.trim() || null,
+                  pais: paisFaturamento.trim() || 'Brasil',
+                  origem_sistema: 'Cadastro via Pipedrive Negócio',
+                }
+              : null,
+          atualizar_pessoa_vinculada:
+            selectedPersonId && (primaryPhone || primaryEmail)
+              ? {
+                  telefone: primaryPhone || null,
+                  email_principal: primaryEmail || null,
+                }
+              : null,
+          deal: {
+            titulo: titulo.trim(),
+            valor_estimado: numValor,
+            funil_id: funilId || null,
+            etapa_atual: etapaAtual || 'Primeiro contato',
+            cliente_b2b_id: selectedOrgId || null,
+            cliente_b2c_id: selectedPersonId || null,
+            documento_faturamento: documentoFaturamento || null,
+            data_fechamento_esperada: dataFechamentoIso,
+            tipo_cliente: tipoClienteClassificado,
+            origem: canalOrigem,
+            id_canal_origem: idCanalOrigem.trim() || null,
+            observacoes: notaObservacoes.trim() || null,
+            cidade: cidadeFaturamento.trim() || null,
+            estado: estadoFaturamento.trim() || null,
+            pais: paisFaturamento.trim() || 'Brasil',
+            cidade_entrega: finalCidadeEntrega,
+            estado_entrega: finalEstadoEntrega,
+            pais_entrega: finalPaisEntrega,
+            status: 'aberto',
+          },
+          follow_up: {
             tipo: 'Follow-up',
             descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
             data_vencimento: new Date(followUpData).toISOString(),
-            concluida: false,
+          },
+        }
+
+        const res = await pb.send<{
+          success: boolean
+          oportunidade_id: string
+          atividade_id: string
+          organizacao_id?: string
+          pessoa_id?: string
+          org_vinculada_auto?: boolean
+          org_vinculada_nome?: string
+          pessoa_vinculada_auto?: boolean
+          pessoa_vinculada_nome?: string
+          message?: string
+          error?: string
+        }>('/backend/v1/negocios/criar-completo', {
+          method: 'POST',
+          body: atomicPayload,
+        })
+
+        if (!res || !res.success || !res.oportunidade_id) {
+          throw new Error(res?.message || 'Falha na resposta do servidor ao criar negócio atômico.')
+        }
+
+        // Avisos de deduplicação/vinculação automática caso tenham ocorrido no servidor
+        if (res.org_vinculada_auto && res.org_vinculada_nome) {
+          toast({
+            title: 'Organização vinculada',
+            description: `Organização "${res.org_vinculada_nome}" já cadastrada; negócio foi vinculado automaticamente.`,
           })
-        } catch (ativErr) {
-          console.error('Falha ao agendar follow-up, compensando oportunidade:', ativErr)
-          try {
-            await pb.collection('oportunidades').delete(novoNegocio.id)
-          } catch (delErr) {
-            console.error('Falha na compensação da oportunidade:', delErr)
-          }
-          throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+        }
+        if (res.pessoa_vinculada_auto && res.pessoa_vinculada_nome) {
+          toast({
+            title: 'Pessoa vinculada',
+            description: `Pessoa "${res.pessoa_vinculada_nome}" já cadastrada; negócio foi vinculado automaticamente.`,
+          })
         }
 
         toast({
@@ -1062,21 +1020,47 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
         onOpenChange(false)
         if (onSuccess) {
-          onSuccess(novoNegocio.id)
+          onSuccess(res.oportunidade_id)
         }
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(isEditMode ? 'Erro ao atualizar negócio:' : 'Erro ao adicionar negócio:', err)
-      const msg =
-        err instanceof Error
-          ? err.message
-          : isEditMode
-            ? 'Falha ao atualizar negócio'
-            : 'Falha ao salvar negócio'
+
+      // Extrai mensagens específicas do servidor ou da exceção
+      let errorTitle = isEditMode ? 'Erro ao salvar alterações' : 'Erro ao criar negócio'
+      let errorDescription = 'Falha inesperada ao salvar. Nenhuma alteração foi gravada.'
+
+      const serverData = err?.data || err?.response?.data || {}
+      const serverMessage = serverData?.message || err?.message || ''
+      const serverField = serverData?.field || ''
+      const serverError = serverData?.error || ''
+
+      if (
+        serverField === 'cnpj' ||
+        serverError === 'cnpj_duplicado' ||
+        serverError === 'cnpj_invalido'
+      ) {
+        setOrgCnpjError(serverMessage)
+        errorTitle = 'Organização já cadastrada'
+        errorDescription =
+          serverMessage || 'Já existe uma organização cadastrada com este CNPJ no sistema.'
+      } else if (
+        serverField === 'cpf' ||
+        serverError === 'cpf_duplicado' ||
+        serverError === 'cpf_invalido'
+      ) {
+        setPersonCpfError(serverMessage)
+        errorTitle = 'Pessoa já cadastrada'
+        errorDescription =
+          serverMessage || 'Já existe uma pessoa cadastrada com este CPF no sistema.'
+      } else if (serverMessage) {
+        errorDescription = serverMessage
+      }
+
       toast({
         variant: 'destructive',
-        title: isEditMode ? 'Erro ao salvar alterações' : 'Erro ao criar negócio',
-        description: msg,
+        title: errorTitle,
+        description: errorDescription,
       })
     } finally {
       setIsSubmitting(false)
