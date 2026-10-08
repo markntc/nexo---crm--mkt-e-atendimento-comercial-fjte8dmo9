@@ -2,8 +2,8 @@
 // Versão canônica compilada no bundle atual do cliente
 import pb from '@/lib/pocketbase/client'
 
-export const CURRENT_APP_VERSION = '0.0.45'
-export const CURRENT_BUILD_TIMESTAMP = 1791477900000
+export const CURRENT_APP_VERSION = '0.0.48'
+export const CURRENT_BUILD_TIMESTAMP = 1791480000000
 
 export interface RemoteVersionInfo {
   version: string

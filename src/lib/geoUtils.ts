@@ -202,3 +202,60 @@ export function isCidadeValida(cidade: string, estado: string): boolean {
   if (genericos.includes(lower)) return false
   return Boolean(estado && estado.length === 2)
 }
+
+export interface LocalInstalacaoResultado {
+  cidadeEntrega: string
+  estadoEntrega: string
+  paisEntrega: string
+  observacaoInstalacao?: string
+}
+
+/**
+ * Detecta marcadores como "Local de instalação:", "Instalação:", "Entrega:" em dados de contato ou texto livre.
+ * Se encontrar cidade/UF estruturados válidos, retorna em cidadeEntrega/estadoEntrega/paisEntrega.
+ * Caso contrário, ou se houver complemento descritivo (ex.: marina, represa, condomínio),
+ * retorna em observacaoInstalacao para ser anexado a observacoes.
+ */
+export function extrairLocalInstalacao(texto?: string | null): LocalInstalacaoResultado {
+  if (!texto || !texto.trim()) {
+    return {
+      cidadeEntrega: '',
+      estadoEntrega: '',
+      paisEntrega: 'Brasil',
+    }
+  }
+
+  const str = texto.trim()
+
+  // Procura marcadores clássicos
+  const regexMarcador =
+    /(?:local\s+de\s+instala[çc][ãa]o|instala[çc][ãa]o|local\s+de\s+entrega|entrega)\s*[:=-]\s*([^;\n]+)/i
+  const match = str.match(regexMarcador)
+
+  if (!match) {
+    return {
+      cidadeEntrega: '',
+      estadoEntrega: '',
+      paisEntrega: 'Brasil',
+    }
+  }
+
+  const trecho = match[1].trim()
+  const locExtraida = extrairCidadeEstado(trecho)
+
+  if (locExtraida.cidade && locExtraida.estado) {
+    return {
+      cidadeEntrega: locExtraida.cidade,
+      estadoEntrega: locExtraida.estado,
+      paisEntrega: locExtraida.pais || 'Brasil',
+      observacaoInstalacao: `Local de instalação: ${trecho}`,
+    }
+  }
+
+  return {
+    cidadeEntrega: '',
+    estadoEntrega: '',
+    paisEntrega: 'Brasil',
+    observacaoInstalacao: `Local de instalação: ${trecho}`,
+  }
+}

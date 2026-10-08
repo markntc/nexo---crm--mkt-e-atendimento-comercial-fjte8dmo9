@@ -572,6 +572,29 @@ routerAdd(
           const errMsg = String(errCreateAtiv || '')
           throw new Error(`STEP_ERROR:ATIVIDADE:Falha ao agendar atividade de follow-up: ${errMsg}`)
         }
+
+        // =====================================================================
+        // PASSO 6: Atualizar Lead de Origem (se houver lead_origem_id)
+        // =====================================================================
+        if (dealData.lead_origem_id) {
+          try {
+            const leadRec = txApp.findRecordById('leads', dealData.lead_origem_id)
+            leadRec.set('status_qualificacao', 'Convertido')
+            leadRec.set('convertido_para_id', createdDealId)
+            if (finalOrgId && !leadRec.getString('cliente_b2b_id')) {
+              leadRec.set('cliente_b2b_id', finalOrgId)
+            }
+            if (finalPessoaId && !leadRec.getString('cliente_b2c_id')) {
+              leadRec.set('cliente_b2c_id', finalPessoaId)
+            }
+            txApp.save(leadRec)
+          } catch (errLead) {
+            console.warn(
+              '[criar-completo] Aviso ao marcar lead como Convertido na transação:',
+              errLead,
+            )
+          }
+        }
       })
     } catch (txErr) {
       const fullError = String(txErr && txErr.message ? txErr.message : txErr || '')

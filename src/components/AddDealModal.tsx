@@ -70,6 +70,10 @@ export interface AddDealModalProps {
     proxima_acao_descricao?: string
     data_fechamento_esperada?: string
     tipo_cliente?: string
+    lead_origem_id?: string
+    contato_nome?: string
+    contato_email?: string
+    contato_telefone?: string
   }
 }
 
@@ -168,6 +172,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
   // 10. ID do canal da origem
   const [idCanalOrigem, setIdCanalOrigem] = useState<string>('')
+  const [leadOrigemId, setLeadOrigemId] = useState<string>('')
 
   // Geografia: Faturamento e Entrega
   const [cidadeFaturamento, setCidadeFaturamento] = useState('')
@@ -286,6 +291,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           if (initialValues.id_canal_origem) {
             setIdCanalOrigem(initialValues.id_canal_origem)
           }
+          if (initialValues.lead_origem_id) {
+            setLeadOrigemId(initialValues.lead_origem_id)
+          }
 
           if (initialValues.cidade) {
             setCidadeFaturamento(initialValues.cidade)
@@ -379,6 +387,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   setPaisEntrega(loc.pais || 'Brasil')
                 }
               }
+            }
+          } else if (initialValues.contato_nome) {
+            // Se veio contato pré-preenchido do Lead sem cadastro prévio
+            setPersonSearch(initialValues.contato_nome)
+            setIsNewPersonCandidate(true)
+            if (initialValues.contato_telefone) {
+              setPhones([{ id: '1', number: initialValues.contato_telefone, tipo: 'Comercial' }])
+            }
+            if (initialValues.contato_email) {
+              setEmails([{ id: '1', address: initialValues.contato_email, tipo: 'Comercial' }])
             }
           }
         }
@@ -939,6 +957,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             origem: canalOrigem,
             id_canal_origem: idCanalOrigem.trim() || null,
             observacoes: notaObservacoes.trim() || null,
+            lead_origem_id: leadOrigemId || null,
             cidade: cidadeFaturamento.trim() || null,
             estado: estadoFaturamento.trim() || null,
             pais: paisFaturamento.trim() || 'Brasil',

@@ -22,6 +22,7 @@ import { getClientStatusSets, getEtapaNome, isWonStage } from '@/lib/relationshi
 import { AddDealModal } from '@/components/AddDealModal'
 import { GeoSelector } from '@/components/GeoSelector'
 import { extrairCidadeEstado } from '@/lib/geoUtils'
+import { prepararInitialValuesDeLead } from '@/lib/leadConversionUtils'
 import { Repeat } from 'lucide-react'
 import {
   formatCurrencyBRL,
@@ -156,16 +157,11 @@ export default function Clientes() {
   >(undefined)
 
   const [selectedLeadToConvert, setSelectedLeadToConvert] = useState<Lead | null>(null)
+  const [isAddDealLeadOpen, setIsAddDealLeadOpen] = useState(false)
+  const [leadDealInitialValues, setLeadDealInitialValues] = useState<any>(null)
   const [funis, setFunis] = useState<Funil[]>([])
   const [convFunilId, setConvFunilId] = useState('')
   const [convEtapa, setConvEtapa] = useState('')
-  const [convTitulo, setConvTitulo] = useState('')
-  const [convValor, setConvValor] = useState<number>(0)
-  const [convFollowUpData, setConvFollowUpData] = useState(
-    new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
-  )
-  const [convFollowUpDesc, setConvFollowUpDesc] = useState('Contato inicial pós-qualificação')
-  const [isConverting, setIsConverting] = useState(false)
 
   // Sets de IDs com negócio ganho (Status: Cliente vs Prospect)
   const [wonOrgIds, setWonOrgIds] = useState<Set<string>>(new Set())
@@ -825,128 +821,32 @@ export default function Clientes() {
 
   const handleOpenConvert = (lead: Lead) => {
     setSelectedLeadToConvert(lead)
-    setConvTitulo(`Negócio - ${lead.dados_contato.slice(0, 30)}`)
-    setConvValor(0)
-    if (funis.length > 0) {
-      setConvFunilId(funis[0].id)
-      if (funis[0].etapas_ordenadas && funis[0].etapas_ordenadas.length > 0) {
-        setConvEtapa(getEtapaNome(funis[0].etapas_ordenadas[0]))
-      }
-    }
+    const brandName =
+      lead.expand?.marca_origem_id?.nome || lead.expand?.marca_id?.nome || activeBrand?.nome
+    const inits = prepararInitialValuesDeLead(lead, brandName)
+    setLeadDealInitialValues(inits)
+    setIsAddDealLeadOpen(true)
   }
 
-  const handleConvertLead = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedLeadToConvert) return
-
-    if (!convFollowUpData) {
-      toast({
-        variant: 'destructive',
-        title: 'Follow-up obrigatório',
-        description: 'Defina a data do próximo follow-up para avançar.',
-      })
-      return
-    }
-
-    setIsConverting(true)
-    try {
-      const currentUserId = pb.authStore.record?.id
-      const marcaId =
-        selectedLeadToConvert.marca_origem_id ||
-        selectedLeadToConvert.marca_id ||
-        activeBrand?.id ||
-        marcas[0]?.id
-
-      // Determinar cidade/estado/país canônicos do Lead (com extrator caso não estejam separados)
-      let finalCidade = selectedLeadToConvert.cidade || ''
-      let finalEstado = selectedLeadToConvert.estado || ''
-      let finalPais = selectedLeadToConvert.pais || 'Brasil'
-
-      if (!finalCidade && !finalEstado && selectedLeadToConvert.dados_contato) {
-        const extraido = extrairCidadeEstado(selectedLeadToConvert.dados_contato)
-        if (extraido) {
-          finalCidade = extraido.cidade
-          finalEstado = extraido.estado
-          finalPais = extraido.pais
-        }
-      }
-
-      // 1. Criar Pessoa física na base de contatos com localidade propagada (sem documento obrigatório)
-      const novaPessoa = await pb.collection('pessoas').create({
-        nome_completo: selectedLeadToConvert.dados_contato,
-        cpf: null,
-        cidade: finalCidade || null,
-        estado: finalEstado || null,
-        pais: finalPais || 'Brasil',
-        marca_captura_id: marcaId,
-        origem_sistema: `Lead (${selectedLeadToConvert.origem})`,
-        data_criacao: new Date().toISOString(),
-        criado_por_id: currentUserId,
-      })
-
-      // 2. Criar Negócio/Oportunidade com rastreamento lead_origem_id e localidade herdada
-      const novaOportunidade = await pb.collection('oportunidades').create({
-        titulo: convTitulo.trim() || `Negócio - ${selectedLeadToConvert.dados_contato}`,
-        valor_estimado: convValor,
-        funil_id: convFunilId,
-        etapa_atual: convEtapa,
-        probabilidade: 20,
-        marca_id: marcaId,
-        cliente_b2c_id: novaPessoa.id,
-        lead_origem_id: selectedLeadToConvert.id,
-        tipo_documento_faturamento: 'CPF',
-        cidade: finalCidade || null,
-        estado: finalEstado || null,
-        pais: finalPais || 'Brasil',
-        responsavel_id: currentUserId,
-        status: 'aberto',
-      })
-
-      // 3. Trava de follow-up: criar tarefa obrigatória com compensação
+  const handleDealFromLeadCreatedSuccess = async (dealId: string) => {
+    if (selectedLeadToConvert) {
       try {
-        await pb.collection('atividades').create({
-          oportunidade_id: novaOportunidade.id,
-          marca_id: marcaId,
-          responsavel_id: currentUserId,
-          tipo: 'Follow-up',
-          descricao: convFollowUpDesc.trim() || 'Primeiro contato com cliente qualificado',
-          data_vencimento: new Date(convFollowUpData).toISOString(),
-          concluida: false,
+        await pb.collection('leads').update(selectedLeadToConvert.id, {
+          status_qualificacao: 'Convertido',
+          convertido_para_id: dealId,
         })
-      } catch (ativErr) {
-        console.error('Falha ao agendar follow-up da conversão de lead, compensando:', ativErr)
-        try {
-          await pb.collection('oportunidades').delete(novaOportunidade.id)
-          await pb.collection('pessoas').delete(novaPessoa.id)
-        } catch (delErr) {
-          console.error('Falha na compensação:', delErr)
-        }
-        throw new Error('Negócio não salvo: falha ao agendar o follow-up.')
+        toast({
+          title: 'Lead convertido com sucesso!',
+          description: 'Negócio criado via rota atômica e lead atualizado para "Convertido".',
+        })
+      } catch (err) {
+        console.error('Erro ao atualizar status do lead para Convertido:', err)
       }
-
-      // 4. Marcar o lead como Convertido e vincular à oportunidade
-      await pb.collection('leads').update(selectedLeadToConvert.id, {
-        status_qualificacao: 'Convertido',
-        convertido_para_id: novaOportunidade.id,
-      })
-
-      toast({
-        title: 'Lead convertido com sucesso!',
-        description: 'Pessoa, oportunidade e follow-up foram criados com rastreamento completo.',
-      })
-      setSelectedLeadToConvert(null)
-      fetchContatos()
-    } catch (err: unknown) {
-      console.error('Erro na conversão do lead:', err)
-      const msg = err instanceof Error ? err.message : 'Falha ao converter lead'
-      toast({
-        variant: 'destructive',
-        title: 'Erro na conversão',
-        description: msg,
-      })
-    } finally {
-      setIsConverting(false)
     }
+    setIsAddDealLeadOpen(false)
+    setSelectedLeadToConvert(null)
+    setLeadDealInitialValues(null)
+    fetchContatos()
   }
 
   return (
@@ -2856,156 +2756,19 @@ export default function Clientes() {
         }}
       />
 
-      {/* MODAL CONVERTER LEAD (Lead -> Pessoa -> Negócio com rastreamento lead_origem_id) */}
-      <Dialog
-        open={!!selectedLeadToConvert}
-        onOpenChange={(open) => !open && setSelectedLeadToConvert(null)}
-      >
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center space-x-2">
-              <Briefcase className="w-4 h-4 text-[#017848]" />
-              <span>Converter Lead em Negócio</span>
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedLeadToConvert && (
-            <form onSubmit={handleConvertLead} className="space-y-4">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
-                <p className="font-bold">Lead selecionado:</p>
-                <p>{selectedLeadToConvert.dados_contato}</p>
-                <p className="text-[11px] text-emerald-700">
-                  Origem: {selectedLeadToConvert.origem} • Rastreamento:{' '}
-                  <span className="font-mono">{selectedLeadToConvert.id}</span>
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-600">Título do Negócio</Label>
-                <Input
-                  required
-                  value={convTitulo}
-                  onChange={(e) => setConvTitulo(e.target.value)}
-                  className="h-9 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-600">Valor Estimado (R$)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={convValor}
-                  onChange={(e) => setConvValor(parseFloat(e.target.value) || 0)}
-                  className="h-9 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Funil de Vendas</Label>
-                  <Select
-                    value={convFunilId}
-                    onValueChange={(val) => {
-                      setConvFunilId(val)
-                      const f = funis.find((x) => x.id === val)
-                      if (f && f.etapas_ordenadas && f.etapas_ordenadas.length > 0) {
-                        setConvEtapa(getEtapaNome(f.etapas_ordenadas[0]))
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {funis.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.nome_funil}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Etapa Inicial</Label>
-                  <Select value={convEtapa} onValueChange={setConvEtapa}>
-                    <SelectTrigger className="h-9 text-xs rounded-xl">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {(funis.find((f) => f.id === convFunilId)?.etapas_ordenadas || []).map(
-                        (etItem) => {
-                          const nome = getEtapaNome(etItem)
-                          return (
-                            <SelectItem key={nome} value={nome}>
-                              {nome}
-                            </SelectItem>
-                          )
-                        },
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Trava de follow-up obrigatória */}
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
-                  <Clock className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Trava de Follow-up Obrigatório</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-[10px] text-amber-800 uppercase font-semibold">
-                      Data Vencimento *
-                    </Label>
-                    <Input
-                      type="date"
-                      required
-                      value={convFollowUpData}
-                      onChange={(e) => setConvFollowUpData(e.target.value)}
-                      className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-amber-800 uppercase font-semibold">
-                      Ação Obrigatória
-                    </Label>
-                    <Input
-                      required
-                      value={convFollowUpDesc}
-                      onChange={(e) => setConvFollowUpDesc(e.target.value)}
-                      className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter className="pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedLeadToConvert(null)}
-                  className="text-xs rounded-xl border-[#E3E7EB]"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isConverting}
-                  className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
-                >
-                  {isConverting ? 'Convertendo...' : 'Converter Lead'}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* MODAL CONVERSÃO DE LEAD VIA ADICIONAR NEGÓCIO PIPEDRIVE */}
+      <AddDealModal
+        open={isAddDealLeadOpen}
+        onOpenChange={(isOpen) => {
+          setIsAddDealLeadOpen(isOpen)
+          if (!isOpen) {
+            setSelectedLeadToConvert(null)
+            setLeadDealInitialValues(null)
+          }
+        }}
+        initialValues={leadDealInitialValues}
+        onSuccess={handleDealFromLeadCreatedSuccess}
+      />
     </div>
   )
 }
