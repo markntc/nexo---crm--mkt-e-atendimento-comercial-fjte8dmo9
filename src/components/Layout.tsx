@@ -41,7 +41,9 @@ import {
   Building2,
   User,
   FileText,
+  Sparkles,
 } from 'lucide-react'
+import { CURRENT_APP_VERSION } from '@/lib/appVersion'
 import { cn } from '@/lib/utils'
 import { QuickActionModal, type QuickActionType } from './QuickActionModal'
 
@@ -432,38 +434,65 @@ export default function Layout() {
           })}
         </div>
 
-        {/* Footer: Fixador do Menu Lateral como a ÚLTIMA opção fixa do menu (base da sidebar) */}
-        <div className="p-2 border-t border-[#2C243B]">
+        {/* Footer: Versão do App e Fixador do Menu Lateral como a ÚLTIMA opção fixa do menu (base da sidebar) */}
+        <div className="p-2 border-t border-[#2C243B] space-y-1">
           {isExpanded ? (
-            <button
-              type="button"
-              onClick={() => setIsSidebarPinned(false)}
-              className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 transition-colors text-left"
-              title="Desafixar menu (recolher barra lateral)"
-            >
-              <PinOff className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="truncate">Desafixar Menu</span>
-            </button>
-          ) : (
-            <Tooltip delayDuration={150}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarPinned(true)}
-                  className="w-11 h-11 mx-auto flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                  aria-label="Fixar menu lateral"
-                >
-                  <Pin className="w-5 h-5 text-emerald-400" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="right"
-                sideOffset={12}
-                className="bg-[#0B0C10] text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xl border border-white/10"
+            <>
+              <div className="px-3 py-1 flex items-center justify-between text-[11px] text-slate-400 select-none">
+                <span className="flex items-center gap-1 font-medium">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  Nexo NTC
+                </span>
+                <span className="font-mono text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-slate-300">
+                  v{CURRENT_APP_VERSION}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSidebarPinned(false)}
+                className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 transition-colors text-left"
+                title="Desafixar menu (recolher barra lateral)"
               >
-                <span>Fixar menu aberto</span>
-              </TooltipContent>
-            </Tooltip>
+                <PinOff className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">Desafixar Menu</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Tooltip delayDuration={150}>
+                <TooltipTrigger asChild>
+                  <div className="w-11 h-6 mx-auto flex items-center justify-center text-[10px] font-mono text-slate-400 select-none cursor-default">
+                    v{CURRENT_APP_VERSION}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  sideOffset={12}
+                  className="bg-[#0B0C10] text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xl border border-white/10"
+                >
+                  <span>Nexo CRM v{CURRENT_APP_VERSION}</span>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={150}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarPinned(true)}
+                    className="w-11 h-11 mx-auto flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                    aria-label="Fixar menu lateral"
+                  >
+                    <Pin className="w-5 h-5 text-emerald-400" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  sideOffset={12}
+                  className="bg-[#0B0C10] text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xl border border-white/10"
+                >
+                  <span>Fixar menu aberto</span>
+                </TooltipContent>
+              </Tooltip>
+            </>
           )}
         </div>
       </aside>
@@ -545,6 +574,9 @@ export default function Layout() {
                   {user?.name || 'Administrador'}
                 </p>
                 <p className="text-[10px] text-slate-300 truncate">{user?.email}</p>
+                <p className="text-[10px] font-mono text-emerald-400 mt-0.5">
+                  v{CURRENT_APP_VERSION}
+                </p>
               </div>
               <Button
                 variant="ghost"
@@ -677,9 +709,12 @@ export default function Layout() {
                       {user?.name || 'Usuário NTC'}
                     </p>
                     <p className="text-[11px] leading-none text-slate-500">{user?.email}</p>
-                    <div className="pt-1">
+                    <div className="pt-1 flex items-center justify-between gap-1">
                       <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                         {perfilGlobal}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        v{CURRENT_APP_VERSION}
                       </span>
                     </div>
                   </div>

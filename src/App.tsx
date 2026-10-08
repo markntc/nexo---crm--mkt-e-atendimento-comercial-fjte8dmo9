@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { BrandProvider } from '@/contexts/BrandContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { VersionUpdateBanner } from '@/components/VersionUpdateBanner'
 
 import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
@@ -34,6 +35,7 @@ export default function App() {
         <Toaster />
         <AuthProvider>
           <BrandProvider>
+            <VersionUpdateBanner />
             <BrowserRouter>
               <Routes>
                 {/* Rotas Públicas de Autenticação */}
