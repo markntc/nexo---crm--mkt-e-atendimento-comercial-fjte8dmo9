@@ -340,19 +340,6 @@ export default function Layout() {
         </div>
 
         {/* Sidebar Brand Identity — exibe a marca ativa sem controle duplicado de troca (quem troca é o header) */}
-        <div className="p-2 border-b border-[#2C243B]">
-          {isExpanded ? null : (
-            <div
-              className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mx-auto"
-              title={isConsolidated ? 'Consolidado NTC' : activeBrand?.nome || 'Marca Ativa'}
-            >
-              <span
-                className="w-3 h-3 rounded-full ring-2 ring-white/50"
-                style={{ backgroundColor: isConsolidated ? '#3B82F6' : currentBrandColor }}
-              />
-            </div>
-          )}
-        </div>
 
         {/* Navigation Items */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin scrollbar-thumb-white/10">
