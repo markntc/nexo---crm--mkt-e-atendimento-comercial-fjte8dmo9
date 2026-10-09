@@ -725,23 +725,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!titulo.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Título obrigatório',
-        description: 'Informe um título para o negócio.',
-      })
-      return
-    }
-
-    if (!followUpData) {
-      toast({
-        variant: 'destructive',
-        title: 'Trava de follow-up obrigatória',
-        description: 'Defina a data do próximo follow-up para salvar o negócio.',
-      })
-      return
-    }
+    const finalTitulo = titulo.trim() || 'Novo negócio'
 
     // Valida formato dos documentos caso informados
     const cleanOrgCnpj = onlyDigits(newOrgCnpj)
@@ -849,21 +833,21 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const finalPaisEntrega =
         (entregaDiferente ? paisEntrega.trim() : '') || paisFaturamento.trim() || 'Brasil'
 
+      const proximaAcaoIso = followUpData ? new Date(followUpData).toISOString() : null
+
       const dealPayload = {
-        titulo: titulo.trim(),
+        titulo: finalTitulo,
         valor_estimado: numValor,
         funil_id: funilId || null,
         etapa_atual: etapaAtual || 'Primeiro contato',
         marca_id: activeMarcaId,
         cliente_b2b_id: finalOrgId || null,
         cliente_b2c_id: finalPessoaId || null,
-        organizacao_id: finalOrgId || null,
-        pessoa_id: finalPessoaId || null,
-        documento_faturamento: documentoFaturamento,
+        documento_faturamento: documentoFaturamento || null,
         data_fechamento_esperada: dataFechamentoIso,
         tipo_cliente: tipoClienteClassificado,
         vendedor_id: currentUserId,
-        origem: canalOrigem,
+        origem: canalOrigem || null,
         id_canal_origem: idCanalOrigem.trim() || null,
         observacoes: notaObservacoes.trim() || null,
         cidade: cidadeFaturamento.trim() || null,
@@ -872,32 +856,34 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         cidade_entrega: finalCidadeEntrega,
         estado_entrega: finalEstadoEntrega,
         pais_entrega: finalPaisEntrega,
-        proxima_acao_data: new Date(followUpData).toISOString(),
-        proxima_acao_descricao: followUpDesc.trim(),
+        proxima_acao_data: proximaAcaoIso,
+        proxima_acao_descricao: followUpDesc.trim() || null,
       }
 
       if (isEditMode && dealId) {
-        // MODO EDIÇÃO: Atualiza negócio existente
+        // MODO EDIÇÃO: Atualiza negócio existente enviando APENAS campos que existem na collection oportunidades
         await pb.collection('oportunidades').update(dealId, dealPayload)
 
-        // Cria ou atualiza atividade de follow-up associada
-        try {
-          await pb.collection('atividades').create({
-            oportunidade_id: dealId,
-            marca_id: activeMarcaId,
-            responsavel_id: currentUserId,
-            tipo: 'Follow-up',
-            descricao: followUpDesc.trim() || 'Follow-up atualizado na edição do negócio',
-            data_vencimento: new Date(followUpData).toISOString(),
-            concluida: false,
-          })
-        } catch (ativErr) {
-          console.warn('Aviso ao registrar atividade de follow-up na edição:', ativErr)
+        // Cria ou atualiza atividade de follow-up associada (se informada data)
+        if (proximaAcaoIso) {
+          try {
+            await pb.collection('atividades').create({
+              oportunidade_id: dealId,
+              marca_id: activeMarcaId,
+              responsavel_id: currentUserId,
+              tipo: 'Follow-up',
+              descricao: followUpDesc.trim() || 'Follow-up atualizado na edição do negócio',
+              data_vencimento: proximaAcaoIso,
+              concluida: false,
+            })
+          } catch (ativErr) {
+            console.warn('Aviso ao registrar atividade de follow-up na edição:', ativErr)
+          }
         }
 
         toast({
           title: 'Negócio atualizado com sucesso!',
-          description: `"${titulo.trim()}" foi atualizado com todas as alterações.`,
+          description: `"${finalTitulo}" foi atualizado com todas as alterações.`,
         })
 
         onOpenChange(false)
@@ -945,7 +931,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 }
               : null,
           deal: {
-            titulo: titulo.trim(),
+            titulo: finalTitulo,
             valor_estimado: numValor,
             funil_id: funilId || null,
             etapa_atual: etapaAtual || 'Primeiro contato',
@@ -969,7 +955,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           follow_up: {
             tipo: 'Follow-up',
             descricao: followUpDesc.trim() || 'Ação comercial agendada no negócio',
-            data_vencimento: new Date(followUpData).toISOString(),
+            data_vencimento: proximaAcaoIso || '',
           },
         }
 
@@ -1336,15 +1322,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
               {/* 3. Título */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Título</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Título <span className="text-[11px] font-normal text-slate-400">(opcional)</span>
+                </Label>
                 <Input
-                  required
                   value={titulo}
                   onChange={(e) => {
                     setTitulo(e.target.value)
                     setUserEditedTitle(true)
                   }}
-                  placeholder="ex: Carlos Müller ou Fornecimento Pier"
+                  placeholder="ex: Carlos Müller ou Fornecimento Pier (opcional)"
                   className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                 />
               </div>
@@ -1647,20 +1634,19 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 </Select>
               </div>
 
-              {/* Trava de Follow-up Obrigatória (integrada de forma discreta conforme especificação) */}
+              {/* Próxima Ação / Follow-up (opcional conforme decisão de produto) */}
               <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
                 <div className="flex items-center space-x-1.5 text-amber-900 text-xs font-bold">
                   <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Próxima Ação / Follow-up Obrigatório</span>
+                  <span>Próxima Ação / Follow-up (opcional)</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-[10px] font-semibold text-amber-900">
-                      Data Vencimento *
+                      Data Vencimento (opcional)
                     </Label>
                     <Input
                       type="date"
-                      required
                       value={followUpData}
                       onChange={(e) => setFollowUpData(e.target.value)}
                       className="h-8 text-xs bg-white border-amber-300 rounded-lg"
@@ -1668,13 +1654,12 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </div>
                   <div>
                     <Label className="text-[10px] font-semibold text-amber-900">
-                      Ação Obrigatória
+                      Descrição da ação (opcional)
                     </Label>
                     <Input
-                      required
                       value={followUpDesc}
                       onChange={(e) => setFollowUpDesc(e.target.value)}
-                      placeholder="ex: Primeiro alinhamento..."
+                      placeholder="ex: Primeiro alinhamento (opcional)..."
                       className="h-8 text-xs bg-white border-amber-300 rounded-lg"
                     />
                   </div>

@@ -422,11 +422,11 @@ export default function Leads() {
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-[#5D6D7E]">
-                Dados de Contato e Demanda (Livre)
+                Dados de Contato e Demanda (Livre){' '}
+                <span className="font-normal text-slate-400">(opcional)</span>
               </Label>
               <Input
-                required
-                placeholder="Nome, cargo, e-mail, telefone e interesse..."
+                placeholder="Nome, cargo, e-mail, telefone e interesse (opcional)..."
                 value={newDadosContato}
                 onChange={(e) => setNewDadosContato(e.target.value)}
                 className="h-9 text-xs"

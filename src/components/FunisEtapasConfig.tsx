@@ -764,12 +764,13 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
 
           <form onSubmit={handleCreateNewFunil} className="space-y-3.5 py-2">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Nome do Funil</Label>
+              <Label className="text-xs font-semibold text-slate-700">
+                Nome do Funil <span className="text-slate-400 font-normal">(opcional)</span>
+              </Label>
               <Input
-                required
                 value={newFunilNome}
                 onChange={(e) => setNewFunilNome(e.target.value)}
-                placeholder="ex: Funil NTC Agro – Obras"
+                placeholder="ex: Funil NTC Agro – Obras (opcional)"
                 className="h-9 text-xs rounded-xl"
               />
             </div>

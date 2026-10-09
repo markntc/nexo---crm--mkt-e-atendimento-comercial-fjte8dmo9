@@ -561,10 +561,11 @@ export default function Tarefas() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#5D6D7E]">Data de Vencimento</Label>
+                <Label className="text-xs font-semibold text-[#5D6D7E]">
+                  Data de Vencimento <span className="font-normal text-slate-400">(opcional)</span>
+                </Label>
                 <Input
                   type="date"
-                  required
                   value={newVencimento}
                   onChange={(e) => setNewVencimento(e.target.value)}
                   className="h-9 text-xs"
@@ -574,11 +575,11 @@ export default function Tarefas() {
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-[#5D6D7E]">
-                Descrição do Compromisso
+                Descrição do Compromisso{' '}
+                <span className="font-normal text-slate-400">(opcional)</span>
               </Label>
               <Input
-                required
-                placeholder="ex: Enviar orçamento ou confirmar horário de visita"
+                placeholder="ex: Enviar orçamento ou confirmar horário de visita (opcional)"
                 value={newDescricao}
                 onChange={(e) => setNewDescricao(e.target.value)}
                 className="h-9 text-xs"

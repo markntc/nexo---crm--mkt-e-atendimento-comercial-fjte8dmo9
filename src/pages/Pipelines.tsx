@@ -1505,11 +1505,11 @@ export default function Pipelines() {
               <p className="font-bold text-slate-900">Agendar Próxima Ação (Follow-up)</p>
               <div>
                 <Label className="text-[10px] font-semibold text-slate-600">
-                  Data da Próxima Interação
+                  Data da Próxima Interação{' '}
+                  <span className="font-normal text-slate-400">(opcional)</span>
                 </Label>
                 <Input
                   type="date"
-                  required
                   value={dragFollowUpData}
                   onChange={(e) => setDragFollowUpData(e.target.value)}
                   className="h-8 text-xs bg-white rounded-lg"
@@ -1517,13 +1517,12 @@ export default function Pipelines() {
               </div>
               <div>
                 <Label className="text-[10px] font-semibold text-slate-600">
-                  Descrição da Ação
+                  Descrição da Ação <span className="font-normal text-slate-400">(opcional)</span>
                 </Label>
                 <Input
-                  required
                   value={dragFollowUpDesc}
                   onChange={(e) => setDragFollowUpDesc(e.target.value)}
-                  placeholder="ex: Enviar minuta contratual ou agendar reunião técnica"
+                  placeholder="ex: Enviar minuta contratual ou agendar reunião técnica (opcional)"
                   className="h-8 text-xs bg-white rounded-lg"
                 />
               </div>

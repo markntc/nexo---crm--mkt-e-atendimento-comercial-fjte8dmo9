@@ -51,28 +51,12 @@ routerAdd(
       }
     }
 
-    // Validações básicas de negócio e follow-up
+    // Validações de negócio e follow-up (opcionais conforme diretriz de produto)
     const dealData = body.deal || {}
-    const titulo = (dealData.titulo || '').trim()
-    if (!titulo) {
-      return e.json(400, {
-        error: 'titulo_obrigatorio',
-        stage: 'validacao',
-        field: 'titulo',
-        message: 'Informe um título para o negócio.',
-      })
-    }
+    const titulo = (dealData.titulo || '').trim() || 'Novo negócio'
 
     const followUpData = body.follow_up || {}
     const followUpDataVencimento = (followUpData.data_vencimento || '').trim()
-    if (!followUpDataVencimento) {
-      return e.json(400, {
-        error: 'follow_up_obrigatorio',
-        stage: 'validacao',
-        field: 'proxima_acao_data',
-        message: 'TRAVA DE FOLLOW-UP ATIVA: A data da próxima ação de retorno é obrigatória.',
-      })
-    }
 
     // Mapas e utilitários de normalização geográfica inline
     const UFS_MAP = {
@@ -549,28 +533,32 @@ routerAdd(
         }
 
         // =====================================================================
-        // PASSO 5: Criar a Atividade de Follow-up Obrigatória
+        // PASSO 5: Criar a Atividade de Follow-up (se informada)
         // =====================================================================
-        try {
-          const ativCol = txApp.findCollectionByNameOrId('atividades')
-          const ativRec = new Record(ativCol)
+        if (followUpDataVencimento) {
+          try {
+            const ativCol = txApp.findCollectionByNameOrId('atividades')
+            const ativRec = new Record(ativCol)
 
-          ativRec.set('oportunidade_id', createdDealId)
-          ativRec.set('marca_id', marcaId)
-          ativRec.set('responsavel_id', currentUserId)
-          ativRec.set('tipo', followUpData.tipo || 'Follow-up')
-          ativRec.set(
-            'descricao',
-            (followUpData.descricao || 'Ação comercial agendada no negócio').trim(),
-          )
-          ativRec.set('data_vencimento', followUpDataVencimento)
-          ativRec.set('concluida', false)
+            ativRec.set('oportunidade_id', createdDealId)
+            ativRec.set('marca_id', marcaId)
+            ativRec.set('responsavel_id', currentUserId)
+            ativRec.set('tipo', followUpData.tipo || 'Follow-up')
+            ativRec.set(
+              'descricao',
+              (followUpData.descricao || 'Ação comercial agendada no negócio').trim(),
+            )
+            ativRec.set('data_vencimento', followUpDataVencimento)
+            ativRec.set('concluida', false)
 
-          txApp.save(ativRec)
-          createdAtivId = ativRec.id
-        } catch (errCreateAtiv) {
-          const errMsg = String(errCreateAtiv || '')
-          throw new Error(`STEP_ERROR:ATIVIDADE:Falha ao agendar atividade de follow-up: ${errMsg}`)
+            txApp.save(ativRec)
+            createdAtivId = ativRec.id
+          } catch (errCreateAtiv) {
+            const errMsg = String(errCreateAtiv || '')
+            throw new Error(
+              `STEP_ERROR:ATIVIDADE:Falha ao agendar atividade de follow-up: ${errMsg}`,
+            )
+          }
         }
 
         // =====================================================================

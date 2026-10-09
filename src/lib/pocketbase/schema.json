@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T20:00:02.102Z",
+  "generatedAt": "2026-10-09T17:58:40.130Z",
   "collections": [
     {
       "name": "users",
@@ -237,7 +237,7 @@
         {
           "name": "razao_social",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -273,7 +273,7 @@
         {
           "name": "marca_captura_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "marcas"
         },
@@ -360,7 +360,7 @@
         {
           "name": "nome_completo",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -378,7 +378,7 @@
         {
           "name": "marca_captura_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "marcas"
         },
@@ -484,14 +484,14 @@
         {
           "name": "marca_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "marcas"
         },
         {
           "name": "origem",
           "type": "select",
-          "required": true,
+          "required": false,
           "system": false,
           "selectValues": [
             "Formulário Web",
@@ -506,13 +506,13 @@
         {
           "name": "dados_contato",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
           "name": "status_qualificacao",
           "type": "select",
-          "required": true,
+          "required": false,
           "system": false,
           "selectValues": ["Novo", "Qualificado", "Desqualificado", "Convertido"]
         },
@@ -589,14 +589,14 @@
         {
           "name": "marca_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "marcas"
         },
         {
           "name": "funil_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "funis"
         },
@@ -624,7 +624,7 @@
         {
           "name": "titulo",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -636,13 +636,13 @@
         {
           "name": "etapa_atual",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
           "name": "vendedor_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "users"
         },
@@ -740,6 +740,30 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "origem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "id_canal_origem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -762,7 +786,7 @@
         {
           "name": "marca_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "marcas"
         },
@@ -776,14 +800,14 @@
         {
           "name": "responsavel_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "users"
         },
         {
           "name": "tipo",
           "type": "select",
-          "required": true,
+          "required": false,
           "system": false,
           "selectValues": [
             "Ligação",
@@ -804,7 +828,7 @@
         {
           "name": "data_vencimento",
           "type": "date",
-          "required": true,
+          "required": false,
           "system": false
         },
         {

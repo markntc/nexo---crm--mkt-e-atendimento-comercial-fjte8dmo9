@@ -585,18 +585,21 @@ export function UsuariosAcessosConfig({ isAdmin }: UsuariosAcessosConfigProps) {
           <form onSubmit={handleSendInvite} className="space-y-4 py-2 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Nome Completo</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Nome Completo <span className="text-slate-400 font-normal">(opcional)</span>
+                </Label>
                 <Input
-                  required
                   value={inviteNome}
                   onChange={(e) => setInviteNome(e.target.value)}
-                  placeholder="ex: Marina Vasconcelos"
+                  placeholder="ex: Marina Vasconcelos (opcional)"
                   className="h-9 text-xs rounded-xl"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">E-mail Corporativo</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  E-mail Corporativo <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   required
                   type="email"

@@ -861,22 +861,23 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-[#5D6D7E]">
-                Descrição do Compromisso
+                Descrição do Compromisso{' '}
+                <span className="text-slate-400 font-normal">(opcional)</span>
               </Label>
               <Input
-                required
                 value={ativDescricao}
                 onChange={(e) => setAtivDescricao(e.target.value)}
-                placeholder="ex: Apresentação de laudo técnico ou alinhamento de proposta"
+                placeholder="ex: Apresentação de laudo técnico ou alinhamento (opcional)"
                 className="h-9 text-xs"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#5D6D7E]">Data de Vencimento</Label>
+              <Label className="text-xs font-semibold text-[#5D6D7E]">
+                Data de Vencimento <span className="text-slate-400 font-normal">(opcional)</span>
+              </Label>
               <Input
                 type="date"
-                required
                 value={ativVencimento}
                 onChange={(e) => setAtivVencimento(e.target.value)}
                 className="h-9 text-xs"
@@ -954,14 +955,13 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
             valor: opportunity.valor_estimado,
             funil_id: opportunity.funil_id,
             etapa_atual: opportunity.etapa_atual,
-            cliente_b2b_id: opportunity.cliente_b2b_id || opportunity.organizacao_id,
-            cliente_b2c_id: opportunity.cliente_b2c_id || opportunity.pessoa_id,
-            organizacao_id: opportunity.cliente_b2b_id || opportunity.organizacao_id,
-            pessoa_id: opportunity.cliente_b2c_id || opportunity.pessoa_id,
+            cliente_b2b_id: opportunity.cliente_b2b_id,
+            cliente_b2c_id: opportunity.cliente_b2c_id,
             vendedor_id: opportunity.vendedor_id,
             documento_faturamento: opportunity.documento_faturamento,
             observacoes: opportunity.observacoes,
             origem: opportunity.origem,
+            id_canal_origem: opportunity.id_canal_origem,
             cidade: opportunity.cidade,
             estado: opportunity.estado,
             pais: opportunity.pais,

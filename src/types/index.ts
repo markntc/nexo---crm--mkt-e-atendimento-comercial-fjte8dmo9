@@ -224,6 +224,8 @@ export interface Oportunidade {
   estado_entrega?: string
   pais_entrega?: string
   origem?: string
+  id_canal_origem?: string
+  status?: string
   campos_exportacao?: {
     moeda?: string
     incoterm?: string

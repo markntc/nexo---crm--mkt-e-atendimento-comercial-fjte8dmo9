@@ -459,10 +459,6 @@ export default function Clientes() {
         setValidationError('O CNPJ informado possui dígitos verificadores inválidos.')
         return
       }
-      if (!newRazao.trim()) {
-        setValidationError('A Razão Social é obrigatória.')
-        return
-      }
 
       setIsSubmitting(true)
       try {
@@ -486,15 +482,15 @@ export default function Clientes() {
 
         await pb.collection('organizacoes').create({
           cnpj: cleanCnpj ? maskCNPJ(cleanCnpj) : null,
-          razao_social: newRazao.trim(),
-          nome_fantasia: newFantasia.trim(),
-          inscricao_estadual: newIE.trim(),
-          endereco_corporativo: newEndereco.trim(),
+          razao_social: newRazao.trim() || 'Sem razão social informada',
+          nome_fantasia: newFantasia.trim() || null,
+          inscricao_estadual: newIE.trim() || null,
+          endereco_corporativo: newEndereco.trim() || null,
           cidade: newCidade.trim() || null,
           estado: newEstado.trim() || null,
           pais: newPais.trim() || 'Brasil',
-          email_principal: newEmail.trim(),
-          telefone: newTelefone ? maskPhone(newTelefone) : '',
+          email_principal: newEmail.trim() || null,
+          telefone: newTelefone ? maskPhone(newTelefone) : null,
           marca_captura_id: marcaId,
           origem_sistema: 'Cadastro Manual Pipedrive NTC',
           data_criacao: new Date().toISOString(),
@@ -526,10 +522,6 @@ export default function Clientes() {
         setValidationError('O CPF informado possui dígitos verificadores inválidos.')
         return
       }
-      if (!newNomeCompleto.trim()) {
-        setValidationError('O Nome Completo é obrigatório.')
-        return
-      }
 
       setIsSubmitting(true)
       try {
@@ -553,9 +545,9 @@ export default function Clientes() {
 
         await pb.collection('pessoas').create({
           cpf: cleanCpf ? maskCPF(cleanCpf) : null,
-          nome_completo: newNomeCompleto.trim(),
-          email_principal: newEmail.trim(),
-          telefone: newTelefone ? maskPhone(newTelefone) : '',
+          nome_completo: newNomeCompleto.trim() || 'Sem nome informado',
+          email_principal: newEmail.trim() || null,
+          telefone: newTelefone ? maskPhone(newTelefone) : null,
           cidade: newCidade.trim() || null,
           estado: newEstado.trim() || null,
           pais: newPais.trim() || 'Brasil',
@@ -2178,10 +2170,11 @@ export default function Clientes() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Nome Completo</Label>
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Nome Completo <span className="text-slate-400 font-normal">(opcional)</span>
+                  </Label>
                   <Input
-                    required
-                    placeholder="Nome da pessoa"
+                    placeholder="Nome da pessoa (opcional)"
                     value={newNomeCompleto}
                     onChange={(e) => setNewNomeCompleto(e.target.value)}
                     className="h-9 text-xs rounded-xl"
@@ -2275,10 +2268,11 @@ export default function Clientes() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Razão Social</Label>
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Razão Social <span className="text-slate-400 font-normal">(opcional)</span>
+                  </Label>
                   <Input
-                    required
-                    placeholder="Nome empresarial formal"
+                    placeholder="Nome empresarial formal (opcional)"
                     value={newRazao}
                     onChange={(e) => setNewRazao(e.target.value)}
                     className="h-9 text-xs rounded-xl"
@@ -2428,10 +2422,11 @@ export default function Clientes() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-600">Cargo na Organização</Label>
+              <Label className="text-xs font-semibold text-slate-600">
+                Cargo na Organização <span className="text-slate-400 font-normal">(opcional)</span>
+              </Label>
               <Input
-                required
-                placeholder="ex: Comprador Técnico, Gerente de Manutenção"
+                placeholder="ex: Comprador Técnico, Gerente de Manutenção (opcional)"
                 value={contatoCargo}
                 onChange={(e) => setContatoCargo(e.target.value)}
                 className="h-9 text-xs rounded-xl"
@@ -2569,11 +2564,11 @@ export default function Clientes() {
           <form onSubmit={handleCreateLead} className="space-y-4">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-600">
-                Dados de Contato / Prospect
+                Dados de Contato / Prospect{' '}
+                <span className="text-slate-400 font-normal">(opcional)</span>
               </Label>
               <Input
-                required
-                placeholder="Nome, telefone, e-mail ou observação rápida..."
+                placeholder="Nome, telefone, e-mail ou observação rápida (opcional)..."
                 value={newLeadDados}
                 onChange={(e) => setNewLeadDados(e.target.value)}
                 className="h-9 text-xs rounded-xl"
@@ -2666,10 +2661,10 @@ export default function Clientes() {
           <form onSubmit={handleSaveEditLead} className="space-y-4">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-600">
-                Dados de Contato / Prospect
+                Dados de Contato / Prospect{' '}
+                <span className="text-slate-400 font-normal">(opcional)</span>
               </Label>
               <Input
-                required
                 value={editLeadDados}
                 onChange={(e) => setEditLeadDados(e.target.value)}
                 className="h-9 text-xs rounded-xl"

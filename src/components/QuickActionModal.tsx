@@ -245,39 +245,27 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           description: 'Registro de prospecção inserido na base da marca.',
         })
       } else if (type === 'negocio') {
-        if (!negTitulo.trim()) {
-          throw new Error('O título do negócio é obrigatório.')
-        }
-        if (!negFunilId) {
-          throw new Error('Selecione o funil de vendas.')
-        }
-        if (!negProxData) {
-          throw new Error('A trava de follow-up exige a data da próxima ação.')
-        }
         await pb.collection('oportunidades').create({
           marca_id: marcaId,
-          funil_id: negFunilId,
-          titulo: negTitulo.trim(),
+          funil_id: negFunilId || null,
+          titulo: negTitulo.trim() || 'Novo negócio',
           valor_estimado: Number(negValor) || 0,
           etapa_atual: negEtapa || 'Lead Recebido',
           vendedor_id: user?.id,
           cliente_b2b_id: negOrgId || null,
           cliente_b2c_id: negPessoaId || null,
           documento_faturamento: negDocFaturamento || null,
-          proxima_acao_data: new Date(negProxData).toISOString(),
-          proxima_acao_descricao: negProxDesc.trim() || 'Primeira ação de alinhamento',
+          proxima_acao_data: negProxData ? new Date(negProxData).toISOString() : null,
+          proxima_acao_descricao: negProxDesc.trim() || null,
         })
         toast({
           title: 'Negócio criado com sucesso',
-          description: 'Oportunidade inserida na esteira com follow-up ativo.',
+          description: 'Oportunidade inserida na esteira de vendas.',
         })
       } else if (type === 'pessoa') {
         const cleanCpf = pesCpf.replace(/\D/g, '')
         if (cleanCpf && !isValidCPF(cleanCpf)) {
           throw new Error('O CPF informado possui dígitos verificadores inválidos.')
-        }
-        if (!pesNome.trim()) {
-          throw new Error('O Nome Completo é obrigatório.')
         }
         // Deduplicação inteligente se CPF informado
         if (cleanCpf) {
@@ -298,7 +286,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           await pb.collection('pessoas').create({
             marca_captura_id: marcaId,
             cpf: cleanCpf ? maskCPF(cleanCpf) : null,
-            nome_completo: pesNome.trim(),
+            nome_completo: pesNome.trim() || 'Sem nome informado',
             email_principal: pesEmail.trim() || null,
             telefone: pesTelefone ? maskPhone(pesTelefone) : null,
             origem_sistema: 'Ação Rápida Pipedrive NTC',
@@ -324,9 +312,6 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
         if (cleanCnpj && !isValidCNPJ(cleanCnpj)) {
           throw new Error('O CNPJ informado possui dígitos verificadores inválidos.')
         }
-        if (!orgRazao.trim()) {
-          throw new Error('A Razão Social é obrigatória.')
-        }
         // Deduplicação inteligente se CNPJ informado
         if (cleanCnpj) {
           const existente = await pb
@@ -346,7 +331,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           await pb.collection('organizacoes').create({
             marca_captura_id: marcaId,
             cnpj: cleanCnpj ? maskCNPJ(cleanCnpj) : null,
-            razao_social: orgRazao.trim(),
+            razao_social: orgRazao.trim() || 'Sem razão social informada',
             nome_fantasia: orgFantasia.trim() || null,
             email_principal: orgEmail.trim() || null,
             telefone: orgTelefone ? maskPhone(orgTelefone) : null,
@@ -367,9 +352,6 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           description: 'Empresa cadastrada na base de organizações.',
         })
       } else if (type === 'nota') {
-        if (!notaTexto.trim()) {
-          throw new Error('O texto da nota é obrigatório.')
-        }
         if (!notaEntidadeId) {
           throw new Error('Selecione o registro de destino para a nota.')
         }
@@ -382,7 +364,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           dados_anteriores: null,
           dados_novos: {
             tipo: 'nota_rapida',
-            conteudo: notaTexto.trim(),
+            conteudo: notaTexto.trim() || 'Nota sem texto',
             autor: user?.name || user?.email,
           },
           timestamp: new Date().toISOString(),
@@ -392,19 +374,13 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           description: 'Nota vinculada ao histórico com rastreabilidade.',
         })
       } else if (type === 'tarefa') {
-        if (!tarOppId) {
-          throw new Error('Selecione uma negociação/oportunidade vinculada.')
-        }
-        if (!tarDescricao.trim()) {
-          throw new Error('A descrição da tarefa é obrigatória.')
-        }
         await pb.collection('atividades').create({
           marca_id: marcaId,
-          oportunidade_id: tarOppId,
+          oportunidade_id: tarOppId || null,
           responsavel_id: user?.id,
           tipo: tarTipo,
-          descricao: tarDescricao.trim(),
-          data_vencimento: new Date(tarVencimento).toISOString(),
+          descricao: tarDescricao.trim() || 'Atividade comercial',
+          data_vencimento: tarVencimento ? new Date(tarVencimento).toISOString() : null,
           concluida: false,
         })
         toast({
@@ -499,11 +475,11 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Dados de Contato / Descrição da Demanda <span className="text-red-500">*</span>
+                  Dados de Contato / Descrição da Demanda{' '}
+                  <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Textarea
-                  required
-                  placeholder="Nome do solicitante, e-mail, telefone e interesse..."
+                  placeholder="Nome do solicitante, e-mail, telefone e interesse (opcional)..."
                   value={leadDadosContato}
                   onChange={(e) => setLeadDadosContato(e.target.value)}
                   className="text-xs rounded-xl min-h-[80px]"
@@ -601,11 +577,10 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Nome Completo <span className="text-red-500">*</span>
+                  Nome Completo <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Input
-                  required
-                  placeholder="Nome e Sobrenome"
+                  placeholder="Nome e Sobrenome (opcional)"
                   value={pesNome}
                   onChange={(e) => setPesNome(e.target.value)}
                   className="h-9 text-xs rounded-xl"
@@ -702,11 +677,10 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Razão Social <span className="text-red-500">*</span>
+                  Razão Social <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Input
-                  required
-                  placeholder="Nome empresarial formal"
+                  placeholder="Nome empresarial formal (opcional)"
                   value={orgRazao}
                   onChange={(e) => setOrgRazao(e.target.value)}
                   className="h-9 text-xs rounded-xl"
@@ -810,11 +784,10 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Conteúdo da Nota <span className="text-red-500">*</span>
+                  Conteúdo da Nota <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Textarea
-                  required
-                  placeholder="Escreva suas anotações, resumo da conversa ou pontos de atenção..."
+                  placeholder="Escreva suas anotações, resumo da conversa ou pontos de atenção (opcional)..."
                   value={notaTexto}
                   onChange={(e) => setNotaTexto(e.target.value)}
                   className="text-xs rounded-xl min-h-[100px]"
@@ -828,11 +801,11 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
             <>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Negócio Associado <span className="text-red-500">*</span>
+                  Negócio Associado <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Select value={tarOppId} onValueChange={setTarOppId}>
                   <SelectTrigger className="h-9 text-xs rounded-xl">
-                    <SelectValue placeholder="Selecione o negócio..." />
+                    <SelectValue placeholder="Selecione o negócio (opcional)..." />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {oportunidades.map((op) => (
@@ -863,10 +836,12 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Data de Vencimento</Label>
+                  <Label className="text-xs font-semibold text-slate-600">
+                    Data de Vencimento{' '}
+                    <span className="text-slate-400 font-normal">(opcional)</span>
+                  </Label>
                   <Input
                     type="date"
-                    required
                     value={tarVencimento}
                     onChange={(e) => setTarVencimento(e.target.value)}
                     className="h-9 text-xs rounded-xl"
@@ -876,11 +851,10 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
 
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-slate-600">
-                  Descrição da Tarefa <span className="text-red-500">*</span>
+                  Descrição da Tarefa <span className="text-slate-400 font-normal">(opcional)</span>
                 </Label>
                 <Input
-                  required
-                  placeholder="ex: Ligar para confirmar recebimento de minuta"
+                  placeholder="ex: Ligar para confirmar recebimento (opcional)"
                   value={tarDescricao}
                   onChange={(e) => setTarDescricao(e.target.value)}
                   className="h-9 text-xs rounded-xl"
