@@ -50,6 +50,12 @@ if (fs.existsSync(indexHtmlPath)) {
   const metaRegex = /(<meta[^>]*name=["']app-version["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i
   if (metaRegex.test(html)) {
     html = html.replace(metaRegex, `$1${targetVersion}$3`)
+  } else {
+    // Insere caso não exista
+    html = html.replace(
+      '</head>',
+      `    <meta name="app-version" content="${targetVersion}" />\n  </head>`,
+    )
   }
   const buildTimeRegex = /(<meta[^>]*name=["']build-time["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i
   if (buildTimeRegex.test(html)) {
@@ -68,5 +74,17 @@ if (fs.existsSync(hookPath)) {
     hookContent = hookContent.replace(hookVersionRegex, `$1${targetVersion}$3`)
     fs.writeFileSync(hookPath, hookContent, 'utf8')
     console.log(`[Version Sync] pocketbase/hooks/versao_app.js sincronizado com v${targetVersion}`)
+  }
+}
+
+// 4. Sincronizar CURRENT_BUILD_TIMESTAMP em src/lib/appVersion.ts
+const appVersionTsPath = path.join(rootDir, 'src', 'lib', 'appVersion.ts')
+if (fs.existsSync(appVersionTsPath)) {
+  let tsContent = fs.readFileSync(appVersionTsPath, 'utf8')
+  const tsRegex = /(export\s+const\s+CURRENT_BUILD_TIMESTAMP\s*=\s*)(\d+)/
+  if (tsRegex.test(tsContent)) {
+    tsContent = tsContent.replace(tsRegex, `$1${buildTimestamp}`)
+    fs.writeFileSync(appVersionTsPath, tsContent, 'utf8')
+    console.log(`[Version Sync] src/lib/appVersion.ts sincronizado com timestamp ${buildTimestamp}`)
   }
 }

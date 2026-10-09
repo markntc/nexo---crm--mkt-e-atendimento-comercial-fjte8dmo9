@@ -74,29 +74,100 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
       !/export const CURRENT_APP_VERSION = ['"]\d+\.\d+\.\d+['"]/.test(content),
       'src/lib/appVersion.ts não deve conter versão escrita à mão hardcoded',
     )
+    assert.ok(
+      content.includes('compareSemver'),
+      'src/lib/appVersion.ts deve conter a função compareSemver',
+    )
+    assert.ok(
+      content.includes('compareSemver(remoteVersion, currentVersion) > 0'),
+      'src/lib/appVersion.ts deve comparar se a versão remota é estritamente maior que a atual',
+    )
   })
 
-  await t.test(
-    'Lógica de comparação de versão não aciona falso positivo para versão idêntica',
-    () => {
-      const cleanRemote = (v) => v.trim().replace(/^v/, '')
-      const isNew = (remote, current) => cleanRemote(remote) !== cleanRemote(current)
+  await t.test('Lógica de comparação semântica de versão (isNewVersionAvailable)', () => {
+    function compareSemver(v1, v2) {
+      if (!v1 || !v2) return 0
+      const clean1 = v1.trim().replace(/^v/i, '')
+      const clean2 = v2.trim().replace(/^v/i, '')
+      const base1 = clean1.split('-')[0].split('+')[0]
+      const base2 = clean2.split('-')[0].split('+')[0]
+      const parts1 = base1.split('.').map((p) => {
+        const num = parseInt(p, 10)
+        return isNaN(num) ? 0 : num
+      })
+      const parts2 = base2.split('.').map((p) => {
+        const num = parseInt(p, 10)
+        return isNaN(num) ? 0 : num
+      })
+      const maxLen = Math.max(parts1.length, parts2.length)
+      for (let i = 0; i < maxLen; i++) {
+        const p1 = parts1[i] ?? 0
+        const p2 = parts2[i] ?? 0
+        if (p1 > p2) return 1
+        if (p1 < p2) return -1
+      }
+      return 0
+    }
 
-      assert.strictEqual(
-        isNew(appVersion, appVersion),
-        false,
-        'Versão idêntica não deve disparar atualização',
-      )
-      assert.strictEqual(
-        isNew(`v${appVersion}`, appVersion),
-        false,
-        'Versão com prefixo v não deve disparar atualização',
-      )
-      assert.strictEqual(
-        isNew('0.0.99', appVersion),
-        true,
-        'Versão remota diferente deve disparar atualização',
-      )
-    },
-  )
+    function isNewVersionAvailable(remoteVersion, currentVersion = appVersion) {
+      if (!remoteVersion) return false
+      return compareSemver(remoteVersion, currentVersion) > 0
+    }
+
+    // 1. Versão idêntica -> false
+    assert.strictEqual(
+      isNewVersionAvailable(appVersion, appVersion),
+      false,
+      'Versão idêntica não deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable(`v${appVersion}`, appVersion),
+      false,
+      'Versão com prefixo v não deve disparar atualização se idêntica',
+    )
+
+    // 2. Versão remota mais antiga -> false (evita loop com versão em cache ou servida anterior)
+    assert.strictEqual(
+      isNewVersionAvailable('0.0.50', '0.0.55'),
+      false,
+      'Versão remota mais antiga (0.0.50 < 0.0.55) NUNCA deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('0.0.55', '0.0.56'),
+      false,
+      'Versão remota mais antiga (0.0.55 < 0.0.56) NUNCA deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('0.0.1', appVersion),
+      false,
+      'Versão remota mais antiga não deve disparar atualização',
+    )
+
+    // 3. Versão remota mais nova -> true
+    assert.strictEqual(
+      isNewVersionAvailable('0.0.57', '0.0.56'),
+      true,
+      'Versão remota mais nova (0.0.57 > 0.0.56) deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('v0.0.57', '0.0.56'),
+      true,
+      'Versão remota mais nova com prefixo v deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('0.1.0', '0.0.56'),
+      true,
+      'Versão minor mais nova deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('1.0.0', '0.0.56'),
+      true,
+      'Versão major mais nova deve disparar atualização',
+    )
+    assert.strictEqual(
+      isNewVersionAvailable('0.0.100', '0.0.56'),
+      true,
+      'Versão com patch de mais de 2 dígitos mais nova deve disparar atualização',
+    )
+  })
 })

@@ -6,7 +6,7 @@ import packageJson from '../../package.json'
 
 // Versão canônica importada diretamente do package.json (fonte única de verdade)
 export const CURRENT_APP_VERSION = packageJson.version
-export const CURRENT_BUILD_TIMESTAMP = 1791481800000
+export const CURRENT_BUILD_TIMESTAMP = 1791571672099
 
 export interface RemoteVersionInfo {
   version: string
@@ -136,11 +136,50 @@ export async function fetchRemoteVersion(): Promise<RemoteVersionInfo | null> {
 }
 
 /**
- * Compara se a versão remota é diferente da versão atual do app em execução.
+ * Compara duas versões no formato semver (ex: "0.0.56", "v0.0.55", "1.2.3-beta").
+ * Retorna:
+ *  1 se v1 > v2 (v1 é mais nova)
+ * -1 se v1 < v2 (v1 é mais antiga)
+ *  0 se v1 == v2
  */
-export function isNewVersionAvailable(remoteVersion: string): boolean {
+export function compareSemver(v1: string, v2: string): number {
+  if (!v1 || !v2) return 0
+  const clean1 = v1.trim().replace(/^v/i, '')
+  const clean2 = v2.trim().replace(/^v/i, '')
+
+  // Remove sufixos como -beta, -rc, etc., para a comparação numérica dos segmentos
+  const base1 = clean1.split('-')[0].split('+')[0]
+  const base2 = clean2.split('-')[0].split('+')[0]
+
+  const parts1 = base1.split('.').map((p) => {
+    const num = parseInt(p, 10)
+    return isNaN(num) ? 0 : num
+  })
+  const parts2 = base2.split('.').map((p) => {
+    const num = parseInt(p, 10)
+    return isNaN(num) ? 0 : num
+  })
+
+  const maxLen = Math.max(parts1.length, parts2.length)
+  for (let i = 0; i < maxLen; i++) {
+    const p1 = parts1[i] ?? 0
+    const p2 = parts2[i] ?? 0
+    if (p1 > p2) return 1
+    if (p1 < p2) return -1
+  }
+
+  return 0
+}
+
+/**
+ * Só considera que existe atualização quando a versão remota for numericamente
+ * MAIS NOVA que a versão atual do app em execução (ex: 0.0.56 > 0.0.55).
+ * Versão igual ou anterior à atual NUNCA dispara atualização.
+ */
+export function isNewVersionAvailable(
+  remoteVersion: string,
+  currentVersion: string = CURRENT_APP_VERSION,
+): boolean {
   if (!remoteVersion) return false
-  const cleanRemote = remoteVersion.trim().replace(/^v/, '')
-  const cleanCurrent = CURRENT_APP_VERSION.trim().replace(/^v/, '')
-  return cleanRemote !== cleanCurrent
+  return compareSemver(remoteVersion, currentVersion) > 0
 }
