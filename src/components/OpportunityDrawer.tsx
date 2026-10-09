@@ -171,12 +171,28 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       fetchDetail(opportunity.id)
       onUpdate()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao salvar oportunidade'
-      toast({
-        variant: 'destructive',
-        title: 'Falha ao atualizar',
-        description: msg,
-      })
+      const errObj = err as any
+      const serverData = errObj?.data || errObj?.response?.data || {}
+      const isTrava =
+        serverData?.data?.proxima_acao_data ||
+        String(errObj?.message || '').includes('TRAVA DE FOLLOW-UP') ||
+        String(JSON.stringify(serverData)).includes('TRAVA DE FOLLOW-UP')
+
+      if (isTrava) {
+        toast({
+          variant: 'destructive',
+          title: 'Trava de Follow-up Ativa',
+          description:
+            'Não é permitido avançar ou salvar a oportunidade de etapa sem agendar uma próxima ação de follow-up com data.',
+        })
+      } else {
+        const msg = err instanceof Error ? err.message : 'Erro ao salvar oportunidade'
+        toast({
+          variant: 'destructive',
+          title: 'Falha ao atualizar',
+          description: msg,
+        })
+      }
     }
   }
 

@@ -431,12 +431,32 @@ export default function Pipelines() {
       setDraggedOpportunity(null)
       loadOportunidades()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
-      toast({
-        variant: 'destructive',
-        title: 'Erro na transição de etapa',
-        description: msg,
-      })
+      const errObj = err as any
+      const serverData = errObj?.data || errObj?.response?.data || {}
+      const isTrava =
+        serverData?.data?.proxima_acao_data ||
+        String(errObj?.message || '').includes('TRAVA DE FOLLOW-UP') ||
+        String(JSON.stringify(serverData)).includes('TRAVA DE FOLLOW-UP')
+
+      if (isTrava) {
+        toast({
+          variant: 'destructive',
+          title: 'Trava de Follow-up Ativa!',
+          description:
+            'O servidor bloqueou a transição: é obrigatório registrar uma próxima ação com data para mudar de etapa.',
+        })
+      } else {
+        const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
+        toast({
+          variant: 'destructive',
+          title: 'Erro na transição de etapa',
+          description: msg,
+        })
+      }
+      // Garante que o card permaneça na etapa original recarregando o estado
+      setDragConfirmModalOpen(false)
+      setDraggedOpportunity(null)
+      loadOportunidades()
     }
   }
 
@@ -462,12 +482,19 @@ export default function Pipelines() {
         b2cFinal = newPessoaId || null
       }
 
+      // Se funil não selecionado no modal rápido, resolve o funil padrão da marca
+      let resolvedFunil = newFunilId
+      if (!resolvedFunil) {
+        const fPadrao = funis.find((f) => f.marca_id === marcaId) || funis[0]
+        if (fPadrao) resolvedFunil = fPadrao.id
+      }
+
       await pb.collection('oportunidades').create({
         marca_id: marcaId,
-        funil_id: newFunilId,
-        titulo: newTitulo,
-        valor_estimado: Number(newValor),
-        etapa_atual: newEtapa,
+        funil_id: resolvedFunil || null,
+        titulo: newTitulo.trim() || 'Novo negócio',
+        valor_estimado: Number(newValor) || 0,
+        etapa_atual: newEtapa || 'Lead Recebido',
         vendedor_id: pb.authStore.record?.id,
         cliente_b2b_id: b2bFinal,
         cliente_b2c_id: b2cFinal,

@@ -14,15 +14,41 @@ routerAdd(
 
     const body = e.requestInfo().body || {}
 
-    // Dados principais
-    const marcaId = (body.marca_id || '').trim()
+    // Dados principais com fallback inteligente de marca a partir do contexto do usuário
+    let marcaId = (body.marca_id || '').trim()
     const currentUserId = (body.vendedor_id || authUser.id || '').trim()
+
+    if (!marcaId) {
+      // Tenta inferir marca do contexto do usuário se não informada
+      try {
+        const rawPerms = authUser.get('permissoes')
+        if (
+          rawPerms &&
+          typeof rawPerms === 'object' &&
+          Array.isArray(rawPerms.marcas_permitidas) &&
+          rawPerms.marcas_permitidas.length > 0
+        ) {
+          marcaId = String(rawPerms.marcas_permitidas[0] || '').trim()
+        }
+      } catch (_) {}
+
+      // Se ainda não tiver marca, busca a primeira marca ativa no banco
+      if (!marcaId) {
+        try {
+          const marcasAtivas = $app.findRecordsByFilter('marcas', 'ativo = true', 'created', 1, 0)
+          if (marcasAtivas && marcasAtivas.length > 0) {
+            marcaId = marcasAtivas[0].id
+          }
+        } catch (_) {}
+      }
+    }
 
     if (!marcaId) {
       return e.json(400, {
         error: 'marca_obrigatoria',
         stage: 'validacao',
-        message: 'A marca é obrigatória para registrar o negócio.',
+        message:
+          'A marca é obrigatória para registrar o negócio e nenhuma marca ativa foi encontrada.',
       })
     }
 
@@ -480,10 +506,72 @@ routerAdd(
           const oppCol = txApp.findCollectionByNameOrId('oportunidades')
           const oppRec = new Record(oppCol)
 
+          // Resolução inteligente de funil_id e equipe_id
+          let resolvedFunilId = (dealData.funil_id || '').trim()
+          let resolvedEquipeId = (dealData.equipe_id || '').trim()
+          let targetFunilRec = null
+
+          if (resolvedFunilId) {
+            try {
+              targetFunilRec = txApp.findRecordById('funis', resolvedFunilId)
+            } catch (_) {}
+          }
+
+          // Se funil não veio informado (ou não foi encontrado), busca o funil padrão da marca
+          if (!targetFunilRec && marcaId) {
+            try {
+              const funisMarca = txApp.findRecordsByFilter(
+                'funis',
+                `marca_id = "${marcaId}"`,
+                'created',
+                1,
+                0,
+              )
+              if (funisMarca && funisMarca.length > 0) {
+                targetFunilRec = funisMarca[0]
+                resolvedFunilId = targetFunilRec.id
+                console.log(
+                  `[criar-completo] funil_id ausente: preenchido automaticamente com funil padrão "${resolvedFunilId}" (${targetFunilRec.getString('nome_funil')}) da marca ${marcaId}`,
+                )
+              }
+            } catch (errSearchFunil) {
+              console.warn('[criar-completo] Erro ao buscar funil padrão da marca:', errSearchFunil)
+            }
+          }
+
+          // Se equipe_id vazia mas o funil tem equipe, vincula a equipe do funil
+          if (!resolvedEquipeId && targetFunilRec) {
+            resolvedEquipeId = targetFunilRec.getString('equipe_id') || ''
+          }
+
+          // Resolução inteligente de etapa_atual: se vazia, resolve para a primeira etapa do funil
+          let resolvedEtapa = (dealData.etapa_atual || '').trim()
+          if (!resolvedEtapa && targetFunilRec) {
+            try {
+              let etapasRaw = []
+              try {
+                etapasRaw = JSON.parse(targetFunilRec.getString('etapas_ordenadas')) ?? []
+              } catch (_) {}
+              if (Array.isArray(etapasRaw) && etapasRaw.length > 0) {
+                const primeira =
+                  typeof etapasRaw[0] === 'string' ? etapasRaw[0] : etapasRaw[0]?.nome || ''
+                if (primeira) {
+                  resolvedEtapa = primeira
+                }
+              }
+            } catch (_) {}
+          }
+          if (!resolvedEtapa) {
+            resolvedEtapa = 'Primeiro contato'
+          }
+
           oppRec.set('titulo', titulo)
           oppRec.set('valor_estimado', Number(dealData.valor_estimado) || 0)
-          oppRec.set('funil_id', dealData.funil_id || null)
-          oppRec.set('etapa_atual', dealData.etapa_atual || 'Primeiro contato')
+          oppRec.set('funil_id', resolvedFunilId || null)
+          if (resolvedEquipeId) {
+            oppRec.set('equipe_id', resolvedEquipeId)
+          }
+          oppRec.set('etapa_atual', resolvedEtapa)
           oppRec.set('marca_id', marcaId)
           oppRec.set('cliente_b2b_id', finalOrgId || null)
           oppRec.set('cliente_b2c_id', finalPessoaId || null)

@@ -245,9 +245,20 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           description: 'Registro de prospecção inserido na base da marca.',
         })
       } else if (type === 'negocio') {
+        // Se funil não foi especificado, tenta buscar funil padrão da marca
+        let resolvedFunil = negFunilId
+        if (!resolvedFunil && marcaId) {
+          try {
+            const fPadrao = await pb.collection('funis').getFirstListItem(`marca_id = "${marcaId}"`)
+            if (fPadrao) resolvedFunil = fPadrao.id
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+
         await pb.collection('oportunidades').create({
           marca_id: marcaId,
-          funil_id: negFunilId || null,
+          funil_id: resolvedFunil || null,
           titulo: negTitulo.trim() || 'Novo negócio',
           valor_estimado: Number(negValor) || 0,
           etapa_atual: negEtapa || 'Lead Recebido',

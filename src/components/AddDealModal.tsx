@@ -1128,7 +1128,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const serverField = serverData?.field || ''
       const serverError = serverData?.error || ''
 
-      if (
+      // Verificação de erro na trava de follow-up (ValidationError em proxima_acao_data)
+      const isTravaFollowUp =
+        serverField === 'proxima_acao_data' ||
+        serverData?.data?.proxima_acao_data ||
+        String(serverMessage).includes('TRAVA DE FOLLOW-UP') ||
+        String(err).includes('TRAVA DE FOLLOW-UP')
+
+      if (isTravaFollowUp) {
+        errorTitle = 'Trava de Follow-up Ativa'
+        errorDescription =
+          'Não é permitido alterar ou avançar a oportunidade de etapa sem agendar uma próxima ação com data.'
+      } else if (
         serverField === 'cnpj' ||
         serverError === 'cnpj_duplicado' ||
         serverError === 'cnpj_invalido'
