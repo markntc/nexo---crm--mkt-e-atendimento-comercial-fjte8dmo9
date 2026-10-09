@@ -8,8 +8,11 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Pragma', 'no-cache')
   e.response.header().set('Expires', '0')
 
+  // Versão canônica publicada do app
+  const currentVersion = '0.0.50'
+
   return e.json(200, {
-    version: '0.0.50',
+    version: currentVersion,
     updated_at: new Date().toISOString(),
     timestamp: Date.now(),
     status: 'ok',
