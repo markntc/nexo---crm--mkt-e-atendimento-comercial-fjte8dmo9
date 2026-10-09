@@ -1724,40 +1724,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               </div>
 
               {/* CPF da Pessoa (Opcional) */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">
-                  CPF <span className="text-slate-400 font-normal">(opcional)</span>
-                </Label>
-                <Input
-                  placeholder="000.000.000-00 (opcional)"
-                  value={newPersonCpf}
-                  onChange={(e) => {
-                    const masked = maskCPF(e.target.value)
-                    setNewPersonCpf(masked)
-                    const digits = onlyDigits(masked)
-                    if (!digits || isValidCPF(digits)) {
-                      setPersonCpfError(null)
-                    } else if (digits.length === 11) {
-                      setPersonCpfError('CPF inválido (verifique os números)')
-                    }
-                  }}
-                  onBlur={() => {
-                    const digits = onlyDigits(newPersonCpf)
-                    if (digits && !isValidCPF(digits)) {
-                      setPersonCpfError('CPF inválido (deve conter 11 dígitos válidos)')
-                    } else {
-                      setPersonCpfError(null)
-                    }
-                  }}
-                  className={cn(
-                    'h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]',
-                    personCpfError && 'border-red-500 focus:border-red-500 bg-red-50/20',
-                  )}
-                />
-                {personCpfError && (
-                  <p className="text-[11px] font-semibold text-red-600 mt-0.5">{personCpfError}</p>
-                )}
-              </div>
 
               {/* 1. Telefone + dropdown de tipo ("Comercial") + "+ Adicionar telefone" */}
               <div className="space-y-2">
