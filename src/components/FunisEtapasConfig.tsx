@@ -10,6 +10,7 @@ import { useBrand } from '@/contexts/BrandContext'
 import type { Funil, EtapaConfig, EtapaItem, Oportunidade } from '@/types'
 import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { formatCurrencyBRL } from '@/lib/formatters'
+import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -200,7 +201,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     if (!item) return
     setEditingEtapaIndex(index)
     setModalEtapaNome(item.nome)
-    setModalEtapaValor(item.valor_referencia ? String(item.valor_referencia) : '')
+    setModalEtapaValor(item.valor_referencia ? formatCurrencyString(item.valor_referencia) : '')
     setModalEtapaIsWon(Boolean(item.is_won))
     setModalEtapaIsLost(Boolean(item.is_lost))
     setIsEtapaModalOpen(true)
@@ -217,7 +218,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
       return
     }
 
-    const numValor = parseFloat(modalEtapaValor) || 0
+    const numValor = parseCurrencyToNumber(modalEtapaValor)
 
     // Regra: se marcou como ganho, desmarca perdido; e vice-versa
     let isWon = modalEtapaIsWon
@@ -841,11 +842,10 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
                 Valor Monetário de Referência (R$)
               </Label>
               <Input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={modalEtapaValor}
-                onChange={(e) => setModalEtapaValor(e.target.value)}
+                onChange={(e) => setModalEtapaValor(maskCurrency(e.target.value))}
                 placeholder="0,00"
                 className="h-9 text-xs rounded-xl"
               />

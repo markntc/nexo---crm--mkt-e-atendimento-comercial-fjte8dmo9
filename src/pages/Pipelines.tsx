@@ -12,6 +12,7 @@ import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { AddDealModal } from '@/components/AddDealModal'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
+import { maskCurrency, parseCurrencyToNumber } from '@/lib/currencyMask'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -257,7 +258,7 @@ export default function Pipelines() {
 
     setIsSavingKanbanStage(true)
     try {
-      const numValor = parseFloat(kanbanStageValor) || 0
+      const numValor = parseCurrencyToNumber(kanbanStageValor)
       const currentEtapas = (activeF.etapas_ordenadas || []).map((item) => {
         if (typeof item === 'string') return item
         return item
@@ -1113,11 +1114,10 @@ export default function Pipelines() {
                           Valor de Referência (R$)
                         </Label>
                         <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           value={kanbanStageValor}
-                          onChange={(e) => setKanbanStageValor(e.target.value)}
+                          onChange={(e) => setKanbanStageValor(maskCurrency(e.target.value))}
                           placeholder="0,00"
                           className="h-8 text-xs rounded-lg mt-0.5"
                           onKeyDown={(e) => {

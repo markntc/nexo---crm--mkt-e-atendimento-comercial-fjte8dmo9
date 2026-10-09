@@ -4,6 +4,7 @@ import pb from '@/lib/pocketbase/client'
 import type { Oportunidade, Atividade, PreferenciaComunicacao, Organizacao, Pessoa } from '@/types'
 import { getClientStatusSets } from '@/lib/relationshipStatus'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
+import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -66,7 +67,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   // Edição inline dos dados da oportunidade
   const [isEditing, setIsEditing] = useState(false)
   const [titulo, setTitulo] = useState('')
-  const [valorEstimado, setValorEstimado] = useState<number>(0)
+  const [valorEstimado, setValorEstimado] = useState<string>('')
   const [proximaAcaoData, setProximaAcaoData] = useState('')
   const [proximaAcaoDescricao, setProximaAcaoDescricao] = useState('')
   const [documentoFaturamento, setDocumentoFaturamento] = useState<'CPF' | 'CNPJ' | 'AMBOS' | ''>(
@@ -102,7 +103,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       setWonPessoaIds(statusSets.wonPessoaIds)
       setOpportunity(opp)
       setTitulo(opp.titulo)
-      setValorEstimado(opp.valor_estimado)
+      setValorEstimado(opp.valor_estimado ? formatCurrencyString(opp.valor_estimado) : '')
       setProximaAcaoData(opp.proxima_acao_data ? opp.proxima_acao_data.split('T')[0] : '')
       setProximaAcaoDescricao(opp.proxima_acao_descricao || '')
       setDocumentoFaturamento(opp.documento_faturamento || '')
@@ -157,7 +158,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     try {
       await pb.collection('oportunidades').update(opportunity.id, {
         titulo,
-        valor_estimado: Number(valorEstimado),
+        valor_estimado: parseCurrencyToNumber(valorEstimado),
         documento_faturamento: documentoFaturamento || null,
         proxima_acao_data: proximaAcaoData ? new Date(proximaAcaoData).toISOString() : null,
         proxima_acao_descricao: proximaAcaoDescricao,
@@ -486,9 +487,11 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                             Valor Estimado (R$)
                           </Label>
                           <Input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0,00"
                             value={valorEstimado}
-                            onChange={(e) => setValorEstimado(Number(e.target.value))}
+                            onChange={(e) => setValorEstimado(maskCurrency(e.target.value))}
                             className="h-9 text-xs bg-white"
                           />
                         </div>

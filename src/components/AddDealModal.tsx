@@ -33,6 +33,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { maskPhone, maskCNPJ, maskCPF, isValidCNPJ, isValidCPF, onlyDigits } from '@/lib/formatters'
+import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
@@ -276,8 +277,23 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             setTitulo(initialValues.titulo)
             setUserEditedTitle(true)
           }
-          if (initialValues.valor !== undefined && initialValues.valor !== null) {
-            setValor(String(initialValues.valor))
+          if (
+            initialValues.valor !== undefined &&
+            initialValues.valor !== null &&
+            initialValues.valor !== ''
+          ) {
+            // Formata o valor inicial com separadores e centavos se for numérico ou com casas decimais
+            const num =
+              typeof initialValues.valor === 'number'
+                ? initialValues.valor
+                : parseFloat(String(initialValues.valor).replace(',', '.'))
+            if (!isNaN(num) && num > 0) {
+              setValor(formatCurrencyString(num))
+            } else if (typeof initialValues.valor === 'string' && initialValues.valor.trim()) {
+              setValor(maskCurrency(initialValues.valor))
+            } else {
+              setValor('')
+            }
           }
           if (initialValues.documento_faturamento) {
             setDocumentoFaturamento(initialValues.documento_faturamento)
@@ -778,7 +794,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       }
 
       // 2. Preparação do payload do Negócio / Oportunidade
-      const numValor = parseFloat(valor.replace(/[^0-9,-]/g, '').replace(',', '.')) || 0
+      const numValor = parseCurrencyToNumber(valor)
 
       let dataFechamentoIso: string | null = null
       if (dataFechamento) {
@@ -1355,12 +1371,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-7">
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0,00"
                       value={valor}
-                      onChange={(e) => setValor(e.target.value)}
+                      onChange={(e) => setValor(maskCurrency(e.target.value))}
                       className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                     />
                   </div>
