@@ -261,9 +261,14 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
           if (requestedEtapa && nomesEtapas.includes(requestedEtapa)) {
             setEtapaAtual(requestedEtapa)
+          } else if (isEditMode && initialValues?.etapa_atual) {
+            // Em modo edição: nunca sobrescreve com fallback se houver etapa original
+            setEtapaAtual(initialValues.etapa_atual)
           } else if (etapasList.length > 0) {
             setEtapaAtual(nomesEtapas[0])
           }
+        } else if (isEditMode && initialValues?.etapa_atual) {
+          setEtapaAtual(initialValues.etapa_atual)
         }
 
         if (initialValues?.vendedor_id) {
@@ -536,10 +541,20 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     if (f && f.etapas_ordenadas && f.etapas_ordenadas.length > 0) {
       const nomes = f.etapas_ordenadas.map(getEtapaNome)
       if (!nomes.includes(etapaAtual)) {
-        setEtapaAtual(nomes[0])
+        // Em modo de edição, se o funil ativo corresponder ao funil original e houver etapa original válida nele, preserva-a
+        if (
+          isEditMode &&
+          initialValues?.etapa_atual &&
+          nomes.includes(initialValues.etapa_atual) &&
+          (!initialValues.funil_id || initialValues.funil_id === funilId)
+        ) {
+          setEtapaAtual(initialValues.etapa_atual)
+        } else {
+          setEtapaAtual(nomes[0])
+        }
       }
     }
-  }, [funilId, funis])
+  }, [funilId, funis, isEditMode, initialValues])
 
   // Atualiza título automaticamente quando a pessoa ou organização muda (se o usuário não editou manualmente)
   const handleUpdateTitleSuggestion = (name: string) => {
@@ -851,11 +866,49 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
       const proximaAcaoIso = followUpData ? new Date(followUpData).toISOString() : null
 
-      const dealPayload = {
+      // Validação de segurança no salvamento de etapa e funil:
+      // Identifica o funil alvo e suas etapas válidas
+      const targetFunilObj = funis.find((f) => f.id === (funilId || initialValues?.funil_id))
+      const targetEtapasNomes = (targetFunilObj?.etapas_ordenadas || []).map(getEtapaNome)
+
+      let resolvedFunilId: string | null = funilId || initialValues?.funil_id || null
+      let resolvedEtapaAtual: string
+
+      if (isEditMode) {
+        // Ponto 1 e 3: Modo edição - etapa e funil nunca caem em fallback genérico.
+        // Se a etapa local estiver vazia ou não pertencer ao funil alvo, restaura a etapa original de initialValues.
+        const originalEtapa = initialValues?.etapa_atual || ''
+        const candidateEtapa = etapaAtual.trim()
+
+        if (
+          candidateEtapa &&
+          (targetEtapasNomes.length === 0 || targetEtapasNomes.includes(candidateEtapa))
+        ) {
+          resolvedEtapaAtual = candidateEtapa
+        } else if (originalEtapa) {
+          resolvedEtapaAtual = originalEtapa
+        } else if (targetEtapasNomes.length > 0) {
+          resolvedEtapaAtual = targetEtapasNomes[0]
+        } else {
+          resolvedEtapaAtual = candidateEtapa || 'Negociação'
+        }
+      } else {
+        // Modo CRIAÇÃO: se etapaAtual vazia ou não pertencer ao funil alvo, usa primeira etapa do funil (ou fallback)
+        if (
+          etapaAtual &&
+          (targetEtapasNomes.length === 0 || targetEtapasNomes.includes(etapaAtual))
+        ) {
+          resolvedEtapaAtual = etapaAtual
+        } else if (targetEtapasNomes.length > 0) {
+          resolvedEtapaAtual = targetEtapasNomes[0]
+        } else {
+          resolvedEtapaAtual = etapaAtual || 'Primeiro contato'
+        }
+      }
+
+      const dealPayload: Record<string, any> = {
         titulo: finalTitulo,
         valor_estimado: numValor,
-        funil_id: funilId || null,
-        etapa_atual: etapaAtual || 'Primeiro contato',
         marca_id: activeMarcaId,
         cliente_b2b_id: finalOrgId || null,
         cliente_b2c_id: finalPessoaId || null,
@@ -877,7 +930,26 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       }
 
       if (isEditMode && dealId) {
-        // MODO EDIÇÃO: Atualiza negócio existente enviando APENAS campos que existem na collection oportunidades
+        // MODO EDIÇÃO: Política "não mexeu, não envia"
+        // Só incluir funil_id e etapa_atual se o usuário realmente alterou o valor em relação a initialValues (ou se o banco não tinha valor)
+        const initialFunilId = initialValues?.funil_id || null
+        const initialEtapa = initialValues?.etapa_atual || ''
+
+        const funilMudou = resolvedFunilId !== initialFunilId
+        const funilOriginalNaoTinhaValor = !initialFunilId && !!resolvedFunilId
+
+        if (funilMudou || funilOriginalNaoTinhaValor) {
+          dealPayload.funil_id = resolvedFunilId
+        }
+
+        const etapaMudou = resolvedEtapaAtual !== initialEtapa
+        const etapaOriginalNaoTinhaValor = !initialEtapa && !!resolvedEtapaAtual
+
+        if (etapaMudou || etapaOriginalNaoTinhaValor) {
+          dealPayload.etapa_atual = resolvedEtapaAtual
+        }
+
+        // Atualiza negócio existente enviando APENAS campos que existem na collection oportunidades
         await pb.collection('oportunidades').update(dealId, dealPayload)
 
         // Cria ou atualiza atividade de follow-up associada (se informada data)
@@ -949,8 +1021,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           deal: {
             titulo: finalTitulo,
             valor_estimado: numValor,
-            funil_id: funilId || null,
-            etapa_atual: etapaAtual || 'Primeiro contato',
+            funil_id: resolvedFunilId,
+            etapa_atual: resolvedEtapaAtual,
             cliente_b2b_id: selectedOrgId || null,
             cliente_b2c_id: selectedPersonId || null,
             documento_faturamento: documentoFaturamento || null,
@@ -1918,13 +1990,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingMasterData}
                 className="h-9 px-5 text-xs font-bold rounded-lg bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
                     <span>{isEditMode ? 'Salvando...' : 'Criando...'}</span>
+                  </>
+                ) : isLoadingMasterData ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                    <span>Carregando...</span>
                   </>
                 ) : (
                   <span>{isEditMode ? 'Salvar alterações' : 'Salvar'}</span>
