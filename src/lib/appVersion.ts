@@ -6,7 +6,7 @@ import packageJson from '../../package.json'
 
 // Versão canônica importada diretamente do package.json (fonte única de verdade)
 export const CURRENT_APP_VERSION = packageJson.version
-export const CURRENT_BUILD_TIMESTAMP = 1791574604029
+export const CURRENT_BUILD_TIMESTAMP = 1791574750776
 
 export interface RemoteVersionInfo {
   version: string
