@@ -40,6 +40,7 @@ import {
   Filter,
 } from 'lucide-react'
 import { ESTADOS_NOMES, normalizarUf, toTitleCase, type UF } from '@/lib/geoUtils'
+import { isWonStage } from '@/lib/relationshipStatus'
 
 export default function Relatorios() {
   const {
@@ -151,10 +152,10 @@ export default function Relatorios() {
     (a) => !a.concluida && new Date(a.data_vencimento).getTime() < now.getTime(),
   ).length
 
-  const oportunidadesGanhas = oportunidades.filter(
-    (o) =>
-      o.etapa_atual.toLowerCase().includes('ganho') ||
-      o.etapa_atual.toLowerCase().includes('concluído'),
+  const oportunidadesGanhas = oportunidades.filter((o) =>
+    typeof o.is_won === 'boolean'
+      ? o.is_won
+      : isWonStage(o.etapa_atual, undefined, { is_won: o.is_won, is_lost: o.is_lost }),
   )
   const taxaConversao =
     totalOportunidades > 0
@@ -332,8 +333,9 @@ export default function Relatorios() {
   // Filtragem das oportunidades para o recorte geográfico respeitando o alternador de estágio
   const oportunidadesGeo = oportunidades.filter((o) => {
     if (geoFiltroEstagio === 'ganhos') {
-      const et = (o.etapa_atual || '').toLowerCase()
-      return et.includes('ganho') || et.includes('concluído')
+      return typeof o.is_won === 'boolean'
+        ? o.is_won
+        : isWonStage(o.etapa_atual, undefined, { is_won: o.is_won, is_lost: o.is_lost })
     }
     return true
   })

@@ -6,6 +6,7 @@ import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Oportunidade, Atividade, Lead } from '@/types'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
+import { isWonStage } from '@/lib/relationshipStatus'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -135,11 +136,11 @@ export default function Index() {
     return due.getTime() < now.getTime()
   })
 
-  // Taxa de conversão (ganhos sobre total com desfecho ou total)
-  const oportunidadesGanhas = oportunidades.filter(
-    (o) =>
-      o.etapa_atual.toLowerCase().includes('ganho') ||
-      o.etapa_atual.toLowerCase().includes('concluído'),
+  // Taxa de conversão: passa a usar as flags is_won/is_lost prioritariamente com fallback canônico
+  const oportunidadesGanhas = oportunidades.filter((o) =>
+    typeof o.is_won === 'boolean'
+      ? o.is_won
+      : isWonStage(o.etapa_atual, undefined, { is_won: o.is_won, is_lost: o.is_lost }),
   ).length
   const taxaConversao =
     totalOportunidades > 0 ? ((oportunidadesGanhas / totalOportunidades) * 100).toFixed(1) : '0.0'

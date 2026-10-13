@@ -133,22 +133,26 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     loadFunis()
   }, [activeBrand])
 
-  // Normaliza etapas do formato antigo (strings) para EtapaConfig
+  // Normaliza etapas do formato antigo (strings) para EtapaConfig preservando id e ordem
   const normalizeEtapas = (raw: EtapaItem[]): EtapaConfig[] => {
     if (!Array.isArray(raw)) return []
-    return raw.map((item) => {
+    return raw.map((item, idx) => {
       if (typeof item === 'string') {
         const won = isWonStage(item)
         const lost = isLostStage(item)
         return {
+          id: undefined,
           nome: item,
+          ordem: idx,
           valor_referencia: 0,
           is_won: won,
           is_lost: lost,
         }
       }
       return {
+        id: item.id,
         nome: item.nome || '',
+        ordem: item.ordem !== undefined ? item.ordem : idx,
         valor_referencia: item.valor_referencia || 0,
         is_won: item.is_won !== undefined ? item.is_won : isWonStage(item.nome),
         is_lost: item.is_lost !== undefined ? item.is_lost : isLostStage(item.nome),
@@ -156,11 +160,35 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     })
   }
 
-  const selectFunil = (f: Funil) => {
+  const selectFunil = async (f: Funil) => {
     setSelectedFunilId(f.id)
     setEditingFunil(f)
     setNomeFunilInput(f.nome_funil)
     setLastKnownUpdated(f.updated)
+
+    // Busca etapas da collection etapas_funil para este funil
+    try {
+      const records = await pb.collection('etapas_funil').getFullList<EtapaFunilRecord>({
+        filter: `funil_id = "${f.id}"`,
+        sort: 'ordem',
+      })
+      if (records.length > 0) {
+        setEtapasList(
+          records.map((r) => ({
+            id: r.id,
+            nome: r.nome,
+            ordem: r.ordem,
+            valor_referencia: r.valor_referencia || 0,
+            is_won: Boolean(r.is_won),
+            is_lost: Boolean(r.is_lost),
+          })),
+        )
+        return
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar etapas_funil do funil:', e)
+    }
+
     setEtapasList(normalizeEtapas(f.etapas_ordenadas || []))
   }
 
@@ -227,19 +255,27 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
       isLost = false
     }
 
-    const newConfig: EtapaConfig = {
-      nome: trimmedNome,
-      valor_referencia: numValor,
-      is_won: isWon,
-      is_lost: isLost,
-    }
-
     const updated = [...etapasList]
 
-    // Se marcou como ganho único ou perdido, garante que outras não colidam caso desejado
     if (editingEtapaIndex !== null) {
+      const existing = updated[editingEtapaIndex]
+      const newConfig: EtapaConfig = {
+        id: existing?.id,
+        nome: trimmedNome,
+        ordem: existing?.ordem !== undefined ? existing.ordem : editingEtapaIndex,
+        valor_referencia: numValor,
+        is_won: isWon,
+        is_lost: isLost,
+      }
       updated[editingEtapaIndex] = newConfig
     } else {
+      const newConfig: EtapaConfig = {
+        nome: trimmedNome,
+        ordem: updated.length,
+        valor_referencia: numValor,
+        is_won: isWon,
+        is_lost: isLost,
+      }
       updated.push(newConfig)
     }
 
@@ -247,7 +283,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     setIsEtapaModalOpen(false)
   }
 
-  // Iniciar exclusão de etapa com verificação de negócios vinculados
+  // Iniciar exclusão de etapa com verificação de negócios vinculados por etapa_id ou nome
   const handlePromptDeleteEtapa = async (index: number) => {
     const stage = etapasList[index]
     if (!stage || !editingFunil) return
@@ -262,9 +298,13 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     }
 
     try {
-      // Conta quantas oportunidades estão na etapa
+      // Conta quantas oportunidades estão na etapa (por ID se tiver, ou por nome)
+      const filter = stage.id
+        ? `funil_id = "${editingFunil.id}" && (etapa_id = "${stage.id}" || etapa_atual = "${stage.nome}")`
+        : `funil_id = "${editingFunil.id}" && etapa_atual = "${stage.nome}"`
+
       const opps = await pb.collection('oportunidades').getFullList<Oportunidade>({
-        filter: `funil_id = "${editingFunil.id}" && etapa_atual = "${stage.nome}"`,
+        filter,
       })
 
       setStageDealsCount(opps.length)
@@ -283,7 +323,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     }
   }
 
-  // Confirmação de exclusão com migração (remanejamento) de negócios
+  // Confirmação de exclusão com migração (remanejamento) de negócios por ID e nome
   const handleConfirmDeleteEtapa = async () => {
     if (deleteStageIndex === null || !editingFunil) return
 
@@ -303,15 +343,30 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
           return
         }
 
-        // Remaneja todas as oportunidades para a nova etapa
+        const destinationStage = etapasList.find((e) => e.nome === destinationStageName)
+        const destEtapaId = destinationStage?.id || null
+        const destIsWon = destinationStage?.is_won ?? false
+        const destIsLost = destinationStage?.is_lost ?? false
+
+        // Remaneja todas as oportunidades para a nova etapa atualizando etapa_id + espelho etapa_atual + flags
+        const filter = stageToDelete.id
+          ? `funil_id = "${editingFunil.id}" && (etapa_id = "${stageToDelete.id}" || etapa_atual = "${stageToDelete.nome}")`
+          : `funil_id = "${editingFunil.id}" && etapa_atual = "${stageToDelete.nome}"`
+
         const opps = await pb.collection('oportunidades').getFullList<Oportunidade>({
-          filter: `funil_id = "${editingFunil.id}" && etapa_atual = "${stageToDelete.nome}"`,
+          filter,
         })
 
         for (const op of opps) {
-          await pb.collection('oportunidades').update(op.id, {
+          const updatePayload: Record<string, any> = {
             etapa_atual: destinationStageName,
-          })
+            is_won: destIsWon,
+            is_lost: destIsLost,
+          }
+          if (destEtapaId) {
+            updatePayload.etapa_id = destEtapaId
+          }
+          await pb.collection('oportunidades').update(op.id, updatePayload)
         }
 
         toast({
@@ -320,14 +375,23 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
         })
       }
 
+      // Se a etapa existia na collection etapas_funil, remove do banco
+      if (stageToDelete.id) {
+        try {
+          await pb.collection('etapas_funil').delete(stageToDelete.id)
+        } catch (delErr) {
+          console.warn('Aviso ao excluir etapa de etapas_funil:', delErr)
+        }
+      }
+
       // Remove a etapa da lista local
       const updated = etapasList.filter((_, i) => i !== deleteStageIndex)
       setEtapasList(updated)
       setDeleteStageIndex(null)
 
       toast({
-        title: 'Etapa removida da lista',
-        description: 'Clique em "Salvar Alterações" para persistir o funil.',
+        title: 'Etapa removida',
+        description: 'Clique em "Salvar Alterações" para sincronizar a ordenação do funil.',
       })
     } catch (err) {
       console.error('Erro ao remanejar e excluir etapa:', err)
@@ -341,7 +405,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
     }
   }
 
-  // Salvar Funil com detecção de concorrência
+  // Salvar Funil: sincroniza collection etapas_funil, propaga renomeação para oportunidades e atualiza etapas_ordenadas
   const handleSaveFunil = async (forceOverwrite = false) => {
     if (!editingFunil) return
     const trimmedNome = nomeFunilInput.trim()
@@ -368,25 +432,101 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
       // 1. Verifica concorrência buscando o registro fresco no backend
       const freshRecord = await pb.collection('funis').getOne<Funil>(editingFunil.id)
       if (!forceOverwrite && freshRecord.updated !== lastKnownUpdated) {
-        // Concorrência detectada!
         setConcurrencyModalOpen(true)
         setIsSaving(false)
         return
       }
 
-      // 2. Persiste formato JSON preservando a estrutura
+      // 2. Sincroniza collection etapas_funil para cada etapa:
+      // Se tiver id, atualiza nome/ordem/valor_referencia/flags.
+      // Se não tiver id, cria na collection etapas_funil.
+      // E ao renomear, propaga imediatamente para as oportunidades vinculadas via etapa_id (atualiza o espelho etapa_atual)
+      const syncedEtapas: EtapaConfig[] = []
+
+      for (let idx = 0; idx < etapasList.length; idx++) {
+        const item = etapasList[idx]
+        let recordId = item.id
+
+        if (recordId) {
+          // Busca registro atual da etapa para verificar se o nome foi alterado
+          let existingEtapaRecord: EtapaFunilRecord | null = null
+          try {
+            existingEtapaRecord = await pb
+              .collection('etapas_funil')
+              .getOne<EtapaFunilRecord>(recordId)
+          } catch (_) {
+            existingEtapaRecord = null
+          }
+
+          const nomeAntigo = existingEtapaRecord?.nome || ''
+          const nomeMudou = nomeAntigo && nomeAntigo !== item.nome
+
+          // Atualiza na collection etapas_funil
+          await pb.collection('etapas_funil').update(recordId, {
+            nome: item.nome,
+            ordem: idx,
+            valor_referencia: item.valor_referencia || 0,
+            is_won: Boolean(item.is_won),
+            is_lost: Boolean(item.is_lost),
+          })
+
+          // Se o nome foi alterado, propaga para todas as oportunidades que têm esse etapa_id
+          // atualizando o espelho etapa_atual e as flags is_won / is_lost
+          if (nomeMudou) {
+            try {
+              const oppsToUpdate = await pb.collection('oportunidades').getFullList<Oportunidade>({
+                filter: `etapa_id = "${recordId}" || (funil_id = "${editingFunil.id}" && etapa_atual = "${nomeAntigo}")`,
+              })
+
+              for (const op of oppsToUpdate) {
+                await pb.collection('oportunidades').update(op.id, {
+                  etapa_id: recordId,
+                  etapa_atual: item.nome,
+                  is_won: Boolean(item.is_won),
+                  is_lost: Boolean(item.is_lost),
+                })
+              }
+            } catch (propErr) {
+              console.warn('Aviso ao propagar renomeação de etapa para oportunidades:', propErr)
+            }
+          }
+        } else {
+          // Cria novo registro na collection etapas_funil
+          const createdRecord = await pb.collection('etapas_funil').create<EtapaFunilRecord>({
+            funil_id: editingFunil.id,
+            nome: item.nome,
+            ordem: idx,
+            valor_referencia: item.valor_referencia || 0,
+            is_won: Boolean(item.is_won),
+            is_lost: Boolean(item.is_lost),
+          })
+          recordId = createdRecord.id
+        }
+
+        syncedEtapas.push({
+          id: recordId,
+          nome: item.nome,
+          ordem: idx,
+          valor_referencia: item.valor_referencia || 0,
+          is_won: item.is_won,
+          is_lost: item.is_lost,
+        })
+      }
+
+      // 3. Persiste no funil com os IDs gravados em etapas_ordenadas
       const updatedRecord = await pb.collection('funis').update<Funil>(editingFunil.id, {
         nome_funil: trimmedNome,
-        etapas_ordenadas: etapasList,
+        etapas_ordenadas: syncedEtapas,
       })
 
       setEditingFunil(updatedRecord)
       setLastKnownUpdated(updatedRecord.updated)
+      setEtapasList(syncedEtapas)
       setConcurrencyModalOpen(false)
 
       toast({
-        title: 'Funil salvo com sucesso!',
-        description: `As etapas de "${trimmedNome}" foram atualizadas no CRM.`,
+        title: 'Funil e etapas sincronizados!',
+        description: `As etapas de "${trimmedNome}" foram salvas e vinculadas com sucesso.`,
       })
 
       // Atualiza lista em memória
@@ -421,7 +561,7 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
 
     try {
       // Etapas padrão Pipedrive inicial
-      const defaultEtapas: EtapaConfig[] = [
+      const defaultEtapasBase = [
         { nome: 'Contato Inicial', valor_referencia: 10000, is_won: false, is_lost: false },
         { nome: 'Qualificação Técnica', valor_referencia: 25000, is_won: false, is_lost: false },
         { nome: 'Proposta Comercial', valor_referencia: 50000, is_won: false, is_lost: false },
@@ -430,11 +570,51 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
         { nome: 'Fechado Perdido', valor_referencia: 0, is_won: false, is_lost: true },
       ]
 
+      // 1. Cria o funil primeiro
       const newRec = await pb.collection('funis').create<Funil>({
         nome_funil: trimmed,
         marca_id: marcaId,
-        etapas_ordenadas: defaultEtapas,
+        etapas_ordenadas: [],
       })
+
+      // 2. Cria as etapas correspondentes na collection etapas_funil
+      const defaultEtapasComId: EtapaConfig[] = []
+      for (let idx = 0; idx < defaultEtapasBase.length; idx++) {
+        const item = defaultEtapasBase[idx]
+        try {
+          const created = await pb.collection('etapas_funil').create<EtapaFunilRecord>({
+            funil_id: newRec.id,
+            nome: item.nome,
+            ordem: idx,
+            valor_referencia: item.valor_referencia,
+            is_won: item.is_won,
+            is_lost: item.is_lost,
+          })
+          defaultEtapasComId.push({
+            id: created.id,
+            nome: item.nome,
+            ordem: idx,
+            valor_referencia: item.valor_referencia,
+            is_won: item.is_won,
+            is_lost: item.is_lost,
+          })
+        } catch (e) {
+          console.warn('Aviso ao criar etapa padrão:', e)
+          defaultEtapasComId.push({
+            nome: item.nome,
+            ordem: idx,
+            valor_referencia: item.valor_referencia,
+            is_won: item.is_won,
+            is_lost: item.is_lost,
+          })
+        }
+      }
+
+      // 3. Atualiza etapas_ordenadas no funil com os IDs incorporados
+      await pb.collection('funis').update(newRec.id, {
+        etapas_ordenadas: defaultEtapasComId,
+      })
+      newRec.etapas_ordenadas = defaultEtapasComId
 
       toast({
         title: 'Funil criado com sucesso!',

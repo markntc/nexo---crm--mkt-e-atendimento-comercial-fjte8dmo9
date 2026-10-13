@@ -44,13 +44,17 @@ export interface AddDealModalProps {
   onOpenChange: (open: boolean) => void
   onSuccess?: (dealId: string) => void
   defaultFunilId?: string
+  defaultEtapaId?: string
   defaultEtapaNome?: string
   mode?: 'create' | 'edit'
   dealId?: string
   initialValues?: {
     titulo?: string
     valor?: number | string
+    etapa_id?: string
     etapa_atual?: string
+    is_won?: boolean
+    is_lost?: boolean
     funil_id?: string
     cliente_b2b_id?: string
     cliente_b2c_id?: string
@@ -95,6 +99,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   onOpenChange,
   onSuccess,
   defaultFunilId,
+  defaultEtapaId,
   defaultEtapaNome,
   mode = 'create',
   dealId,
@@ -145,8 +150,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 5. Funil
   const [funilId, setFunilId] = useState<string>('')
 
-  // 6. Etapa do funil (chevrons verdes + adicionar nova etapa)
+  // 6. Etapa do funil (seleção por ID com espelho de nome)
+  const [etapaId, setEtapaId] = useState<string>('')
   const [etapaAtual, setEtapaAtual] = useState<string>('')
+  const [etapasDoFunil, setEtapasDoFunil] = useState<EtapaFunilRecord[]>([])
   const [isAddingNewEtapa, setIsAddingNewEtapa] = useState(false)
   const [novaEtapaNome, setNovaEtapaNome] = useState('')
 
@@ -252,23 +259,59 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         // Preenche com initialValues se fornecido (ex: Recompra, Duplicar ou Edição)
         const targetFunilId = initialValues?.funil_id || defaultFunilId
         const initialFunil = funisRes.find((f) => f.id === targetFunilId) || funisRes[0] || null
-        const requestedEtapa = initialValues?.etapa_atual || defaultEtapaNome
+        const requestedEtapaId = initialValues?.etapa_id || defaultEtapaId
+        const requestedEtapaNome = initialValues?.etapa_atual || defaultEtapaNome
 
         if (initialFunil) {
           setFunilId(initialFunil.id)
-          const etapasList = initialFunil.etapas_ordenadas || []
-          const nomesEtapas = etapasList.map(getEtapaNome)
 
-          if (requestedEtapa && nomesEtapas.includes(requestedEtapa)) {
-            setEtapaAtual(requestedEtapa)
-          } else if (isEditMode && initialValues?.etapa_atual) {
-            // Em modo edição: nunca sobrescreve com fallback se houver etapa original
-            setEtapaAtual(initialValues.etapa_atual)
-          } else if (etapasList.length > 0) {
-            setEtapaAtual(nomesEtapas[0])
+          // Carrega etapas da collection etapas_funil para o funil ativo
+          let etapasLive: EtapaFunilRecord[] = []
+          try {
+            etapasLive = await pb.collection('etapas_funil').getFullList<EtapaFunilRecord>({
+              filter: `funil_id = "${initialFunil.id}"`,
+              sort: 'ordem',
+            })
+          } catch (e) {
+            console.warn('Erro ao carregar etapas_funil do funil:', e)
           }
-        } else if (isEditMode && initialValues?.etapa_atual) {
-          setEtapaAtual(initialValues.etapa_atual)
+
+          // Se ainda não houver na collection, faz fallback para etapas_ordenadas do funil
+          if (etapasLive.length === 0 && initialFunil.etapas_ordenadas) {
+            etapasLive = (initialFunil.etapas_ordenadas as any[]).map((e, idx) => ({
+              id: typeof e === 'object' && e.id ? e.id : `et_${idx}`,
+              funil_id: initialFunil.id,
+              nome: typeof e === 'string' ? e : e.nome || '',
+              ordem: idx,
+              valor_referencia: typeof e === 'object' ? e.valor_referencia : 0,
+              is_won: typeof e === 'object' ? Boolean(e.is_won) : false,
+              is_lost: typeof e === 'object' ? Boolean(e.is_lost) : false,
+              created: '',
+              updated: '',
+            }))
+          }
+          setEtapasDoFunil(etapasLive)
+
+          // Seleciona a etapa por ID preferencialmente, depois por nome
+          let matched = etapasLive.find(
+            (e) =>
+              (requestedEtapaId && e.id === requestedEtapaId) ||
+              (requestedEtapaNome && e.nome === requestedEtapaNome),
+          )
+
+          if (matched) {
+            setEtapaId(matched.id)
+            setEtapaAtual(matched.nome)
+          } else if (isEditMode && (initialValues?.etapa_id || initialValues?.etapa_atual)) {
+            setEtapaId(initialValues.etapa_id || '')
+            setEtapaAtual(initialValues.etapa_atual || '')
+          } else if (etapasLive.length > 0) {
+            setEtapaId(etapasLive[0].id)
+            setEtapaAtual(etapasLive[0].nome)
+          }
+        } else if (isEditMode && (initialValues?.etapa_id || initialValues?.etapa_atual)) {
+          setEtapaId(initialValues.etapa_id || '')
+          setEtapaAtual(initialValues.etapa_atual || '')
         }
 
         if (initialValues?.vendedor_id) {
@@ -429,7 +472,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
 
     loadData()
-  }, [open, activeBrand, defaultFunilId, defaultEtapaNome, user?.id, initialValues])
+  }, [open, activeBrand, defaultFunilId, defaultEtapaId, defaultEtapaNome, user?.id, initialValues])
 
   // Garante que o proprietário sempre venha preenchido com o usuário logado ao abrir o modal
   useEffect(() => {
@@ -534,27 +577,81 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }, [open, onOpenChange])
 
-  // Quando o funil muda, atualiza a etapa atual
+  // Quando o funil muda, recarrega etapas da collection etapas_funil e sincroniza etapa_id
   useEffect(() => {
-    if (!funilId) return
-    const f = funis.find((x) => x.id === funilId)
-    if (f && f.etapas_ordenadas && f.etapas_ordenadas.length > 0) {
-      const nomes = f.etapas_ordenadas.map(getEtapaNome)
-      if (!nomes.includes(etapaAtual)) {
-        // Em modo de edição, se o funil ativo corresponder ao funil original e houver etapa original válida nele, preserva-a
-        if (
-          isEditMode &&
-          initialValues?.etapa_atual &&
-          nomes.includes(initialValues.etapa_atual) &&
-          (!initialValues.funil_id || initialValues.funil_id === funilId)
-        ) {
-          setEtapaAtual(initialValues.etapa_atual)
-        } else {
-          setEtapaAtual(nomes[0])
+    if (!funilId || !open) return
+
+    let isMounted = true
+    const carregarEtapasDoFunil = async () => {
+      try {
+        let etapasLive = await pb.collection('etapas_funil').getFullList<EtapaFunilRecord>({
+          filter: `funil_id = "${funilId}"`,
+          sort: 'ordem',
+        })
+
+        const f = funis.find((x) => x.id === funilId)
+        if (etapasLive.length === 0 && f?.etapas_ordenadas) {
+          etapasLive = (f.etapas_ordenadas as any[]).map((e, idx) => ({
+            id: typeof e === 'object' && e.id ? e.id : `et_${idx}`,
+            funil_id: funilId,
+            nome: typeof e === 'string' ? e : e.nome || '',
+            ordem: idx,
+            valor_referencia: typeof e === 'object' ? e.valor_referencia : 0,
+            is_won: typeof e === 'object' ? Boolean(e.is_won) : false,
+            is_lost: typeof e === 'object' ? Boolean(e.is_lost) : false,
+            created: '',
+            updated: '',
+          }))
         }
+
+        if (!isMounted) return
+        setEtapasDoFunil(etapasLive)
+
+        // Verifica se a etapa selecionada pertence a este funil
+        const etapaPertenceAoFunil = etapasLive.some(
+          (e) => (etapaId && e.id === etapaId) || (etapaAtual && e.nome === etapaAtual),
+        )
+
+        if (etapaPertenceAoFunil) {
+          const matched = etapasLive.find(
+            (e) => (etapaId && e.id === etapaId) || (etapaAtual && e.nome === etapaAtual),
+          )
+          if (matched) {
+            setEtapaId(matched.id)
+            setEtapaAtual(matched.nome)
+          }
+        } else if (
+          isEditMode &&
+          initialValues?.funil_id === funilId &&
+          (initialValues?.etapa_id || initialValues?.etapa_atual)
+        ) {
+          // Em modo edição, se voltou para o funil original, restaura a etapa original
+          const matchedOriginal = etapasLive.find(
+            (e) =>
+              (initialValues.etapa_id && e.id === initialValues.etapa_id) ||
+              (initialValues.etapa_atual && e.nome === initialValues.etapa_atual),
+          )
+          if (matchedOriginal) {
+            setEtapaId(matchedOriginal.id)
+            setEtapaAtual(matchedOriginal.nome)
+          } else {
+            setEtapaId(initialValues.etapa_id || '')
+            setEtapaAtual(initialValues.etapa_atual || '')
+          }
+        } else if (etapasLive.length > 0) {
+          setEtapaId(etapasLive[0].id)
+          setEtapaAtual(etapasLive[0].nome)
+        }
+      } catch (err) {
+        console.warn('Erro ao atualizar etapas do funil:', err)
       }
     }
-  }, [funilId, funis, isEditMode, initialValues])
+
+    carregarEtapasDoFunil()
+    return () => {
+      isMounted = false
+    }
+  }, [funilId, funis, isEditMode, initialValues, open])
 
   // Atualiza título automaticamente quando a pessoa ou organização muda (se o usuário não editou manualmente)
   const handleUpdateTitleSuggestion = (name: string) => {
@@ -717,30 +814,49 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
-  // Adicionar nova etapa inline ao funil ativo mantendo compatibilidade com EtapaConfig
+  // Adicionar nova etapa inline ao funil ativo na collection etapas_funil + espelho funis.etapas_ordenadas
   const handleSaveNewEtapa = async () => {
     if (!novaEtapaNome.trim() || !funilId) return
     const activeF = funis.find((f) => f.id === funilId)
     if (!activeF) return
 
-    const novaEtapaObj: EtapaConfig = {
-      nome: novaEtapaNome.trim(),
-      valor_referencia: 0,
-      is_won: false,
-      is_lost: false,
-    }
-    const novasEtapas: EtapaItem[] = [...(activeF.etapas_ordenadas || []), novaEtapaObj]
+    const novaEtapaTrim = novaEtapaNome.trim()
+    const proximaOrdem = etapasDoFunil.length
+
     try {
+      // 1. Cria na collection etapas_funil
+      const etapaCriada = await pb.collection('etapas_funil').create<EtapaFunilRecord>({
+        funil_id: funilId,
+        nome: novaEtapaTrim,
+        ordem: proximaOrdem,
+        valor_referencia: 0,
+        is_won: false,
+        is_lost: false,
+      })
+
+      // 2. Atualiza etapas_ordenadas no funil
+      const novaEtapaObj: EtapaConfig = {
+        id: etapaCriada.id,
+        nome: novaEtapaTrim,
+        ordem: proximaOrdem,
+        valor_referencia: 0,
+        is_won: false,
+        is_lost: false,
+      }
+      const novasEtapas: EtapaItem[] = [...(activeF.etapas_ordenadas || []), novaEtapaObj]
       await pb.collection('funis').update(activeF.id, {
         etapas_ordenadas: novasEtapas,
       })
       activeF.etapas_ordenadas = novasEtapas
-      setEtapaAtual(novaEtapaNome.trim())
+
+      setEtapasDoFunil((prev) => [...prev, etapaCriada])
+      setEtapaId(etapaCriada.id)
+      setEtapaAtual(novaEtapaTrim)
       setNovaEtapaNome('')
       setIsAddingNewEtapa(false)
       toast({
         title: 'Etapa adicionada!',
-        description: `A etapa "${novaEtapaNome.trim()}" foi incluída no funil.`,
+        description: `A etapa "${novaEtapaTrim}" foi incluída no funil.`,
       })
     } catch (err) {
       console.error('Erro ao adicionar nova etapa:', err)
@@ -868,42 +984,36 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
       // Validação de segurança no salvamento de etapa e funil:
       // Identifica o funil alvo e suas etapas válidas
-      const targetFunilObj = funis.find((f) => f.id === (funilId || initialValues?.funil_id))
-      const targetEtapasNomes = (targetFunilObj?.etapas_ordenadas || []).map(getEtapaNome)
+      const targetFunilId = funilId || initialValues?.funil_id || null
+      let matchedEtapaRecord = etapasDoFunil.find(
+        (e) => (etapaId && e.id === etapaId) || (etapaAtual && e.nome === etapaAtual),
+      )
 
-      let resolvedFunilId: string | null = funilId || initialValues?.funil_id || null
-      let resolvedEtapaAtual: string
+      let resolvedFunilId: string | null = targetFunilId
+      let resolvedEtapaId: string | null = null
+      let resolvedEtapaAtual: string = ''
+      let resolvedIsWon: boolean = false
+      let resolvedIsLost: boolean = false
 
-      if (isEditMode) {
-        // Ponto 1 e 3: Modo edição - etapa e funil nunca caem em fallback genérico.
-        // Se a etapa local estiver vazia ou não pertencer ao funil alvo, restaura a etapa original de initialValues.
-        const originalEtapa = initialValues?.etapa_atual || ''
-        const candidateEtapa = etapaAtual.trim()
-
-        if (
-          candidateEtapa &&
-          (targetEtapasNomes.length === 0 || targetEtapasNomes.includes(candidateEtapa))
-        ) {
-          resolvedEtapaAtual = candidateEtapa
-        } else if (originalEtapa) {
-          resolvedEtapaAtual = originalEtapa
-        } else if (targetEtapasNomes.length > 0) {
-          resolvedEtapaAtual = targetEtapasNomes[0]
-        } else {
-          resolvedEtapaAtual = candidateEtapa || 'Negociação'
-        }
+      if (matchedEtapaRecord) {
+        resolvedEtapaId = matchedEtapaRecord.id
+        resolvedEtapaAtual = matchedEtapaRecord.nome
+        resolvedIsWon = Boolean(matchedEtapaRecord.is_won)
+        resolvedIsLost = Boolean(matchedEtapaRecord.is_lost)
+      } else if (isEditMode) {
+        // Modo EDIÇÃO: se não alterou ou não bateu, preserva os originais
+        resolvedEtapaId = initialValues?.etapa_id || null
+        resolvedEtapaAtual = initialValues?.etapa_atual || ''
+        resolvedIsWon = initialValues?.is_won ?? false
+        resolvedIsLost = initialValues?.is_lost ?? false
+      } else if (etapasDoFunil.length > 0) {
+        // Modo CRIAÇÃO: fallback para primeira etapa do funil
+        resolvedEtapaId = etapasDoFunil[0].id
+        resolvedEtapaAtual = etapasDoFunil[0].nome
+        resolvedIsWon = Boolean(etapasDoFunil[0].is_won)
+        resolvedIsLost = Boolean(etapasDoFunil[0].is_lost)
       } else {
-        // Modo CRIAÇÃO: se etapaAtual vazia ou não pertencer ao funil alvo, usa primeira etapa do funil (ou fallback)
-        if (
-          etapaAtual &&
-          (targetEtapasNomes.length === 0 || targetEtapasNomes.includes(etapaAtual))
-        ) {
-          resolvedEtapaAtual = etapaAtual
-        } else if (targetEtapasNomes.length > 0) {
-          resolvedEtapaAtual = targetEtapasNomes[0]
-        } else {
-          resolvedEtapaAtual = etapaAtual || 'Primeiro contato'
-        }
+        resolvedEtapaAtual = etapaAtual || 'Primeiro contato'
       }
 
       const dealPayload: Record<string, any> = {
@@ -931,9 +1041,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
       if (isEditMode && dealId) {
         // MODO EDIÇÃO: Política "não mexeu, não envia"
-        // Só incluir funil_id e etapa_atual se o usuário realmente alterou o valor em relação a initialValues (ou se o banco não tinha valor)
+        // Só incluir funil_id, etapa_id e etapa_atual se o usuário realmente alterou o valor em relação a initialValues
         const initialFunilId = initialValues?.funil_id || null
-        const initialEtapa = initialValues?.etapa_atual || ''
+        const initialEtapaId = initialValues?.etapa_id || null
+        const initialEtapaNome = initialValues?.etapa_atual || ''
 
         const funilMudou = resolvedFunilId !== initialFunilId
         const funilOriginalNaoTinhaValor = !initialFunilId && !!resolvedFunilId
@@ -942,11 +1053,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           dealPayload.funil_id = resolvedFunilId
         }
 
-        const etapaMudou = resolvedEtapaAtual !== initialEtapa
-        const etapaOriginalNaoTinhaValor = !initialEtapa && !!resolvedEtapaAtual
+        const etapaIdMudou = resolvedEtapaId !== initialEtapaId
+        const etapaNomeMudou = resolvedEtapaAtual !== initialEtapaNome
+        const etapaOriginalNaoTinhaValor =
+          (!initialEtapaId && !!resolvedEtapaId) || (!initialEtapaNome && !!resolvedEtapaAtual)
 
-        if (etapaMudou || etapaOriginalNaoTinhaValor) {
-          dealPayload.etapa_atual = resolvedEtapaAtual
+        if (etapaIdMudou || etapaNomeMudou || etapaOriginalNaoTinhaValor) {
+          if (resolvedEtapaId) dealPayload.etapa_id = resolvedEtapaId
+          if (resolvedEtapaAtual) dealPayload.etapa_atual = resolvedEtapaAtual
+          dealPayload.is_won = resolvedIsWon
+          dealPayload.is_lost = resolvedIsLost
         }
 
         // Atualiza negócio existente enviando APENAS campos que existem na collection oportunidades
@@ -1022,7 +1138,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             titulo: finalTitulo,
             valor_estimado: numValor,
             funil_id: resolvedFunilId,
+            etapa_id: resolvedEtapaId,
             etapa_atual: resolvedEtapaAtual,
+            is_won: resolvedIsWon,
+            is_lost: resolvedIsLost,
             cliente_b2b_id: selectedOrgId || null,
             cliente_b2c_id: selectedPersonId || null,
             documento_faturamento: documentoFaturamento || null,
@@ -1110,6 +1229,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setOrgCnpjError(null)
         setNotaObservacoes('')
         setProprietarioId(user?.id || '')
+        setEtapaId('')
+        setEtapaAtual('')
 
         onOpenChange(false)
         if (onSuccess) {
@@ -1171,10 +1292,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
-  // Funil ativo e suas etapas normalizadas para string
+  // Funil ativo e etapas disponíveis (da collection etapas_funil com fallback)
   const activeFunil = funis.find((f) => f.id === funilId)
-  const etapasList = (activeFunil?.etapas_ordenadas || []).map(getEtapaNome)
-  const currentEtapaIndex = etapasList.indexOf(etapaAtual)
+  const currentEtapaIndex = etapasDoFunil.findIndex(
+    (e) => (etapaId && e.id === etapaId) || (etapaAtual && e.nome === etapaAtual),
+  )
 
   // Filtros de busca inline para Pessoa e Organização
   const filteredPessoas = pessoas.filter(
@@ -1601,18 +1723,21 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   )}
                 </div>
 
-                {/* Seletor de etapas estilo Pipedrive em flex-wrap para não exigir rolagem horizontal */}
-                {etapasList.length > 0 && (
+                {/* Seletor de etapas estilo Pipedrive em flex-wrap com base nas etapas do funil por ID */}
+                {etapasDoFunil.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 py-1 w-full">
-                    {etapasList.map((et, idx) => {
-                      const isActive = idx <= currentEtapaIndex
-                      const isCurrent = et === etapaAtual
+                    {etapasDoFunil.map((et, idx) => {
+                      const isActive = currentEtapaIndex >= 0 ? idx <= currentEtapaIndex : false
+                      const isCurrent = (etapaId && et.id === etapaId) || et.nome === etapaAtual
                       return (
                         <button
-                          key={et}
+                          key={et.id || et.nome}
                           type="button"
-                          onClick={() => setEtapaAtual(et)}
-                          title={et}
+                          onClick={() => {
+                            setEtapaId(et.id)
+                            setEtapaAtual(et.nome)
+                          }}
+                          title={et.nome}
                           className={cn(
                             'relative h-7 px-2.5 text-[11px] font-bold transition-all flex items-center justify-center rounded-md',
                             isActive
@@ -1621,7 +1746,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                             isCurrent && 'ring-2 ring-offset-1 ring-[#017848]',
                           )}
                         >
-                          <span className="truncate max-w-[140px]">{et}</span>
+                          <span className="truncate max-w-[140px]">{et.nome}</span>
                         </button>
                       )
                     })}

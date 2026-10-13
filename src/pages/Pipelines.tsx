@@ -1138,6 +1138,8 @@ export default function Pipelines() {
                         onClick={() => {
                           setNewEtapa(etapaNome)
                           setDealModalInitialValues({
+                            funil_id: activeFunilId,
+                            etapa_id: etapaId || undefined,
                             etapa_atual: etapaNome,
                           })
                           setIsNewOppModalOpen(true)
