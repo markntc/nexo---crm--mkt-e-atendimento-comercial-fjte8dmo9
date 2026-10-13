@@ -968,11 +968,13 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
           mode="edit"
           dealId={opportunity.id}
           defaultFunilId={opportunity.funil_id}
+          defaultEtapaId={opportunity.etapa_id}
           defaultEtapaNome={opportunity.etapa_atual}
           initialValues={{
             titulo: opportunity.titulo,
             valor: opportunity.valor_estimado,
             funil_id: opportunity.funil_id,
+            etapa_id: opportunity.etapa_id,
             etapa_atual: opportunity.etapa_atual,
             cliente_b2b_id: opportunity.cliente_b2b_id,
             cliente_b2c_id: opportunity.cliente_b2c_id,

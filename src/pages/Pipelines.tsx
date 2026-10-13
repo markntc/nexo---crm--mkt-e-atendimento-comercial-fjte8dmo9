@@ -354,6 +354,28 @@ export default function Pipelines() {
     setSearchParams(searchParams)
   }
 
+  // Resolução de etapa_id a partir do nome ou id de destino
+  const resolveTargetEtapaConfig = (
+    target: string,
+  ): { id?: string; nome: string; is_won?: boolean; is_lost?: boolean } => {
+    const list = activeFunil?.etapas_ordenadas || []
+    for (const item of list) {
+      if (typeof item === 'object' && item) {
+        if (item.id === target || item.nome === target) {
+          return {
+            id: item.id,
+            nome: item.nome,
+            is_won: item.is_won,
+            is_lost: item.is_lost,
+          }
+        }
+      } else if (typeof item === 'string' && item === target) {
+        return { nome: item }
+      }
+    }
+    return { nome: target }
+  }
+
   // Drag and Drop handlers (Kanban)
   const handleDragStart = (e: React.DragEvent, opp: Oportunidade) => {
     e.dataTransfer.setData('text/plain', opp.id)
@@ -378,11 +400,13 @@ export default function Pipelines() {
     const opp = oportunidades.find((o) => o.id === oppId)
     if (!opp) return
 
-    if (opp.etapa_atual === targetColEtapa) return
+    const resolved = resolveTargetEtapaConfig(targetColEtapa)
+    if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
+    if (!opp.etapa_id && opp.etapa_atual === targetColEtapa) return
 
     // TRAVA DE FOLLOW-UP (Padrão Pipedrive obrigatório)
     const currentIndex = etapas.indexOf(opp.etapa_atual)
-    const targetIndex = etapas.indexOf(targetColEtapa)
+    const targetIndex = etapas.indexOf(resolved.nome)
 
     // Se está vindo de etapa inválida (currentIndex === -1) ou avançando de etapa válida para frente
     const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
@@ -401,9 +425,9 @@ export default function Pipelines() {
     }
 
     setDraggedOpportunity(opp)
-    setTargetEtapa(targetColEtapa)
+    setTargetEtapa(resolved.nome)
     setDragFollowUpDesc(
-      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${targetColEtapa}`,
+      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
     )
     setDragConfirmModalOpen(true)
   }
@@ -411,9 +435,12 @@ export default function Pipelines() {
   // Avanço rápido via Lista/Tabela com verificação de trava
   const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
     if (newEtapaTarget === ETAPA_SEM_ETAPA_VALIDA) return
-    if (opp.etapa_atual === newEtapaTarget) return
+    const resolved = resolveTargetEtapaConfig(newEtapaTarget)
+    if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
+    if (!opp.etapa_id && opp.etapa_atual === newEtapaTarget) return
+
     const currentIndex = etapas.indexOf(opp.etapa_atual)
-    const targetIndex = etapas.indexOf(newEtapaTarget)
+    const targetIndex = etapas.indexOf(resolved.nome)
 
     const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
 
@@ -431,9 +458,9 @@ export default function Pipelines() {
     }
 
     setDraggedOpportunity(opp)
-    setTargetEtapa(newEtapaTarget)
+    setTargetEtapa(resolved.nome)
     setDragFollowUpDesc(
-      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${newEtapaTarget}`,
+      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
     )
     setDragConfirmModalOpen(true)
   }
@@ -451,15 +478,27 @@ export default function Pipelines() {
     }
 
     try {
-      await pb.collection('oportunidades').update(draggedOpportunity.id, {
-        etapa_atual: targetEtapa,
+      const resolved = resolveTargetEtapaConfig(targetEtapa)
+      const payload: Record<string, unknown> = {
+        etapa_atual: resolved.nome,
         proxima_acao_data: new Date(dragFollowUpData).toISOString(),
         proxima_acao_descricao: dragFollowUpDesc,
-      })
+      }
+      if (resolved.id) {
+        payload.etapa_id = resolved.id
+      }
+      if (resolved.is_won !== undefined) {
+        payload.is_won = Boolean(resolved.is_won)
+      }
+      if (resolved.is_lost !== undefined) {
+        payload.is_lost = Boolean(resolved.is_lost)
+      }
+
+      await pb.collection('oportunidades').update(draggedOpportunity.id, payload)
 
       toast({
         title: 'Etapa atualizada com sucesso!',
-        description: `Negócio movido para "${targetEtapa}" com follow-up agendado.`,
+        description: `Negócio movido para "${resolved.nome}" com follow-up agendado.`,
       })
 
       setDragConfirmModalOpen(false)
@@ -564,17 +603,19 @@ export default function Pipelines() {
   const filteredOpps = oportunidades.filter((op) => {
     // 1. Filtro de status se ativo
     if (statusFilter === 'aberto') {
-      const activeF = funis.find((f) => f.id === op.funil_id)
-      const isWon = isWonStage(op.etapa_atual, activeF?.etapas_ordenadas)
-      const isLost = isLostStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      const isWon =
+        typeof op.is_won === 'boolean' ? op.is_won : isWonStage(op.etapa_id || op.etapa_atual)
+      const isLost =
+        typeof op.is_lost === 'boolean' ? op.is_lost : isLostStage(op.etapa_id || op.etapa_atual)
       if (isWon || isLost) return false
     }
 
     // 2. Filtro de data esperada de fechamento (30d / 60d / 90d / atrasados)
     if (quickDateFilter !== 'todos') {
-      const activeF = funis.find((f) => f.id === op.funil_id)
-      const isWon = isWonStage(op.etapa_atual, activeF?.etapas_ordenadas)
-      const isLost = isLostStage(op.etapa_atual, activeF?.etapas_ordenadas)
+      const isWon =
+        typeof op.is_won === 'boolean' ? op.is_won : isWonStage(op.etapa_id || op.etapa_atual)
+      const isLost =
+        typeof op.is_lost === 'boolean' ? op.is_lost : isLostStage(op.etapa_id || op.etapa_atual)
       const rawDate = op.data_fechamento_esperada
       if (!rawDate) return false
 
@@ -636,10 +677,29 @@ export default function Pipelines() {
     return 0
   })
 
-  // Separação de negócios sem etapa válida para nunca sumirem do Kanban/Lista/Tabela
-  const invalidStageOpps = sortedOpps.filter(
-    (o) => !o.etapa_atual || !etapas.includes(o.etapa_atual),
+  // Lista de etapas estruturadas com id estável
+  const etapasConfigs = activeFunil?.etapas_ordenadas || []
+  const validEtapaIds = new Set(
+    etapasConfigs
+      .map((e) => (typeof e === 'object' && e ? e.id : undefined))
+      .filter(Boolean) as string[],
   )
+
+  // Função auxiliar para verificar se uma oportunidade tem etapa válida no funil ativo
+  const isEtapaValidaNoFunil = (o: Oportunidade) => {
+    // 1. Se tem etapa_id, confere se o ID pertence ao funil ativo
+    if (o.etapa_id && validEtapaIds.size > 0) {
+      if (validEtapaIds.has(o.etapa_id)) return true
+    }
+    // 2. Fallback por nome caso etapa_id não bata ou não exista
+    if (o.etapa_atual && etapas.includes(o.etapa_atual)) {
+      return true
+    }
+    return false
+  }
+
+  // Separação de negócios sem etapa válida para nunca sumirem do Kanban/Lista/Tabela
+  const invalidStageOpps = sortedOpps.filter((o) => !isEtapaValidaNoFunil(o))
 
   const isInitialLoading = isLoadingFunis || (isLoadingOpps && oportunidades.length === 0)
   const isDataError = isOppsError && Boolean(activeFunilId)
@@ -1032,16 +1092,26 @@ export default function Pipelines() {
           /* ================= VISUALIZAÇÃO KANBAN ================= */
           <div className="h-full overflow-x-auto overflow-y-hidden pb-2 scrollbar-thin">
             <div className="flex items-stretch space-x-3.5 h-full min-w-max">
-              {etapas.map((etapa, idx) => {
-                const colOpps = sortedOpps.filter((o) => o.etapa_atual === etapa)
+              {etapasConfigs.map((etapaConfig, idx) => {
+                const etapaNome = typeof etapaConfig === 'string' ? etapaConfig : etapaConfig.nome
+                const etapaId =
+                  typeof etapaConfig === 'object' && etapaConfig ? etapaConfig.id : undefined
+
+                // Agrupamento estrito por ID; se não houver etapa_id na oportunidade, agrupa por nome
+                const colOpps = sortedOpps.filter((o) => {
+                  if (etapaId && o.etapa_id) {
+                    return o.etapa_id === etapaId
+                  }
+                  return o.etapa_atual === etapaNome
+                })
                 const colTotalValor = colOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
                 const isFirstCol = idx === 0
 
                 return (
                   <div
-                    key={etapa}
+                    key={etapaId || etapaNome}
                     onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, etapa)}
+                    onDrop={(e) => handleDrop(e, etapaNome)}
                     className={cn(
                       'w-[295px] flex flex-col rounded-2xl border border-[#E3E7EB] bg-[#F6F7F9] shadow-xs select-none transition-colors',
                       isFirstCol ? 'bg-slate-100/70 border-slate-300' : '',
@@ -1051,7 +1121,9 @@ export default function Pipelines() {
                     <div className="p-3 border-b border-[#E3E7EB] bg-white rounded-t-2xl flex items-center justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs font-bold text-slate-800 truncate">{etapa}</span>
+                          <span className="text-xs font-bold text-slate-800 truncate">
+                            {etapaNome}
+                          </span>
                           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
                             {colOpps.length}
                           </span>
@@ -1064,13 +1136,13 @@ export default function Pipelines() {
                       <button
                         type="button"
                         onClick={() => {
-                          setNewEtapa(etapa)
+                          setNewEtapa(etapaNome)
                           setDealModalInitialValues({
-                            etapa_atual: etapa,
+                            etapa_atual: etapaNome,
                           })
                           setIsNewOppModalOpen(true)
                         }}
-                        title={`Adicionar negócio em ${etapa}`}
+                        title={`Adicionar negócio em ${etapaNome}`}
                         className="w-6 h-6 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors"
                       >
                         <Plus className="w-4 h-4" />
@@ -1517,8 +1589,8 @@ export default function Pipelines() {
                           <span className="text-[10px] text-slate-400 font-medium">Etapa:</span>
                           <Select
                             value={
-                              etapas.includes(opp.etapa_atual)
-                                ? opp.etapa_atual
+                              isEtapaValidaNoFunil(opp)
+                                ? opp.etapa_id || opp.etapa_atual
                                 : ETAPA_SEM_ETAPA_VALIDA
                             }
                             onValueChange={(val) => handleQuickChangeEtapa(opp, val)}
@@ -1526,14 +1598,14 @@ export default function Pipelines() {
                             <SelectTrigger
                               className={cn(
                                 'h-8 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]',
-                                !etapas.includes(opp.etapa_atual) &&
+                                !isEtapaValidaNoFunil(opp) &&
                                   'border-amber-300 text-amber-800 bg-amber-50/60 font-semibold',
                               )}
                             >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
-                              {!etapas.includes(opp.etapa_atual) && (
+                              {!isEtapaValidaNoFunil(opp) && (
                                 <SelectItem
                                   value={ETAPA_SEM_ETAPA_VALIDA}
                                   disabled
@@ -1542,11 +1614,15 @@ export default function Pipelines() {
                                   ⚠️ {opp.etapa_atual || 'Sem etapa'} (inválida)
                                 </SelectItem>
                               )}
-                              {etapas.map((et) => (
-                                <SelectItem key={et} value={et}>
-                                  {et}
-                                </SelectItem>
-                              ))}
+                              {etapasConfigs.map((et) => {
+                                const etVal = typeof et === 'object' && et ? et.id || et.nome : et
+                                const etLabel = typeof et === 'object' && et ? et.nome : et
+                                return (
+                                  <SelectItem key={etVal} value={etVal}>
+                                    {etLabel}
+                                  </SelectItem>
+                                )
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1666,8 +1742,8 @@ export default function Pipelines() {
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <Select
                               value={
-                                etapas.includes(op.etapa_atual)
-                                  ? op.etapa_atual
+                                isEtapaValidaNoFunil(op)
+                                  ? op.etapa_id || op.etapa_atual
                                   : ETAPA_SEM_ETAPA_VALIDA
                               }
                               onValueChange={(val) => handleQuickChangeEtapa(op, val)}
@@ -1675,14 +1751,14 @@ export default function Pipelines() {
                               <SelectTrigger
                                 className={cn(
                                   'h-7 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]',
-                                  !etapas.includes(op.etapa_atual) &&
+                                  !isEtapaValidaNoFunil(op) &&
                                     'border-amber-300 text-amber-800 bg-amber-50/60 font-semibold',
                                 )}
                               >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="rounded-xl">
-                                {!etapas.includes(op.etapa_atual) && (
+                                {!isEtapaValidaNoFunil(op) && (
                                   <SelectItem
                                     value={ETAPA_SEM_ETAPA_VALIDA}
                                     disabled
@@ -1691,11 +1767,15 @@ export default function Pipelines() {
                                     ⚠️ {op.etapa_atual || 'Sem etapa'} (inválida)
                                   </SelectItem>
                                 )}
-                                {etapas.map((et) => (
-                                  <SelectItem key={et} value={et}>
-                                    {et}
-                                  </SelectItem>
-                                ))}
+                                {etapasConfigs.map((et) => {
+                                  const etVal = typeof et === 'object' && et ? et.id || et.nome : et
+                                  const etLabel = typeof et === 'object' && et ? et.nome : et
+                                  return (
+                                    <SelectItem key={etVal} value={etVal}>
+                                      {etLabel}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </td>
@@ -1766,6 +1846,7 @@ export default function Pipelines() {
           setDealModalInitialValues({
             titulo: `${opp.titulo} (Cópia)`,
             valor: opp.valor_estimado,
+            etapa_id: opp.etapa_id,
             etapa_atual: opp.etapa_atual,
             cliente_b2b_id: opp.cliente_b2b_id || opp.organizacao_id,
             cliente_b2c_id: opp.cliente_b2c_id || opp.pessoa_id,
@@ -1788,6 +1869,7 @@ export default function Pipelines() {
           }
         }}
         defaultFunilId={activeFunilId}
+        defaultEtapaId={dealModalInitialValues?.etapa_id}
         defaultEtapaNome={newEtapa || dealModalInitialValues?.etapa_atual}
         initialValues={dealModalInitialValues}
         onSuccess={() => {

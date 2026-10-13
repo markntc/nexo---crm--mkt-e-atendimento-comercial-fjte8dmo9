@@ -23,13 +23,27 @@ export interface Equipe {
 }
 
 export interface EtapaConfig {
+  id?: string
   nome: string
+  ordem?: number
   valor_referencia?: number
   is_won?: boolean
   is_lost?: boolean
 }
 
 export type EtapaItem = string | EtapaConfig
+
+export interface EtapaFunilRecord {
+  id: string
+  funil_id: string
+  nome: string
+  ordem?: number
+  valor_referencia?: number
+  is_won?: boolean
+  is_lost?: boolean
+  created: string
+  updated: string
+}
 
 export interface Funil {
   id: string
@@ -208,7 +222,10 @@ export interface Oportunidade {
   pessoa_id?: string
   titulo: string
   valor_estimado: number
+  etapa_id?: string
   etapa_atual: string
+  is_won?: boolean
+  is_lost?: boolean
   vendedor_id: string
   proxima_acao_data?: string
   proxima_acao_descricao?: string
@@ -237,12 +254,13 @@ export interface Oportunidade {
   expand?: {
     marca_id?: Marca
     funil_id?: Funil
+    etapa_id?: EtapaFunilRecord
     equipe_id?: Equipe
     cliente_b2b_id?: Organizacao
     cliente_b2c_id?: Pessoa
     organizacao_id?: Organizacao
     pessoa_id?: Pessoa
-    vendedor_id?: { id: string; name: string; email: string }
+    vendedor_id?: { id: string; name?: string; email?: string }
     lead_origem_id?: Lead
   }
 }

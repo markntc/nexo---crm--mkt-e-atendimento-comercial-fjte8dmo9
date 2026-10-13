@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T12:17:00.196Z",
+  "generatedAt": "2026-10-13T12:34:10.270Z",
   "collections": [
     {
       "name": "users",
@@ -764,6 +764,25 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "etapa_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "etapas_funil"
+        },
+        {
+          "name": "is_won",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_lost",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1147,6 +1166,74 @@
       "indexes": [
         "CREATE INDEX idx_convites_email ON convites_usuarios (email)",
         "CREATE INDEX idx_convites_status ON convites_usuarios (status)"
+      ]
+    },
+    {
+      "name": "etapas_funil",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "funil_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "funis"
+        },
+        {
+          "name": "nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ordem",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_referencia",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_won",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_lost",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_etapas_funil_id ON etapas_funil (funil_id)",
+        "CREATE INDEX idx_etapas_funil_ordem ON etapas_funil (funil_id, ordem)"
       ]
     }
   ]

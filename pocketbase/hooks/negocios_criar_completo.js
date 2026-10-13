@@ -544,25 +544,57 @@ routerAdd(
             resolvedEquipeId = targetFunilRec.getString('equipe_id') || ''
           }
 
-          // Resolução inteligente de etapa_atual: se vazia, resolve para a primeira etapa do funil
-          let resolvedEtapa = (dealData.etapa_atual || '').trim()
-          if (!resolvedEtapa && targetFunilRec) {
+          // Resolução inteligente de etapa_id, etapa_atual, is_won e is_lost
+          let resolvedEtapaId = (dealData.etapa_id || '').trim()
+          let resolvedEtapaNome = (dealData.etapa_atual || '').trim()
+          let resolvedIsWon = false
+          let resolvedIsLost = false
+
+          // Se veio etapa_id, busca no banco
+          if (resolvedEtapaId) {
             try {
-              let etapasRaw = []
-              try {
-                etapasRaw = JSON.parse(targetFunilRec.getString('etapas_ordenadas')) ?? []
-              } catch (_) {}
-              if (Array.isArray(etapasRaw) && etapasRaw.length > 0) {
-                const primeira =
-                  typeof etapasRaw[0] === 'string' ? etapasRaw[0] : etapasRaw[0]?.nome || ''
-                if (primeira) {
-                  resolvedEtapa = primeira
+              const etapaRec = txApp.findRecordById('etapas_funil', resolvedEtapaId)
+              if (etapaRec) {
+                resolvedEtapaNome = etapaRec.getString('nome')
+                resolvedIsWon = etapaRec.getBool('is_won')
+                resolvedIsLost = etapaRec.getBool('is_lost')
+              }
+            } catch (_) {}
+          }
+
+          // Se não achou por etapa_id ou veio só etapa_atual, busca na collection etapas_funil
+          if (!resolvedEtapaId && resolvedFunilId) {
+            try {
+              const foundEtapas = txApp.findRecordsByFilter(
+                'etapas_funil',
+                `funil_id = '${resolvedFunilId}'`,
+                'ordem',
+                50,
+              )
+              if (foundEtapas && foundEtapas.length > 0) {
+                let match = null
+                if (resolvedEtapaNome) {
+                  match = foundEtapas.find(
+                    (et) =>
+                      et.getString('nome').toLowerCase().trim() ===
+                      resolvedEtapaNome.toLowerCase().trim(),
+                  )
+                }
+                if (!match) {
+                  match = foundEtapas[0]
+                }
+                if (match) {
+                  resolvedEtapaId = match.id
+                  resolvedEtapaNome = match.getString('nome')
+                  resolvedIsWon = match.getBool('is_won')
+                  resolvedIsLost = match.getBool('is_lost')
                 }
               }
             } catch (_) {}
           }
-          if (!resolvedEtapa) {
-            resolvedEtapa = 'Primeiro contato'
+
+          if (!resolvedEtapaNome) {
+            resolvedEtapaNome = 'Primeiro contato'
           }
 
           oppRec.set('titulo', titulo)
@@ -571,7 +603,12 @@ routerAdd(
           if (resolvedEquipeId) {
             oppRec.set('equipe_id', resolvedEquipeId)
           }
-          oppRec.set('etapa_atual', resolvedEtapa)
+          if (resolvedEtapaId) {
+            oppRec.set('etapa_id', resolvedEtapaId)
+          }
+          oppRec.set('etapa_atual', resolvedEtapaNome)
+          oppRec.set('is_won', resolvedIsWon)
+          oppRec.set('is_lost', resolvedIsLost)
           oppRec.set('marca_id', marcaId)
           oppRec.set('cliente_b2b_id', finalOrgId || null)
           oppRec.set('cliente_b2c_id', finalPessoaId || null)
