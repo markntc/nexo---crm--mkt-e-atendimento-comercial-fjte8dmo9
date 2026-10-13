@@ -34,7 +34,14 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { maskPhone, maskCNPJ, maskCPF, isValidCNPJ, isValidCPF, onlyDigits } from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
-import type { Funil, ClienteB2B, ClienteB2C, EtapaItem, EtapaConfig } from '@/types'
+import type {
+  Funil,
+  ClienteB2B,
+  ClienteB2C,
+  EtapaItem,
+  EtapaConfig,
+  EtapaFunilRecord,
+} from '@/types'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
 import { GeoSelector } from './GeoSelector'

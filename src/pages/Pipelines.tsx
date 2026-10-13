@@ -113,6 +113,8 @@ export default function Pipelines() {
     | {
         titulo?: string
         valor?: number | string
+        funil_id?: string
+        etapa_id?: string
         etapa_atual?: string
         cliente_b2b_id?: string
         cliente_b2c_id?: string
@@ -1617,8 +1619,9 @@ export default function Pipelines() {
                                 </SelectItem>
                               )}
                               {etapasConfigs.map((et) => {
-                                const etVal = typeof et === 'object' && et ? et.id || et.nome : et
-                                const etLabel = typeof et === 'object' && et ? et.nome : et
+                                const etVal =
+                                  typeof et === 'object' && et ? et.id || et.nome : String(et)
+                                const etLabel = typeof et === 'object' && et ? et.nome : String(et)
                                 return (
                                   <SelectItem key={etVal} value={etVal}>
                                     {etLabel}
@@ -1770,8 +1773,10 @@ export default function Pipelines() {
                                   </SelectItem>
                                 )}
                                 {etapasConfigs.map((et) => {
-                                  const etVal = typeof et === 'object' && et ? et.id || et.nome : et
-                                  const etLabel = typeof et === 'object' && et ? et.nome : et
+                                  const etVal =
+                                    typeof et === 'object' && et ? et.id || et.nome : String(et)
+                                  const etLabel =
+                                    typeof et === 'object' && et ? et.nome : String(et)
                                   return (
                                     <SelectItem key={etVal} value={etVal}>
                                       {etLabel}

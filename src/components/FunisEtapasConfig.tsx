@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
-import type { Funil, EtapaConfig, EtapaItem, Oportunidade } from '@/types'
+import type { Funil, EtapaConfig, EtapaItem, Oportunidade, EtapaFunilRecord } from '@/types'
 import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { formatCurrencyBRL } from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
