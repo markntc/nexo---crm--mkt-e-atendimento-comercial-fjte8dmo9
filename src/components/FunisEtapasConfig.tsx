@@ -248,11 +248,21 @@ export function FunisEtapasConfig({ isAdmin }: FunisEtapasConfigProps) {
 
     const numValor = parseCurrencyToNumber(modalEtapaValor)
 
-    // Regra: se marcou como ganho, desmarca perdido; e vice-versa
+    // Invariante formal: is_won XOR is_lost (ou ambas false)
     let isWon = modalEtapaIsWon
     let isLost = modalEtapaIsLost
     if (isWon && isLost) {
       isLost = false
+    }
+
+    // Heurística de segurança por nome se ambas estiverem desmarcadas
+    if (!isWon && !isLost) {
+      const lower = trimmedNome.toLowerCase()
+      if (lower.includes('perdido') || lower.includes('cancelado')) {
+        isLost = true
+      } else if (lower.includes('ganho') || lower === 'fechado') {
+        isWon = true
+      }
     }
 
     const updated = [...etapasList]

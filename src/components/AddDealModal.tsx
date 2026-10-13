@@ -830,6 +830,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     const novaEtapaTrim = novaEtapaNome.trim()
     const proximaOrdem = etapasDoFunil.length
 
+    // Deduz flags de fechamento pelo nome de forma segura
+    const lowerTrim = novaEtapaTrim.toLowerCase()
+    let isWonInit = false
+    let isLostInit = false
+    if (lowerTrim.includes('perdido') || lowerTrim.includes('cancelado')) {
+      isLostInit = true
+    } else if (lowerTrim.includes('ganho') || lowerTrim === 'fechado') {
+      isWonInit = true
+    }
+
     try {
       // 1. Cria na collection etapas_funil
       const etapaCriada = await pb.collection('etapas_funil').create<EtapaFunilRecord>({
@@ -837,8 +847,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         nome: novaEtapaTrim,
         ordem: proximaOrdem,
         valor_referencia: 0,
-        is_won: false,
-        is_lost: false,
+        is_won: isWonInit,
+        is_lost: isLostInit,
       })
 
       // 2. Atualiza etapas_ordenadas no funil
@@ -847,8 +857,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         nome: novaEtapaTrim,
         ordem: proximaOrdem,
         valor_referencia: 0,
-        is_won: false,
-        is_lost: false,
+        is_won: isWonInit,
+        is_lost: isLostInit,
       }
       const novasEtapas: EtapaItem[] = [...(activeF.etapas_ordenadas || []), novaEtapaObj]
       await pb.collection('funis').update(activeF.id, {
