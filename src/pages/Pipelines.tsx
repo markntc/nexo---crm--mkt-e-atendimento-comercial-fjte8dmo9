@@ -4,6 +4,7 @@
 // Botão verde primário "+ Negócio", seletor de Funil de vendas, ordenação e filtros rápidos
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -57,6 +58,8 @@ import {
   ArrowUpDown,
   Sparkles,
   Calendar,
+  RefreshCw,
+  HelpCircle,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -64,7 +67,11 @@ import { cn } from '@/lib/utils'
 type ViewMode = 'kanban' | 'list' | 'table'
 type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' | 'titulo'
 
+export const ETAPA_SEM_ETAPA_VALIDA = '__SEM_ETAPA_VALIDA__'
+export const ETAPA_SEM_ETAPA_VALIDA_LABEL = 'Sem etapa válida'
+
 export default function Pipelines() {
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const { activeBrand, isConsolidated } = useBrand()
   const {
@@ -86,10 +93,9 @@ export default function Pipelines() {
   const [activeFunilId, setActiveFunilId] = useState<string>('')
   const [equipes, setEquipes] = useState<Equipe[]>([])
   const [selectedEquipeFilter, setSelectedEquipeFilter] = useState<string>('all')
-  const [oportunidades, setOportunidades] = useState<Oportunidade[]>([])
   const [searchFilter, setSearchFilter] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('proxima_acao')
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingFunis, setIsLoadingFunis] = useState(true)
 
   // Filtro de status estilo Pipedrive ("Status é Aberto" / "Todos")
   const [statusFilter, setStatusFilter] = useState<'aberto' | 'todos'>('aberto')
@@ -148,7 +154,7 @@ export default function Pipelines() {
 
   // 1. Carrega funis e equipes da marca ativa
   const loadFunisAndEquipes = async () => {
-    setIsLoading(true)
+    setIsLoadingFunis(true)
     try {
       let fFilter = ''
       let eqFilter = ''
@@ -180,7 +186,7 @@ export default function Pipelines() {
     } catch (err) {
       console.error('Erro ao carregar funis:', err)
     } finally {
-      setIsLoading(false)
+      setIsLoadingFunis(false)
     }
   }
 
@@ -197,13 +203,29 @@ export default function Pipelines() {
     }
   }, [searchParams])
 
-  // 2. Carrega oportunidades do funil ativo com escopo de visibilidade por perfil
-  const loadOportunidades = async () => {
-    if (!activeFunilId) {
-      setOportunidades([])
-      return
-    }
-    try {
+  // 2. Carrega oportunidades via TanStack Query (cache, deduplicação, refetch e anti-race condition)
+  const oportunidadesQueryKey = [
+    'oportunidades',
+    activeFunilId,
+    activeBrand?.id,
+    selectedEquipeFilter,
+    user?.id,
+    escopoVisibilidade,
+  ]
+
+  const {
+    data: oportunidades = [],
+    isLoading: isLoadingOpps,
+    isFetching: isFetchingOpps,
+    isError: isOppsError,
+    error: oppsError,
+    refetch: refetchOportunidades,
+  } = useQuery<Oportunidade[]>({
+    queryKey: oportunidadesQueryKey,
+    enabled: Boolean(activeFunilId),
+    queryFn: async () => {
+      if (!activeFunilId) return []
+
       const filters: string[] = [`funil_id = "${activeFunilId}"`]
 
       // Marca ativa: para Supervisor e Vendedor é estritamente a marca ativa
@@ -232,15 +254,13 @@ export default function Pipelines() {
         expand: 'marca_id,funil_id,equipe_id,cliente_b2b_id,cliente_b2c_id,vendedor_id',
         sort: '-created',
       })
-      setOportunidades(res)
-    } catch (err) {
-      console.error('Erro ao carregar oportunidades:', err)
-    }
-  }
+      return res
+    },
+  })
 
-  useEffect(() => {
-    loadOportunidades()
-  }, [activeFunilId, selectedEquipeFilter, user?.id, escopoVisibilidade, activeBrand])
+  const loadOportunidades = () => {
+    queryClient.invalidateQueries({ queryKey: ['oportunidades'] })
+  }
 
   // Estado para inline "+ Adicionar nova etapa" no fim do Kanban (Admin Only)
   const [isAddingKanbanStage, setIsAddingKanbanStage] = useState(false)
@@ -345,6 +365,15 @@ export default function Pipelines() {
 
   const handleDrop = async (e: React.DragEvent, targetColEtapa: string) => {
     e.preventDefault()
+    // A coluna "Sem etapa válida" não aceita drop deliberado (apenas saída para etapas válidas)
+    if (targetColEtapa === ETAPA_SEM_ETAPA_VALIDA) {
+      toast({
+        title: 'Ação não permitida',
+        description: 'Arraste o negócio para uma das etapas válidas do funil para regularizá-lo.',
+      })
+      return
+    }
+
     const oppId = e.dataTransfer.getData('text/plain')
     const opp = oportunidades.find((o) => o.id === oppId)
     if (!opp) return
@@ -355,7 +384,10 @@ export default function Pipelines() {
     const currentIndex = etapas.indexOf(opp.etapa_atual)
     const targetIndex = etapas.indexOf(targetColEtapa)
 
-    if (targetIndex > currentIndex && !opp.proxima_acao_data) {
+    // Se está vindo de etapa inválida (currentIndex === -1) ou avançando de etapa válida para frente
+    const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
+
+    if (isAvanco && !opp.proxima_acao_data) {
       setShakingOppId(opp.id)
       setTimeout(() => setShakingOppId(null), 1000)
 
@@ -378,11 +410,14 @@ export default function Pipelines() {
 
   // Avanço rápido via Lista/Tabela com verificação de trava
   const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
+    if (newEtapaTarget === ETAPA_SEM_ETAPA_VALIDA) return
     if (opp.etapa_atual === newEtapaTarget) return
     const currentIndex = etapas.indexOf(opp.etapa_atual)
     const targetIndex = etapas.indexOf(newEtapaTarget)
 
-    if (targetIndex > currentIndex && !opp.proxima_acao_data) {
+    const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
+
+    if (isAvanco && !opp.proxima_acao_data) {
       setShakingOppId(opp.id)
       setTimeout(() => setShakingOppId(null), 1000)
 
@@ -600,6 +635,14 @@ export default function Pipelines() {
     }
     return 0
   })
+
+  // Separação de negócios sem etapa válida para nunca sumirem do Kanban/Lista/Tabela
+  const invalidStageOpps = sortedOpps.filter(
+    (o) => !o.etapa_atual || !etapas.includes(o.etapa_atual),
+  )
+
+  const isInitialLoading = isLoadingFunis || (isLoadingOpps && oportunidades.length === 0)
+  const isDataError = isOppsError && Boolean(activeFunilId)
 
   const totalGeralValor = filteredOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
 
@@ -913,10 +956,72 @@ export default function Pipelines() {
 
       {/* ÁREA PRINCIPAL: KANBAN, LISTA OU TABELA */}
       <div className="flex-1 overflow-hidden min-h-0">
-        {isLoading ? (
-          <div className="h-full flex items-center justify-center text-xs text-slate-500 bg-white rounded-2xl border border-[#E3E7EB]">
-            <Loader2 className="w-6 h-6 animate-spin text-[#017848] mr-2" />
-            Carregando esteira de negócios...
+        {isInitialLoading ? (
+          /* Estado de Carregamento Inicial (Skeleton discreto) */
+          <div className="h-full flex flex-col p-4 bg-white rounded-2xl border border-[#E3E7EB] shadow-xs">
+            <div className="flex items-center space-x-2 text-xs text-slate-500 mb-4">
+              <Loader2 className="w-4 h-4 animate-spin text-[#017848]" />
+              <span>Carregando esteira de negócios...</span>
+            </div>
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3.5 overflow-hidden">
+              {[1, 2, 3, 4, 5].map((col) => (
+                <div
+                  key={col}
+                  className="rounded-2xl border border-[#E3E7EB] bg-[#F8F9FA] p-3 flex flex-col space-y-3"
+                >
+                  <div className="h-5 bg-slate-200/70 rounded-md w-3/4 animate-pulse" />
+                  <div className="h-3 bg-slate-200/50 rounded-md w-1/2 animate-pulse" />
+                  <div className="space-y-2 pt-2">
+                    <div className="h-20 bg-white rounded-xl border border-slate-200/60 p-2 space-y-2 animate-pulse">
+                      <div className="h-3.5 bg-slate-200/70 rounded w-4/5" />
+                      <div className="h-3 bg-slate-100 rounded w-3/5" />
+                    </div>
+                    <div className="h-20 bg-white rounded-xl border border-slate-200/60 p-2 space-y-2 animate-pulse">
+                      <div className="h-3.5 bg-slate-200/70 rounded w-4/5" />
+                      <div className="h-3 bg-slate-100 rounded w-3/5" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : isDataError ? (
+          /* Estado de Erro Explícito com Botão 'Tentar novamente' */
+          <div className="h-full flex flex-col items-center justify-center border border-red-200 rounded-2xl bg-red-50/30 p-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shadow-xs">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="max-w-md space-y-1">
+              <h3 className="text-sm font-bold text-slate-900">
+                Não foi possível carregar as oportunidades
+              </h3>
+              <p className="text-xs text-slate-600">
+                Ocorreu uma oscilação na conexão com o servidor ou a sessão expirou.
+                {oppsError instanceof Error && oppsError.message && (
+                  <span className="block text-[11px] text-red-700/80 font-mono mt-1 bg-red-100/60 p-1.5 rounded-lg break-all">
+                    {oppsError.message}
+                  </span>
+                )}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => refetchOportunidades()}
+              disabled={isFetchingOpps}
+              className="h-9 px-4 rounded-xl font-bold text-xs bg-[#017848] hover:bg-[#01653c] text-white shadow-xs flex items-center space-x-1.5"
+            >
+              {isFetchingOpps ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  <span>Tentando reconectar...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                  <span>Tentar novamente</span>
+                </>
+              )}
+            </Button>
           </div>
         ) : etapas.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center border border-dashed border-[#E3E7EB] rounded-2xl bg-white p-8">
@@ -1093,6 +1198,149 @@ export default function Pipelines() {
                 )
               })}
 
+              {/* COLUNA RESGUARDO: "Sem etapa válida" (Frente 1 - Blindagem contra sumiço de cards) */}
+              {invalidStageOpps.length > 0 && (
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, ETAPA_SEM_ETAPA_VALIDA)}
+                  className="w-[295px] flex flex-col rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/40 shadow-xs select-none transition-colors"
+                >
+                  {/* Cabeçalho diferenciado e amigável */}
+                  <div className="p-3 border-b border-amber-200 bg-amber-100/70 rounded-t-2xl flex items-center justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span className="text-xs font-bold text-amber-900 truncate">
+                          Sem etapa válida
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-800 text-white">
+                          {invalidStageOpps.length}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-amber-800 mt-0.5 font-medium">
+                        {formatCurrencyBRL(
+                          invalidStageOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0),
+                        )}
+                      </p>
+                    </div>
+
+                    <div
+                      title="Negócios com etapa descontinuada, vazia ou divergente deste funil. Arraste-os para uma etapa válida ao lado para regularizar."
+                      className="cursor-help text-amber-700"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  {/* Lista de cards da coluna Sem etapa válida */}
+                  <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 scrollbar-thin">
+                    <div className="p-2 rounded-xl bg-amber-100/60 border border-amber-300/80 text-[10px] text-amber-900 leading-snug">
+                      💡 Estes negócios pertencem a este funil mas estão sem etapa correspondente.
+                      Arraste-os para uma das colunas válidas à esquerda para normalizar.
+                    </div>
+
+                    {invalidStageOpps.map((opp) => {
+                      const b2b = opp.expand?.organizacao_id || opp.expand?.cliente_b2b_id
+                      const b2c = opp.expand?.pessoa_id || opp.expand?.cliente_b2c_id
+                      const clienteNome =
+                        b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado'
+                      const followStatus = getFollowUpStatus(opp.proxima_acao_data)
+                      const isShaking = shakingOppId === opp.id
+
+                      return (
+                        <div
+                          key={opp.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, opp)}
+                          onClick={() => {
+                            searchParams.set('oppId', opp.id)
+                            setSearchParams(searchParams)
+                          }}
+                          className={cn(
+                            'p-3.5 rounded-xl border bg-white shadow-xs hover:shadow-md cursor-grab active:cursor-grabbing transition-all relative group',
+                            isShaking
+                              ? 'animate-shake border-red-500 ring-2 ring-red-400 bg-red-50/20'
+                              : 'border-amber-300 hover:border-amber-500',
+                          )}
+                        >
+                          {/* Marca visual quando em consolidado */}
+                          {isConsolidated && opp.expand?.marca_id && (
+                            <span
+                              className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1.5 text-white"
+                              style={{ backgroundColor: opp.expand.marca_id.cor_destaque }}
+                            >
+                              {opp.expand.marca_id.nome}
+                            </span>
+                          )}
+
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-xs font-bold text-slate-900 line-clamp-2 leading-tight">
+                              {opp.titulo}
+                            </p>
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[9px] font-bold shrink-0">
+                              {opp.etapa_atual ? `"${opp.etapa_atual}"` : 'Sem etapa'}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center space-x-1.5 mt-1.5 text-[11px] text-slate-600 truncate">
+                            {b2b ? (
+                              <Building2 className="w-3 h-3 text-sky-600 shrink-0" />
+                            ) : (
+                              <User className="w-3 h-3 text-emerald-600 shrink-0" />
+                            )}
+                            <span className="truncate">{clienteNome}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100">
+                            <span className="text-xs font-black text-slate-900">
+                              {formatCurrencyBRL(opp.valor_estimado)}
+                            </span>
+
+                            <div className="w-6 h-6 rounded-full bg-amber-700 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                              {opp.expand?.vendedor_id?.name?.slice(0, 2).toUpperCase() || 'AD'}
+                            </div>
+                          </div>
+
+                          {/* Status de follow-up */}
+                          <div className="mt-2.5">
+                            {followStatus === 'missing' && (
+                              <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
+                                <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                                <span className="truncate">Sem follow-up agendado</span>
+                              </div>
+                            )}
+                            {followStatus === 'overdue' && (
+                              <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-medium">
+                                <Clock className="w-3 h-3 text-red-600 shrink-0" />
+                                <span className="truncate">
+                                  Vencido: {formatDateBR(opp.proxima_acao_data)}
+                                </span>
+                              </div>
+                            )}
+                            {followStatus === 'soon' && (
+                              <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-medium">
+                                <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span className="truncate">
+                                  Em 48h ({formatDateBR(opp.proxima_acao_data)})
+                                </span>
+                              </div>
+                            )}
+                            {followStatus === 'ok' && (
+                              <div className="text-[10px] text-slate-500 flex items-center space-x-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span className="truncate">
+                                  Follow-up: {formatDateBR(opp.proxima_acao_data)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* FRENTE 2: BOTÃO DISCRETO NO FIM DA ÚLTIMA COLUNA "+ Adicionar nova etapa" (ADMIN ONLY) */}
               {isAdmin && (
                 <div className="w-[280px] shrink-0 select-none flex flex-col justify-start">
@@ -1268,13 +1516,32 @@ export default function Pipelines() {
                         >
                           <span className="text-[10px] text-slate-400 font-medium">Etapa:</span>
                           <Select
-                            value={opp.etapa_atual}
+                            value={
+                              etapas.includes(opp.etapa_atual)
+                                ? opp.etapa_atual
+                                : ETAPA_SEM_ETAPA_VALIDA
+                            }
                             onValueChange={(val) => handleQuickChangeEtapa(opp, val)}
                           >
-                            <SelectTrigger className="h-8 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]">
+                            <SelectTrigger
+                              className={cn(
+                                'h-8 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]',
+                                !etapas.includes(opp.etapa_atual) &&
+                                  'border-amber-300 text-amber-800 bg-amber-50/60 font-semibold',
+                              )}
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
+                              {!etapas.includes(opp.etapa_atual) && (
+                                <SelectItem
+                                  value={ETAPA_SEM_ETAPA_VALIDA}
+                                  disabled
+                                  className="text-amber-800 font-semibold"
+                                >
+                                  ⚠️ {opp.etapa_atual || 'Sem etapa'} (inválida)
+                                </SelectItem>
+                              )}
                               {etapas.map((et) => (
                                 <SelectItem key={et} value={et}>
                                   {et}
@@ -1398,13 +1665,32 @@ export default function Pipelines() {
                           </td>
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                             <Select
-                              value={op.etapa_atual}
+                              value={
+                                etapas.includes(op.etapa_atual)
+                                  ? op.etapa_atual
+                                  : ETAPA_SEM_ETAPA_VALIDA
+                              }
                               onValueChange={(val) => handleQuickChangeEtapa(op, val)}
                             >
-                              <SelectTrigger className="h-7 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]">
+                              <SelectTrigger
+                                className={cn(
+                                  'h-7 text-xs w-36 rounded-lg bg-white border-[#E3E7EB]',
+                                  !etapas.includes(op.etapa_atual) &&
+                                    'border-amber-300 text-amber-800 bg-amber-50/60 font-semibold',
+                                )}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="rounded-xl">
+                                {!etapas.includes(op.etapa_atual) && (
+                                  <SelectItem
+                                    value={ETAPA_SEM_ETAPA_VALIDA}
+                                    disabled
+                                    className="text-amber-800 font-semibold"
+                                  >
+                                    ⚠️ {op.etapa_atual || 'Sem etapa'} (inválida)
+                                  </SelectItem>
+                                )}
                                 {etapas.map((et) => (
                                   <SelectItem key={et} value={et}>
                                     {et}
