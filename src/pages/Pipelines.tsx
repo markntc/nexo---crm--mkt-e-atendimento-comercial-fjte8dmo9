@@ -407,22 +407,32 @@ export default function Pipelines() {
     if (!opp.etapa_id && opp.etapa_atual === targetColEtapa) return
 
     // TRAVA DE FOLLOW-UP (Padrão Pipedrive obrigatório)
-    const currentIndex = etapas.indexOf(opp.etapa_atual)
-    const targetIndex = etapas.indexOf(resolved.nome)
+    // Se a oportunidade já tem proxima_acao_data preenchida, avança a etapa direto sem abrir quadro modal.
+    // Se não tem, abre o quadro de agendamento de próxima ação para cumprir a trava.
+    if (opp.proxima_acao_data && opp.proxima_acao_data.trim()) {
+      executeDirectMoveEtapa(opp, resolved)
+      return
+    }
 
-    // Se está vindo de etapa inválida (currentIndex === -1) ou avançando de etapa válida para frente
-    const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
+    // Caso não tenha proxima_acao_data, abre o modal de agendamento obrigatório
+    setDraggedOpportunity(opp)
+    setTargetEtapa(resolved.nome)
+    setDragFollowUpDesc(
+      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
+    )
+    setDragConfirmModalOpen(true)
+  }
 
-    if (isAvanco && !opp.proxima_acao_data) {
-      setShakingOppId(opp.id)
-      setTimeout(() => setShakingOppId(null), 1000)
+  // Avanço rápido via Lista/Tabela com verificação condicional
+  const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
+    if (newEtapaTarget === ETAPA_SEM_ETAPA_VALIDA) return
+    const resolved = resolveTargetEtapaConfig(newEtapaTarget)
+    if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
+    if (!opp.etapa_id && opp.etapa_atual === newEtapaTarget) return
 
-      toast({
-        variant: 'destructive',
-        title: 'Trava de Follow-up Ativa!',
-        description:
-          'Proibido avançar etapa sem follow-up agendado. Clique no card e defina uma data de próxima ação primeiro.',
-      })
+    // Se já possui data de próxima ação, avança direto sem o quadro
+    if (opp.proxima_acao_data && opp.proxima_acao_data.trim()) {
+      executeDirectMoveEtapa(opp, resolved)
       return
     }
 
@@ -434,37 +444,66 @@ export default function Pipelines() {
     setDragConfirmModalOpen(true)
   }
 
-  // Avanço rápido via Lista/Tabela com verificação de trava
-  const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
-    if (newEtapaTarget === ETAPA_SEM_ETAPA_VALIDA) return
-    const resolved = resolveTargetEtapaConfig(newEtapaTarget)
-    if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
-    if (!opp.etapa_id && opp.etapa_atual === newEtapaTarget) return
+  // Executa transição direta quando a oportunidade já tem proxima_acao_data
+  const executeDirectMoveEtapa = async (
+    opp: Oportunidade,
+    resolved: { nome: string; id?: string; is_won?: boolean; is_lost?: boolean },
+  ) => {
+    try {
+      const payload: Record<string, unknown> = {
+        etapa_atual: resolved.nome,
+      }
+      if (resolved.id) {
+        payload.etapa_id = resolved.id
+      }
+      if (resolved.is_won !== undefined) {
+        payload.is_won = Boolean(resolved.is_won)
+      }
+      if (resolved.is_lost !== undefined) {
+        payload.is_lost = Boolean(resolved.is_lost)
+      }
 
-    const currentIndex = etapas.indexOf(opp.etapa_atual)
-    const targetIndex = etapas.indexOf(resolved.nome)
-
-    const isAvanco = currentIndex === -1 || (targetIndex !== -1 && targetIndex > currentIndex)
-
-    if (isAvanco && !opp.proxima_acao_data) {
-      setShakingOppId(opp.id)
-      setTimeout(() => setShakingOppId(null), 1000)
+      await pb.collection('oportunidades').update(opp.id, payload)
 
       toast({
-        variant: 'destructive',
-        title: 'Trava de Follow-up Ativa!',
-        description:
-          'Proibido avançar etapa sem follow-up agendado. Defina a data da próxima ação antes de mover.',
+        title: 'Etapa atualizada com sucesso!',
+        description: `Negócio movido para "${resolved.nome}".`,
       })
-      return
-    }
 
-    setDraggedOpportunity(opp)
-    setTargetEtapa(resolved.nome)
-    setDragFollowUpDesc(
-      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
-    )
-    setDragConfirmModalOpen(true)
+      loadOportunidades()
+    } catch (err: unknown) {
+      const errObj = err as any
+      const serverData = errObj?.data || errObj?.response?.data || {}
+      const isTrava =
+        serverData?.data?.proxima_acao_data ||
+        String(errObj?.message || '').includes('TRAVA DE FOLLOW-UP') ||
+        String(JSON.stringify(serverData)).includes('TRAVA DE FOLLOW-UP')
+
+      if (isTrava) {
+        toast({
+          variant: 'destructive',
+          title: 'Trava de Follow-up Ativa!',
+          description:
+            'O servidor bloqueou a transição: é obrigatório registrar uma próxima ação com data para mudar de etapa.',
+        })
+        // Abre o quadro para o usuário definir a data já que a trava rejeitou
+        setDraggedOpportunity(opp)
+        setTargetEtapa(resolved.nome)
+        setDragFollowUpDesc(
+          opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
+        )
+        setDragConfirmModalOpen(true)
+      } else {
+        const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
+        toast({
+          variant: 'destructive',
+          title: 'Erro na transição de etapa',
+          description: msg,
+        })
+      }
+      // Garante que o card permaneça na etapa original
+      loadOportunidades()
+    }
   }
 
   const confirmMoveEtapa = async () => {

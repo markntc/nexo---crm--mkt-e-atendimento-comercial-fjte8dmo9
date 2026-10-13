@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,6 +57,7 @@ export interface AddDealModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: (dealId: string) => void
+  onDelete?: (dealId: string) => void
   defaultFunilId?: string
   defaultEtapaId?: string
   defaultEtapaNome?: string
@@ -105,6 +113,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   open,
   onOpenChange,
   onSuccess,
+  onDelete,
   defaultFunilId,
   defaultEtapaId,
   defaultEtapaNome,
@@ -113,8 +122,9 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   initialValues,
 }) => {
   const isEditMode = mode === 'edit' || !!dealId
-  const { activeBrand, marcas } = useBrand()
+  const { activeBrand } = useBrand()
   const { user, isAdmin } = useAuth()
+  const { toast } = useToast()
   const mouseDownOutsideRef = useRef(false)
 
   // Listas de dados mestre
@@ -124,6 +134,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [usersList, setUsersList] = useState<{ id: string; name?: string; email: string }[]>([])
   const [isLoadingMasterData, setIsLoadingMasterData] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Painel Esquerdo: Campos de Negócio (exatamente na ordem da captura)
   // 1. Pessoa de contato (busca + criação com badge NOVO)
@@ -164,20 +176,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [isAddingNewEtapa, setIsAddingNewEtapa] = useState(false)
   const [novaEtapaNome, setNovaEtapaNome] = useState('')
 
-  // Etiqueta
-  const [etiqueta, setEtiqueta] = useState<string>('nenhuma')
-
   // 7. Data de fechamento esperada (DD/MM/AAAA)
   const [dataFechamento, setDataFechamento] = useState<string>('')
 
   // Documento fiscal para faturamento (CPF / CNPJ / AMBOS)
   const [documentoFaturamento, setDocumentoFaturamento] = useState<'CPF' | 'CNPJ' | 'AMBOS'>('CNPJ')
 
-  // Trava de follow-up obrigatória
-  const [followUpData, setFollowUpData] = useState<string>(
-    new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
-  )
-  const [followUpDesc, setFollowUpDesc] = useState<string>('Primeiro alinhamento comercial')
+  // Próxima ação / follow-up: nasce vazia por padrão
+  const [followUpData, setFollowUpData] = useState<string>('')
+  const [followUpDesc, setFollowUpDesc] = useState<string>('')
 
   // 8. Proprietário
   const [proprietarioId, setProprietarioId] = useState<string>('')
@@ -263,8 +270,37 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setOrganizacoes(orgsRes)
         setUsersList(usersRes)
 
-        // Preenche com initialValues se fornecido (ex: Recompra, Duplicar ou Edição)
-        const targetFunilId = initialValues?.funil_id || defaultFunilId
+        // Se estiver em modo edição com dealId mas initialValues não tiver sido passado ou estiver incompleto,
+        // busca o registro live da oportunidade para garantir dados precisos
+        let liveDeal: any = null
+        if (isEditMode && dealId) {
+          try {
+            liveDeal = await pb.collection('oportunidades').getOne(dealId)
+          } catch (e) {
+            console.warn('Aviso ao carregar dados live da oportunidade no modal:', e)
+          }
+        }
+
+        const effectiveValues = {
+          ...liveDeal,
+          ...initialValues,
+          // Garante que campos presentes no liveDeal tenham prioridade se initialValues for vazio
+          proxima_acao_data:
+            initialValues?.proxima_acao_data !== undefined
+              ? initialValues.proxima_acao_data
+              : liveDeal?.proxima_acao_data,
+          proxima_acao_descricao:
+            initialValues?.proxima_acao_descricao !== undefined
+              ? initialValues.proxima_acao_descricao
+              : liveDeal?.proxima_acao_descricao,
+          data_fechamento_esperada:
+            initialValues?.data_fechamento_esperada !== undefined
+              ? initialValues.data_fechamento_esperada
+              : liveDeal?.data_fechamento_esperada,
+        }
+
+        // Preenche com effectiveValues se fornecido (ex: Recompra, Duplicar ou Edição)
+        const targetFunilId = effectiveValues?.funil_id || defaultFunilId
         const initialFunil = funisRes.find((f) => f.id === targetFunilId) || funisRes[0] || null
         const requestedEtapaId = initialValues?.etapa_id || defaultEtapaId
         const requestedEtapaNome = initialValues?.etapa_atual || defaultEtapaNome
@@ -327,76 +363,76 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           setProprietarioId((prev) => prev || user.id)
         }
 
-        if (initialValues) {
-          if (initialValues.titulo) {
-            setTitulo(initialValues.titulo)
+        if (effectiveValues) {
+          if (effectiveValues.titulo) {
+            setTitulo(effectiveValues.titulo)
             setUserEditedTitle(true)
           }
-          if (
-            initialValues.valor !== undefined &&
-            initialValues.valor !== null &&
-            initialValues.valor !== ''
-          ) {
+          const valRaw =
+            effectiveValues.valor !== undefined && effectiveValues.valor !== null
+              ? effectiveValues.valor
+              : effectiveValues.valor_estimado
+          if (valRaw !== undefined && valRaw !== null && valRaw !== '') {
             // Formata o valor inicial com separadores e centavos se for numérico ou com casas decimais
             const num =
-              typeof initialValues.valor === 'number'
-                ? initialValues.valor
-                : parseFloat(String(initialValues.valor).replace(',', '.'))
+              typeof valRaw === 'number'
+                ? valRaw
+                : parseFloat(String(valRaw).replace(',', '.'))
             if (!isNaN(num) && num > 0) {
               setValor(formatCurrencyString(num))
-            } else if (typeof initialValues.valor === 'string' && initialValues.valor.trim()) {
-              setValor(maskCurrency(initialValues.valor))
+            } else if (typeof valRaw === 'string' && valRaw.trim()) {
+              setValor(maskCurrency(valRaw))
             } else {
               setValor('')
             }
           }
-          if (initialValues.documento_faturamento) {
-            setDocumentoFaturamento(initialValues.documento_faturamento)
+          if (effectiveValues.documento_faturamento) {
+            setDocumentoFaturamento(effectiveValues.documento_faturamento)
           }
-          if (initialValues.observacoes) {
-            setNotaObservacoes(initialValues.observacoes)
+          if (effectiveValues.observacoes) {
+            setNotaObservacoes(effectiveValues.observacoes)
           }
-          if (initialValues.origem) {
-            setCanalOrigem(initialValues.origem)
+          if (effectiveValues.origem) {
+            setCanalOrigem(effectiveValues.origem)
           }
-          if (initialValues.id_canal_origem) {
-            setIdCanalOrigem(initialValues.id_canal_origem)
+          if (effectiveValues.id_canal_origem) {
+            setIdCanalOrigem(effectiveValues.id_canal_origem)
           }
-          if (initialValues.lead_origem_id) {
-            setLeadOrigemId(initialValues.lead_origem_id)
+          if (effectiveValues.lead_origem_id) {
+            setLeadOrigemId(effectiveValues.lead_origem_id)
           }
 
-          if (initialValues.cidade) {
-            setCidadeFaturamento(initialValues.cidade)
+          if (effectiveValues.cidade) {
+            setCidadeFaturamento(effectiveValues.cidade)
           }
-          if (initialValues.estado) {
-            setEstadoFaturamento(initialValues.estado)
+          if (effectiveValues.estado) {
+            setEstadoFaturamento(effectiveValues.estado)
           }
-          if (initialValues.pais) {
-            setPaisFaturamento(initialValues.pais)
+          if (effectiveValues.pais) {
+            setPaisFaturamento(effectiveValues.pais)
           }
 
           // Checa se há entrega preenchida ou diferente de faturamento
           const temEntregaInformada = !!(
-            initialValues.cidade_entrega ||
-            initialValues.estado_entrega ||
-            (initialValues.pais_entrega && initialValues.pais_entrega !== 'Brasil')
+            effectiveValues.cidade_entrega ||
+            effectiveValues.estado_entrega ||
+            (effectiveValues.pais_entrega && effectiveValues.pais_entrega !== 'Brasil')
           )
           const entregaDiferenteDeFaturamento =
-            (initialValues.cidade_entrega &&
-              initialValues.cidade_entrega !== initialValues.cidade) ||
-            (initialValues.estado_entrega &&
-              initialValues.estado_entrega !== initialValues.estado) ||
-            (initialValues.pais_entrega && initialValues.pais_entrega !== initialValues.pais)
+            (effectiveValues.cidade_entrega &&
+              effectiveValues.cidade_entrega !== effectiveValues.cidade) ||
+            (effectiveValues.estado_entrega &&
+              effectiveValues.estado_entrega !== effectiveValues.estado) ||
+            (effectiveValues.pais_entrega && effectiveValues.pais_entrega !== effectiveValues.pais)
 
-          if (initialValues.cidade_entrega) {
-            setCidadeEntrega(initialValues.cidade_entrega)
+          if (effectiveValues.cidade_entrega) {
+            setCidadeEntrega(effectiveValues.cidade_entrega)
           }
-          if (initialValues.estado_entrega) {
-            setEstadoEntrega(initialValues.estado_entrega)
+          if (effectiveValues.estado_entrega) {
+            setEstadoEntrega(effectiveValues.estado_entrega)
           }
-          if (initialValues.pais_entrega) {
-            setPaisEntrega(initialValues.pais_entrega)
+          if (effectiveValues.pais_entrega) {
+            setPaisEntrega(effectiveValues.pais_entrega)
           }
 
           if (temEntregaInformada && entregaDiferenteDeFaturamento) {
@@ -405,17 +441,17 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             setEntregaDiferente(false)
           }
 
-          if (initialValues.proxima_acao_data) {
-            setFollowUpData(initialValues.proxima_acao_data.split('T')[0])
+          if (effectiveValues.proxima_acao_data) {
+            setFollowUpData(effectiveValues.proxima_acao_data.split('T')[0])
           }
-          if (initialValues.proxima_acao_descricao) {
-            setFollowUpDesc(initialValues.proxima_acao_descricao)
+          if (effectiveValues.proxima_acao_descricao) {
+            setFollowUpDesc(effectiveValues.proxima_acao_descricao)
           }
-          if (initialValues.data_fechamento_esperada) {
-            setDataFechamento(initialValues.data_fechamento_esperada.split('T')[0])
+          if (effectiveValues.data_fechamento_esperada) {
+            setDataFechamento(effectiveValues.data_fechamento_esperada.split('T')[0])
           }
 
-          const targetOrgId = initialValues.cliente_b2b_id || initialValues.organizacao_id
+          const targetOrgId = effectiveValues.cliente_b2b_id || effectiveValues.organizacao_id
           if (targetOrgId) {
             const org = orgsRes.find((o) => o.id === targetOrgId)
             if (org) {
@@ -435,7 +471,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             }
           }
 
-          const targetPessoaId = initialValues.cliente_b2c_id || initialValues.pessoa_id
+          const targetPessoaId = effectiveValues.cliente_b2c_id || effectiveValues.pessoa_id
           if (targetPessoaId) {
             const p = pessoasRes.find((x) => x.id === targetPessoaId)
             if (p) {
@@ -885,9 +921,62 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
+  // Exclusão em cascata (mesmo padrão seguro do OpportunityDrawer)
+  const handleDeleteOpportunity = async () => {
+    if (!dealId) return
+    setIsDeleting(true)
+    try {
+      // 1. Remove atividades vinculadas
+      try {
+        const ativs = await pb.collection('atividades').getFullList({
+          filter: `oportunidade_id = "${dealId}"`,
+          sort: '-created',
+        })
+        for (const at of ativs) {
+          try {
+            await pb.collection('atividades').delete(at.id)
+          } catch (errAtiv) {
+            console.warn(`[Atividades] Aviso ao excluir atividade vinculada ${at.id}:`, errAtiv)
+          }
+        }
+      } catch (errListAtiv) {
+        console.warn('Aviso ao consultar atividades para pré-exclusão:', errListAtiv)
+      }
+
+      // 2. Exclui a oportunidade
+      await pb.collection('oportunidades').delete(dealId)
+
+      toast({
+        title: 'Oportunidade excluída com sucesso',
+        description: 'Registro e suas atividades vinculadas foram removidos da base comercial.',
+      })
+
+      setDeleteConfirmOpen(false)
+      onOpenChange(false)
+      if (onDelete) {
+        onDelete(dealId)
+      }
+    } catch (err: unknown) {
+      console.error('Erro ao excluir oportunidade:', err)
+      const errObj = err as { data?: { message?: string }; message?: string }
+      const errorMsg =
+        errObj?.data?.message ||
+        errObj?.message ||
+        'Não foi possível excluir a oportunidade. Verifique se possui permissão ou se existem outros vínculos pendentes.'
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir oportunidade',
+        description: errorMsg,
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // Submissão do Modal: Salva Pessoa (se nova ou editada) + Salva/Atualiza Negócio + Follow-up
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
 
     const finalTitulo = titulo.trim() || 'Novo negócio'
 
@@ -947,11 +1036,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       let dataFechamentoIso: string | null = null
       if (dataFechamento) {
         // Aceita DD/MM/AAAA ou AAAA-MM-DD
-        if (dataFechamento.includes('/')) {
-          const parts = dataFechamento.split('/')
+        let pureDate = dataFechamento.trim()
+        if (pureDate.includes('/')) {
+          const parts = pureDate.split('/')
           if (parts.length === 3) {
-            dataFechamentoIso = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).toISOString()
+            pureDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
           }
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(pureDate)) {
+          dataFechamentoIso = `${pureDate} 12:00:00.000Z`
         } else {
           dataFechamentoIso = new Date(dataFechamento).toISOString()
         }
@@ -997,7 +1090,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       const finalPaisEntrega =
         (entregaDiferente ? paisEntrega.trim() : '') || paisFaturamento.trim() || 'Brasil'
 
-      const proximaAcaoIso = followUpData ? new Date(followUpData).toISOString() : null
+      let proximaAcaoIso: string | null = null
+      if (followUpData && followUpData.trim()) {
+        const cleanDate = followUpData.trim()
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+          proximaAcaoIso = `${cleanDate} 12:00:00.000Z`
+        } else {
+          proximaAcaoIso = new Date(cleanDate).toISOString()
+        }
+      }
 
       // Validação de segurança no salvamento de etapa e funil:
       // Identifica o funil alvo e suas etapas válidas
@@ -1085,20 +1186,35 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         // Atualiza negócio existente enviando APENAS campos que existem na collection oportunidades
         await pb.collection('oportunidades').update(dealId, dealPayload)
 
-        // Cria ou atualiza atividade de follow-up associada (se informada data)
+        // No modo edição NÃO cria atividade nova indiscriminadamente:
+        // Busca atividade pendente existente vinculada à oportunidade e faz update; create somente se não existir.
         if (proximaAcaoIso) {
           try {
-            await pb.collection('atividades').create({
-              oportunidade_id: dealId,
-              marca_id: activeMarcaId,
-              responsavel_id: currentUserId,
-              tipo: 'Follow-up',
-              descricao: followUpDesc.trim() || 'Follow-up atualizado na edição do negócio',
-              data_vencimento: proximaAcaoIso,
-              concluida: false,
+            const ativsPendentes = await pb.collection('atividades').getFullList({
+              filter: `oportunidade_id = "${dealId}" && concluida = false`,
+              sort: '-created',
             })
+            if (ativsPendentes.length > 0) {
+              const primeira = ativsPendentes[0]
+              await pb.collection('atividades').update(primeira.id, {
+                tipo: 'Follow-up',
+                descricao: followUpDesc.trim() || primeira.descricao || 'Follow-up atualizado na edição do negócio',
+                data_vencimento: proximaAcaoIso,
+                responsavel_id: currentUserId,
+              })
+            } else {
+              await pb.collection('atividades').create({
+                oportunidade_id: dealId,
+                marca_id: activeMarcaId,
+                responsavel_id: currentUserId,
+                tipo: 'Follow-up',
+                descricao: followUpDesc.trim() || 'Follow-up atualizado na edição do negócio',
+                data_vencimento: proximaAcaoIso,
+                concluida: false,
+              })
+            }
           } catch (ativErr) {
-            console.warn('Aviso ao registrar atividade de follow-up na edição:', ativErr)
+            console.warn('Aviso ao gerenciar atividade de follow-up na edição:', ativErr)
           }
         }
 
@@ -1800,34 +1916,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 )}
               </div>
 
-              {/* Etiqueta ⓘ */}
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Etiqueta</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                        Classificação qualitativa do negócio (quente, prioritário, cold).
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Select value={etiqueta} onValueChange={setEtiqueta}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
-                    <SelectValue placeholder="Adicionar etiquetas" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="nenhuma">Sem etiqueta</SelectItem>
-                    <SelectItem value="quente">Alta Prioridade / Quente</SelectItem>
-                    <SelectItem value="recorrente">Cliente Recorrente</SelectItem>
-                    <SelectItem value="licitacao">Licitação / B2B Estruturado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* 7. Data de fechamento esperada ⓘ */}
               <div className="space-y-1">
                 <div className="flex items-center space-x-1.5">
@@ -2104,14 +2192,26 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           {/* RODAPÉ DO MODAL (ESTILO PIPEDRIVE)                       */}
           {/* ======================================================== */}
           <div className="px-6 py-3.5 bg-white border-t border-[#E3E7EB] flex items-center justify-between shrink-0">
-            {/* Lado esquerdo: Link com ícone "Importação" */}
-            <a
-              href="/importacao"
-              className="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center space-x-1.5 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Importação</span>
-            </a>
+            {/* Lado esquerdo: Botão Excluir (modo edição, afastado do X) ou Link Importação (criação) */}
+            {isEditMode && dealId ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="h-9 px-3 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center space-x-1.5 rounded-lg"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <span>Excluir negócio</span>
+              </Button>
+            ) : (
+              <a
+                href="/importacao"
+                className="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center space-x-1.5 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>Importação</span>
+              </a>
+            )}
 
             {/* Lado direito: Contador 0/15.000 ⓘ + Cancelar + Salvar (verde primário #017848) */}
             <div className="flex items-center space-x-3">
@@ -2165,6 +2265,52 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* DIÁLOGO DE CONFIRMAÇÃO: EXCLUIR OPORTUNIDADE (REPLICADO DO DRAWER) */}
+    <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <DialogContent className="max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200">
+        <DialogHeader>
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-2">
+            <Trash2 className="w-6 h-6" />
+          </div>
+          <DialogTitle className="text-lg font-bold text-slate-900">
+            Excluir Oportunidade?
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-600">
+            Tem certeza que deseja excluir esta oportunidade? As atividades vinculadas a este
+            negócio também serão removidas. Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="mt-4 flex items-center justify-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isDeleting}
+            onClick={() => setDeleteConfirmOpen(false)}
+            className="text-xs"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={isDeleting}
+            onClick={handleDeleteOpportunity}
+            className="text-xs bg-red-600 hover:bg-red-700 font-bold"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                Excluindo...
+              </>
+            ) : (
+              'Sim, excluir'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 export default AddDealModal
