@@ -375,9 +375,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           if (valRaw !== undefined && valRaw !== null && valRaw !== '') {
             // Formata o valor inicial com separadores e centavos se for numérico ou com casas decimais
             const num =
-              typeof valRaw === 'number'
-                ? valRaw
-                : parseFloat(String(valRaw).replace(',', '.'))
+              typeof valRaw === 'number' ? valRaw : parseFloat(String(valRaw).replace(',', '.'))
             if (!isNaN(num) && num > 0) {
               setValor(formatCurrencyString(num))
             } else if (typeof valRaw === 'string' && valRaw.trim()) {
@@ -1198,7 +1196,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               const primeira = ativsPendentes[0]
               await pb.collection('atividades').update(primeira.id, {
                 tipo: 'Follow-up',
-                descricao: followUpDesc.trim() || primeira.descricao || 'Follow-up atualizado na edição do negócio',
+                descricao:
+                  followUpDesc.trim() ||
+                  primeira.descricao ||
+                  'Follow-up atualizado na edição do negócio',
                 data_vencimento: proximaAcaoIso,
                 responsavel_id: currentUserId,
               })
@@ -1447,869 +1448,895 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const ownerUser = usersList.find((u) => u.id === proprietarioId) || user
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        onPointerDownOutside={(e) => {
-          // Bloqueia o fechamento padrão do Radix por pointerdown outside.
-          // O fechamento por clique fora é controlado com segurança pelos listeners de
-          // mousedown e mouseup globais (só fecha se mousedown E mouseup ocorrerem fora do painel).
-          e.preventDefault()
-        }}
-        onInteractOutside={(e) => {
-          // Previne fechamento por interações fora (dropdowns, portais, tooltips, etc.)
-          e.preventDefault()
-        }}
-        className="max-w-4xl p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col"
-      >
-        {/* CABEÇALHO DO MODAL */}
-        <DialogHeader className="px-6 py-4 border-b border-[#E3E7EB] flex flex-row items-center justify-between text-left shrink-0">
-          <DialogTitle className="text-base font-bold text-slate-900">
-            {isEditMode ? 'Editar negócio' : 'Adicionar negócio'}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            // Bloqueia o fechamento padrão do Radix por pointerdown outside.
+            // O fechamento por clique fora é controlado com segurança pelos listeners de
+            // mousedown e mouseup globais (só fecha se mousedown E mouseup ocorrerem fora do painel).
+            e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            // Previne fechamento por interações fora (dropdowns, portais, tooltips, etc.)
+            e.preventDefault()
+          }}
+          className="max-w-4xl p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col"
+        >
+          {/* CABEÇALHO DO MODAL */}
+          <DialogHeader className="px-6 py-4 border-b border-[#E3E7EB] flex flex-row items-center justify-between text-left shrink-0">
+            <DialogTitle className="text-base font-bold text-slate-900">
+              {isEditMode ? 'Editar negócio' : 'Adicionar negócio'}
+            </DialogTitle>
+          </DialogHeader>
 
-        {/* CORPO DE DUAS COLUNAS */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col">
-          <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-[#E3E7EB] flex-1">
-            {/* ======================================================== */}
-            {/* PAINEL ESQUERDO (COLUNA PRINCIPAL - md:col-span-7)       */}
-            {/* ======================================================== */}
-            <div className="md:col-span-7 p-6 space-y-4">
-              {/* 1. Pessoa de contato ⓘ */}
-              <div className="space-y-1 relative">
-                <div className="flex items-center space-x-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Pessoa de contato</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                        Pessoa física responsável ou contato decisor deste negócio.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute left-3 top-2.5 text-slate-400 flex items-center pointer-events-none">
-                    <User className="w-4 h-4" />
+          {/* CORPO DE DUAS COLUNAS */}
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-[#E3E7EB] flex-1">
+              {/* ======================================================== */}
+              {/* PAINEL ESQUERDO (COLUNA PRINCIPAL - md:col-span-7)       */}
+              {/* ======================================================== */}
+              <div className="md:col-span-7 p-6 space-y-4">
+                {/* 1. Pessoa de contato ⓘ */}
+                <div className="space-y-1 relative">
+                  <div className="flex items-center space-x-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Pessoa de contato
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          avoidCollisions
+                          className="text-xs"
+                        >
+                          Pessoa física responsável ou contato decisor deste negócio.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
-                  <Input
-                    ref={personInputRef}
-                    placeholder=""
-                    value={personSearch}
-                    onChange={(e) => {
-                      setPersonSearch(e.target.value)
-                      setIsNewPersonCandidate(false)
-                      setSelectedPersonId(null)
-                      setIsPersonDropdownOpen(true)
-                    }}
-                    onFocus={() => setIsPersonDropdownOpen(true)}
-                    className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                  />
 
-                  {/* Badge "NOVO" azul no canto do campo estilo captura Pipedrive */}
-                  {isNewPersonCandidate && (
-                    <span className="absolute right-2 top-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0284C7] text-white tracking-wide">
-                      NOVO
-                    </span>
+                  <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-slate-400 flex items-center pointer-events-none">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <Input
+                      ref={personInputRef}
+                      placeholder=""
+                      value={personSearch}
+                      onChange={(e) => {
+                        setPersonSearch(e.target.value)
+                        setIsNewPersonCandidate(false)
+                        setSelectedPersonId(null)
+                        setIsPersonDropdownOpen(true)
+                      }}
+                      onFocus={() => setIsPersonDropdownOpen(true)}
+                      className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                    />
+
+                    {/* Badge "NOVO" azul no canto do campo estilo captura Pipedrive */}
+                    {isNewPersonCandidate && (
+                      <span className="absolute right-2 top-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0284C7] text-white tracking-wide">
+                        NOVO
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dropdown de sugestão / criação inline */}
+                  {isPersonDropdownOpen && personSearch && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 text-xs">
+                      {filteredPessoas.map((p) => (
+                        <div
+                          key={p.id}
+                          onClick={() => handleSelectPerson(p)}
+                          className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="font-semibold text-slate-800">{p.nome_completo}</span>
+                            {p.email_principal && (
+                              <span className="text-[11px] text-slate-400 truncate max-w-[140px]">
+                                ({p.email_principal})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Botão "+ Adicionar como nova pessoa" com badge NOVO */}
+                      <div
+                        onClick={handleCreateNewPersonCandidate}
+                        className="p-2 mt-1 border-t border-slate-100 hover:bg-blue-50/70 rounded-lg cursor-pointer flex items-center justify-between text-[#0284C7] font-bold"
+                      >
+                        <div className="flex items-center space-x-1.5">
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Adicionar "{personSearch.trim()}"</span>
+                        </div>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0284C7] text-white">
+                          NOVO
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {/* Dropdown de sugestão / criação inline */}
-                {isPersonDropdownOpen && personSearch && (
-                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 text-xs">
-                    {filteredPessoas.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => handleSelectPerson(p)}
-                        className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-800">{p.nome_completo}</span>
-                          {p.email_principal && (
-                            <span className="text-[11px] text-slate-400 truncate max-w-[140px]">
-                              ({p.email_principal})
-                            </span>
+                {/* 2. Organização ⓘ */}
+                <div className="space-y-1 relative">
+                  <div className="flex items-center space-x-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Organização</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          avoidCollisions
+                          className="text-xs"
+                        >
+                          Empresa ou entidade B2B à qual este negócio está vinculado.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-slate-400 flex items-center pointer-events-none">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <Input
+                      ref={orgInputRef}
+                      placeholder=""
+                      value={orgSearch}
+                      onChange={(e) => {
+                        setOrgSearch(e.target.value)
+                        setIsNewOrgCandidate(false)
+                        setSelectedOrgId(null)
+                        setIsOrgDropdownOpen(true)
+                      }}
+                      onFocus={() => setIsOrgDropdownOpen(true)}
+                      className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                    />
+
+                    {/* Badge "NOVO" azul no canto do campo estilo captura Pipedrive */}
+                    {isNewOrgCandidate && (
+                      <span className="absolute right-2 top-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0284C7] text-white tracking-wide">
+                        NOVO
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dropdown de organizações com opção "+ Adicionar [nome]" com badge NOVO */}
+                  {isOrgDropdownOpen && orgSearch && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 text-xs">
+                      {filteredOrgs.map((o) => (
+                        <div
+                          key={o.id}
+                          onClick={() => handleSelectOrg(o)}
+                          className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="font-semibold text-slate-800">{o.razao_social}</span>
+                          </div>
+                          {o.cnpj && (
+                            <span className="text-[10px] font-mono text-slate-400">{o.cnpj}</span>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
 
-                    {/* Botão "+ Adicionar como nova pessoa" com badge NOVO */}
-                    <div
-                      onClick={handleCreateNewPersonCandidate}
-                      className="p-2 mt-1 border-t border-slate-100 hover:bg-blue-50/70 rounded-lg cursor-pointer flex items-center justify-between text-[#0284C7] font-bold"
-                    >
-                      <div className="flex items-center space-x-1.5">
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Adicionar "{personSearch.trim()}"</span>
-                      </div>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0284C7] text-white">
-                        NOVO
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. Organização ⓘ */}
-              <div className="space-y-1 relative">
-                <div className="flex items-center space-x-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Organização</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                        Empresa ou entidade B2B à qual este negócio está vinculado.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute left-3 top-2.5 text-slate-400 flex items-center pointer-events-none">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <Input
-                    ref={orgInputRef}
-                    placeholder=""
-                    value={orgSearch}
-                    onChange={(e) => {
-                      setOrgSearch(e.target.value)
-                      setIsNewOrgCandidate(false)
-                      setSelectedOrgId(null)
-                      setIsOrgDropdownOpen(true)
-                    }}
-                    onFocus={() => setIsOrgDropdownOpen(true)}
-                    className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                  />
-
-                  {/* Badge "NOVO" azul no canto do campo estilo captura Pipedrive */}
-                  {isNewOrgCandidate && (
-                    <span className="absolute right-2 top-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0284C7] text-white tracking-wide">
-                      NOVO
-                    </span>
-                  )}
-                </div>
-
-                {/* Dropdown de organizações com opção "+ Adicionar [nome]" com badge NOVO */}
-                {isOrgDropdownOpen && orgSearch && (
-                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E3E7EB] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 text-xs">
-                    {filteredOrgs.map((o) => (
+                      {/* Botão "+ Adicionar [nome]" com badge NOVO */}
                       <div
-                        key={o.id}
-                        onClick={() => handleSelectOrg(o)}
-                        className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between"
+                        onClick={handleCreateNewOrgCandidate}
+                        className="p-2 mt-1 border-t border-slate-100 hover:bg-blue-50/70 rounded-lg cursor-pointer flex items-center justify-between text-[#0284C7] font-bold"
                       >
-                        <div className="flex items-center space-x-2">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-800">{o.razao_social}</span>
+                        <div className="flex items-center space-x-1.5">
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Adicionar "{orgSearch.trim()}"</span>
                         </div>
-                        {o.cnpj && (
-                          <span className="text-[10px] font-mono text-slate-400">{o.cnpj}</span>
-                        )}
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0284C7] text-white">
+                          NOVO
+                        </span>
                       </div>
-                    ))}
-
-                    {/* Botão "+ Adicionar [nome]" com badge NOVO */}
-                    <div
-                      onClick={handleCreateNewOrgCandidate}
-                      className="p-2 mt-1 border-t border-slate-100 hover:bg-blue-50/70 rounded-lg cursor-pointer flex items-center justify-between text-[#0284C7] font-bold"
-                    >
-                      <div className="flex items-center space-x-1.5">
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Adicionar "{orgSearch.trim()}"</span>
-                      </div>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0284C7] text-white">
-                        NOVO
-                      </span>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Campo opcional de CNPJ para a Organização (exibido quando selecionada ou em criação) */}
-              {(isNewOrgCandidate || selectedOrgId || orgSearch.trim()) && (
-                <div className="space-y-1 pl-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-medium text-slate-600">
-                      CNPJ da Organização{' '}
-                      <span className="text-slate-400 font-normal">(opcional)</span>
-                    </Label>
-                  </div>
-                  <Input
-                    placeholder="00.000.000/0000-00 (opcional)"
-                    value={newOrgCnpj}
-                    onChange={(e) => {
-                      const masked = maskCNPJ(e.target.value)
-                      setNewOrgCnpj(masked)
-                      const digits = onlyDigits(masked)
-                      if (!digits || isValidCNPJ(digits)) {
-                        setOrgCnpjError(null)
-                      } else if (digits.length === 14) {
-                        setOrgCnpjError('CNPJ inválido (verifique os números)')
-                      }
-                    }}
-                    onBlur={() => {
-                      const digits = onlyDigits(newOrgCnpj)
-                      if (digits && !isValidCNPJ(digits)) {
-                        setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
-                      } else {
-                        setOrgCnpjError(null)
-                      }
-                    }}
-                    className={cn(
-                      'h-8 text-xs rounded-lg border-[#D5DBDB] bg-slate-50/50',
-                      orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
-                    )}
-                  />
-                  {orgCnpjError && (
-                    <p className="text-[11px] font-semibold text-red-600 mt-0.5">{orgCnpjError}</p>
                   )}
                 </div>
-              )}
 
-              {/* 3. Título */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Título <span className="text-[11px] font-normal text-slate-400">(opcional)</span>
-                </Label>
-                <Input
-                  value={titulo}
-                  onChange={(e) => {
-                    setTitulo(e.target.value)
-                    setUserEditedTitle(true)
-                  }}
-                  placeholder="ex: Carlos Müller ou Fornecimento Pier (opcional)"
-                  className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                />
-              </div>
-
-              {/* 4. Valor ⓘ + Moeda + Adicionar produtos */}
-              <div className="space-y-1.5">
-                <div className="flex items-center space-x-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Valor</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                        Valor total estimado desta oportunidade na moeda de faturamento.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-7">
+                {/* Campo opcional de CNPJ para a Organização (exibido quando selecionada ou em criação) */}
+                {(isNewOrgCandidate || selectedOrgId || orgSearch.trim()) && (
+                  <div className="space-y-1 pl-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-medium text-slate-600">
+                        CNPJ da Organização{' '}
+                        <span className="text-slate-400 font-normal">(opcional)</span>
+                      </Label>
+                    </div>
                     <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0,00"
-                      value={valor}
-                      onChange={(e) => setValor(maskCurrency(e.target.value))}
-                      className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                      placeholder="00.000.000/0000-00 (opcional)"
+                      value={newOrgCnpj}
+                      onChange={(e) => {
+                        const masked = maskCNPJ(e.target.value)
+                        setNewOrgCnpj(masked)
+                        const digits = onlyDigits(masked)
+                        if (!digits || isValidCNPJ(digits)) {
+                          setOrgCnpjError(null)
+                        } else if (digits.length === 14) {
+                          setOrgCnpjError('CNPJ inválido (verifique os números)')
+                        }
+                      }}
+                      onBlur={() => {
+                        const digits = onlyDigits(newOrgCnpj)
+                        if (digits && !isValidCNPJ(digits)) {
+                          setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
+                        } else {
+                          setOrgCnpjError(null)
+                        }
+                      }}
+                      className={cn(
+                        'h-8 text-xs rounded-lg border-[#D5DBDB] bg-slate-50/50',
+                        orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
+                      )}
                     />
+                    {orgCnpjError && (
+                      <p className="text-[11px] font-semibold text-red-600 mt-0.5">
+                        {orgCnpjError}
+                      </p>
+                    )}
                   </div>
-                  <div className="col-span-5">
-                    <Select
-                      value={moeda}
-                      onValueChange={(v) => setMoeda(v as 'BRL' | 'USD' | 'EUR')}
-                    >
-                      <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="BRL">Brazilian Rea... (BRL)</SelectItem>
-                        <SelectItem value="USD">US Dollar (USD)</SelectItem>
-                        <SelectItem value="EUR">Euro (EUR)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                )}
 
-                {/* Link azul "Adicionar produtos" */}
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toast({
-                        title: 'Catálogo de Produtos NTC',
-                        description: 'O valor estimado foi habilitado para cálculo por itens.',
-                      })
+                {/* 3. Título */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    Título{' '}
+                    <span className="text-[11px] font-normal text-slate-400">(opcional)</span>
+                  </Label>
+                  <Input
+                    value={titulo}
+                    onChange={(e) => {
+                      setTitulo(e.target.value)
+                      setUserEditedTitle(true)
                     }}
-                    className="text-xs text-[#0284C7] hover:underline font-semibold"
-                  >
-                    Adicionar produtos
-                  </button>
-                </div>
-              </div>
-
-              {/* Bloco discreto: Local de entrega (opcional) & Faturamento */}
-              <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
-                    <MapPin className="w-3.5 h-3.5 text-[#017848]" />
-                    <span>Localidade de Faturamento e Entrega</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const proximo = !entregaDiferente
-                      setEntregaDiferente(proximo)
-                      if (!proximo) {
-                        setCidadeEntrega(cidadeFaturamento)
-                        setEstadoEntrega(estadoFaturamento)
-                        setPaisEntrega(paisFaturamento)
-                      }
-                    }}
-                    className="text-[11px] text-[#0284C7] hover:underline font-semibold"
-                  >
-                    {entregaDiferente ? 'Entrega no mesmo local' : 'Local de entrega diferente?'}
-                  </button>
-                </div>
-
-                {/* Localidade de Faturamento pré-preenchida da entidade */}
-                <div>
-                  <GeoSelector
-                    idPrefix="fat"
-                    paisLabel="País (Faturamento)"
-                    cidadeLabel="Cidade (Faturamento)"
-                    estadoLabel="UF"
-                    cidade={cidadeFaturamento}
-                    estado={estadoFaturamento}
-                    pais={paisFaturamento}
-                    onChange={(geo) => {
-                      setCidadeFaturamento(geo.cidade)
-                      setEstadoFaturamento(geo.estado)
-                      setPaisFaturamento(geo.pais)
-                      if (!entregaDiferente) {
-                        setCidadeEntrega(geo.cidade)
-                        setEstadoEntrega(geo.estado)
-                        setPaisEntrega(geo.pais)
-                      }
-                    }}
+                    placeholder="ex: Carlos Müller ou Fornecimento Pier (opcional)"
+                    className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                   />
                 </div>
 
-                {/* Local de Entrega diferente (opcional) */}
-                {entregaDiferente && (
-                  <div className="pt-3 border-t border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
-                        Local de entrega (opcional)
-                      </span>
+                {/* 4. Valor ⓘ + Moeda + Adicionar produtos */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center space-x-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Valor</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          avoidCollisions
+                          className="text-xs"
+                        >
+                          Valor total estimado desta oportunidade na moeda de faturamento.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-7">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0,00"
+                        value={valor}
+                        onChange={(e) => setValor(maskCurrency(e.target.value))}
+                        className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                      />
                     </div>
+                    <div className="col-span-5">
+                      <Select
+                        value={moeda}
+                        onValueChange={(v) => setMoeda(v as 'BRL' | 'USD' | 'EUR')}
+                      >
+                        <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="BRL">Brazilian Rea... (BRL)</SelectItem>
+                          <SelectItem value="USD">US Dollar (USD)</SelectItem>
+                          <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Link azul "Adicionar produtos" */}
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast({
+                          title: 'Catálogo de Produtos NTC',
+                          description: 'O valor estimado foi habilitado para cálculo por itens.',
+                        })
+                      }}
+                      className="text-xs text-[#0284C7] hover:underline font-semibold"
+                    >
+                      Adicionar produtos
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bloco discreto: Local de entrega (opcional) & Faturamento */}
+                <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700">
+                      <MapPin className="w-3.5 h-3.5 text-[#017848]" />
+                      <span>Localidade de Faturamento e Entrega</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const proximo = !entregaDiferente
+                        setEntregaDiferente(proximo)
+                        if (!proximo) {
+                          setCidadeEntrega(cidadeFaturamento)
+                          setEstadoEntrega(estadoFaturamento)
+                          setPaisEntrega(paisFaturamento)
+                        }
+                      }}
+                      className="text-[11px] text-[#0284C7] hover:underline font-semibold"
+                    >
+                      {entregaDiferente ? 'Entrega no mesmo local' : 'Local de entrega diferente?'}
+                    </button>
+                  </div>
+
+                  {/* Localidade de Faturamento pré-preenchida da entidade */}
+                  <div>
                     <GeoSelector
-                      idPrefix="ent"
-                      paisLabel="País de Entrega"
-                      cidadeLabel="Cidade de Entrega"
-                      estadoLabel="UF de Entrega"
-                      cidade={cidadeEntrega}
-                      estado={estadoEntrega}
-                      pais={paisEntrega}
+                      idPrefix="fat"
+                      paisLabel="País (Faturamento)"
+                      cidadeLabel="Cidade (Faturamento)"
+                      estadoLabel="UF"
+                      cidade={cidadeFaturamento}
+                      estado={estadoFaturamento}
+                      pais={paisFaturamento}
                       onChange={(geo) => {
-                        setCidadeEntrega(geo.cidade)
-                        setEstadoEntrega(geo.estado)
-                        setPaisEntrega(geo.pais)
+                        setCidadeFaturamento(geo.cidade)
+                        setEstadoFaturamento(geo.estado)
+                        setPaisFaturamento(geo.pais)
+                        if (!entregaDiferente) {
+                          setCidadeEntrega(geo.cidade)
+                          setEstadoEntrega(geo.estado)
+                          setPaisEntrega(geo.pais)
+                        }
                       }}
                     />
                   </div>
-                )}
-              </div>
 
-              {/* 5. Funil — Linha dedicada com largura plena */}
-              <div className="space-y-1 w-full">
-                <Label className="text-xs font-semibold text-slate-700">Funil</Label>
-                <Select value={funilId} onValueChange={setFunilId}>
-                  <SelectTrigger className="h-9 w-full text-xs rounded-lg border-[#D5DBDB] bg-white">
-                    <SelectValue placeholder="Selecione o funil..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {funis.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.nome_funil}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 6. Etapa do funil — Linha dedicada abaixo, largura plena, sem rolagem horizontal (flex-wrap) */}
-              <div className="space-y-2 w-full">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-slate-700">Etapa do funil</Label>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingNewEtapa(!isAddingNewEtapa)}
-                      className="text-xs text-[#0284C7] hover:underline font-semibold"
-                    >
-                      + Adicionar nova etapa
-                    </button>
+                  {/* Local de Entrega diferente (opcional) */}
+                  {entregaDiferente && (
+                    <div className="pt-3 border-t border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+                          Local de entrega (opcional)
+                        </span>
+                      </div>
+                      <GeoSelector
+                        idPrefix="ent"
+                        paisLabel="País de Entrega"
+                        cidadeLabel="Cidade de Entrega"
+                        estadoLabel="UF de Entrega"
+                        cidade={cidadeEntrega}
+                        estado={estadoEntrega}
+                        pais={paisEntrega}
+                        onChange={(geo) => {
+                          setCidadeEntrega(geo.cidade)
+                          setEstadoEntrega(geo.estado)
+                          setPaisEntrega(geo.pais)
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
 
-                {/* Seletor de etapas estilo Pipedrive em flex-wrap com base nas etapas do funil por ID */}
-                {etapasDoFunil.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 py-1 w-full">
-                    {etapasDoFunil.map((et, idx) => {
-                      const isActive = currentEtapaIndex >= 0 ? idx <= currentEtapaIndex : false
-                      const isCurrent = (etapaId && et.id === etapaId) || et.nome === etapaAtual
-                      return (
-                        <button
-                          key={et.id || et.nome}
-                          type="button"
-                          onClick={() => {
-                            setEtapaId(et.id)
-                            setEtapaAtual(et.nome)
-                          }}
-                          title={et.nome}
-                          className={cn(
-                            'relative h-7 px-2.5 text-[11px] font-bold transition-all flex items-center justify-center rounded-md',
-                            isActive
-                              ? 'bg-[#017848] text-white shadow-xs'
-                              : 'bg-[#E5E9EC] text-slate-600 hover:bg-slate-300',
-                            isCurrent && 'ring-2 ring-offset-1 ring-[#017848]',
-                          )}
-                        >
-                          <span className="truncate max-w-[140px]">{et.nome}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+                {/* 5. Funil — Linha dedicada com largura plena */}
+                <div className="space-y-1 w-full">
+                  <Label className="text-xs font-semibold text-slate-700">Funil</Label>
+                  <Select value={funilId} onValueChange={setFunilId}>
+                    <SelectTrigger className="h-9 w-full text-xs rounded-lg border-[#D5DBDB] bg-white">
+                      <SelectValue placeholder="Selecione o funil..." />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {funis.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.nome_funil}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {/* Input inline para adicionar nova etapa (somente Admin) */}
-                {isAdmin && isAddingNewEtapa && (
-                  <div className="flex items-center space-x-2 pt-1 w-full">
-                    <Input
-                      placeholder="Nome da nova etapa..."
-                      value={novaEtapaNome}
-                      onChange={(e) => setNovaEtapaNome(e.target.value)}
-                      className="h-8 text-xs rounded-lg flex-1"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveNewEtapa}
-                      className="h-8 text-xs bg-[#017848] hover:bg-[#01653c] text-white font-bold"
-                    >
-                      Salvar
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setIsAddingNewEtapa(false)}
-                      className="h-8 text-xs text-slate-500"
-                    >
-                      Cancelar
-                    </Button>
+                {/* 6. Etapa do funil — Linha dedicada abaixo, largura plena, sem rolagem horizontal (flex-wrap) */}
+                <div className="space-y-2 w-full">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-slate-700">Etapa do funil</Label>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingNewEtapa(!isAddingNewEtapa)}
+                        className="text-xs text-[#0284C7] hover:underline font-semibold"
+                      >
+                        + Adicionar nova etapa
+                      </button>
+                    )}
                   </div>
-                )}
+
+                  {/* Seletor de etapas estilo Pipedrive em flex-wrap com base nas etapas do funil por ID */}
+                  {etapasDoFunil.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 py-1 w-full">
+                      {etapasDoFunil.map((et, idx) => {
+                        const isActive = currentEtapaIndex >= 0 ? idx <= currentEtapaIndex : false
+                        const isCurrent = (etapaId && et.id === etapaId) || et.nome === etapaAtual
+                        return (
+                          <button
+                            key={et.id || et.nome}
+                            type="button"
+                            onClick={() => {
+                              setEtapaId(et.id)
+                              setEtapaAtual(et.nome)
+                            }}
+                            title={et.nome}
+                            className={cn(
+                              'relative h-7 px-2.5 text-[11px] font-bold transition-all flex items-center justify-center rounded-md',
+                              isActive
+                                ? 'bg-[#017848] text-white shadow-xs'
+                                : 'bg-[#E5E9EC] text-slate-600 hover:bg-slate-300',
+                              isCurrent && 'ring-2 ring-offset-1 ring-[#017848]',
+                            )}
+                          >
+                            <span className="truncate max-w-[140px]">{et.nome}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Input inline para adicionar nova etapa (somente Admin) */}
+                  {isAdmin && isAddingNewEtapa && (
+                    <div className="flex items-center space-x-2 pt-1 w-full">
+                      <Input
+                        placeholder="Nome da nova etapa..."
+                        value={novaEtapaNome}
+                        onChange={(e) => setNovaEtapaNome(e.target.value)}
+                        className="h-8 text-xs rounded-lg flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSaveNewEtapa}
+                        className="h-8 text-xs bg-[#017848] hover:bg-[#01653c] text-white font-bold"
+                      >
+                        Salvar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsAddingNewEtapa(false)}
+                        className="h-8 text-xs text-slate-500"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 7. Data de fechamento esperada ⓘ */}
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Data de fechamento esperada
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          avoidCollisions
+                          className="text-xs"
+                        >
+                          Previsão de assinatura de contrato ou efetivação do pedido.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Input
+                    type="date"
+                    value={dataFechamento}
+                    onChange={(e) => setDataFechamento(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                  />
+                </div>
+
+                {/* Documento Fiscal para Fechamento (obrigatório do NTC) */}
+                <div className="space-y-1 p-2.5 bg-slate-50 border border-[#E3E7EB] rounded-xl">
+                  <Label className="text-[11px] font-semibold text-slate-700">
+                    Documento Fiscal de Faturamento
+                  </Label>
+                  <Select
+                    value={documentoFaturamento}
+                    onValueChange={(v) => setDocumentoFaturamento(v as 'CPF' | 'CNPJ' | 'AMBOS')}
+                  >
+                    <SelectTrigger className="h-8 text-xs rounded-lg bg-white border-[#D5DBDB]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="CNPJ">Emitir por CNPJ (Organização)</SelectItem>
+                      <SelectItem value="CPF">Emitir por CPF (Pessoa Física)</SelectItem>
+                      <SelectItem value="AMBOS">Referenciar Ambos no Faturamento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Próxima Ação / Follow-up (opcional conforme decisão de produto) */}
+                <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
+                  <div className="flex items-center space-x-1.5 text-amber-900 text-xs font-bold">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Próxima Ação / Follow-up (opcional)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] font-semibold text-amber-900">
+                        Data Vencimento (opcional)
+                      </Label>
+                      <Input
+                        type="date"
+                        value={followUpData}
+                        onChange={(e) => setFollowUpData(e.target.value)}
+                        className="h-8 text-xs bg-white border-amber-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] font-semibold text-amber-900">
+                        Descrição da ação (opcional)
+                      </Label>
+                      <Input
+                        value={followUpDesc}
+                        onChange={(e) => setFollowUpDesc(e.target.value)}
+                        placeholder="ex: Primeiro alinhamento (opcional)..."
+                        className="h-8 text-xs bg-white border-amber-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 8. Proprietário */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Proprietário</Label>
+                  <Select value={proprietarioId} onValueChange={setProprietarioId}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
+                      <SelectValue placeholder="Selecione o proprietário..." />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {usersList.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.email} {u.id === user?.id ? '(Você)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 9. Canal da origem */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Canal de origem</Label>
+                  <Select value={canalOrigem} onValueChange={setCanalOrigem}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="Formulário Web">Formulário Web</SelectItem>
+                      <SelectItem value="Chat / WhatsApp">Chat / WhatsApp</SelectItem>
+                      <SelectItem value="Indicação">Indicação</SelectItem>
+                      <SelectItem value="Evento / Feira">Evento / Feira</SelectItem>
+                      <SelectItem value="Campanha Paga">Campanha Paga</SelectItem>
+                      <SelectItem value="Prospecção Ativa">Prospecção Ativa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 10. ID do canal de origem */}
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    ID do canal de origem
+                  </Label>
+                  <Input
+                    value={idCanalOrigem}
+                    onChange={(e) => setIdCanalOrigem(e.target.value)}
+                    placeholder=""
+                    className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                  />
+                </div>
               </div>
 
-              {/* 7. Data de fechamento esperada ⓘ */}
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">
-                    Data de fechamento esperada
-                  </Label>
+              {/* ======================================================== */}
+              {/* PAINEL DIREITO: "PESSOA" (md:col-span-5)                 */}
+              {/* ======================================================== */}
+              <div className="md:col-span-5 p-6 bg-slate-50/50 space-y-5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-[#E3E7EB] pb-2">
+                  Pessoa
+                </div>
+
+                {/* CPF da Pessoa (Opcional) */}
+
+                {/* 1. Telefone + dropdown de tipo ("Comercial") + "+ Adicionar telefone" */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-slate-700">Telefone</Label>
+
+                  {phones.map((phone, idx) => (
+                    <div key={phone.id} className="flex items-center space-x-1.5">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="(00) 00000-0000"
+                          value={phone.number}
+                          onChange={(e) => handleUpdatePhone(phone.id, e.target.value)}
+                          className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Select
+                          value={phone.tipo}
+                          onValueChange={(val) =>
+                            handleUpdatePhone(phone.id, phone.number, val as PhoneEntry['tipo'])
+                          }
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="Comercial">Comercial</SelectItem>
+                            <SelectItem value="Celular">Celular</SelectItem>
+                            <SelectItem value="Trabalho">Trabalho</SelectItem>
+                            <SelectItem value="Casa">Casa</SelectItem>
+                            <SelectItem value="Outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {phones.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhone(phone.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-md"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Link azul "+ Adicionar telefone" */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleAddPhone}
+                      className="text-xs text-[#0284C7] hover:underline font-semibold"
+                    >
+                      + Adicionar telefone
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. E-mail + dropdown de tipo ("Comercial") + "+ Adicionar e-mail" */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
+
+                  {emails.map((email) => (
+                    <div key={email.id} className="flex items-center space-x-1.5">
+                      <div className="flex-1">
+                        <Input
+                          type="email"
+                          placeholder="contato@exemplo.com.br"
+                          value={email.address}
+                          onChange={(e) => handleUpdateEmail(email.id, e.target.value)}
+                          className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Select
+                          value={email.tipo}
+                          onValueChange={(val) =>
+                            handleUpdateEmail(email.id, email.address, val as EmailEntry['tipo'])
+                          }
+                        >
+                          <SelectTrigger className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="Comercial">Comercial</SelectItem>
+                            <SelectItem value="Trabalho">Trabalho</SelectItem>
+                            <SelectItem value="Pessoal">Pessoal</SelectItem>
+                            <SelectItem value="Outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {emails.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEmail(email.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-md"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Link azul "+ Adicionar e-mail" */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleAddEmail}
+                      className="text-xs text-[#0284C7] hover:underline font-semibold"
+                    >
+                      + Adicionar e-mail
+                    </button>
+                  </div>
+                </div>
+
+                {/* Campo expansível de Nota/Observação */}
+                <div className="pt-3 border-t border-[#E3E7EB]">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">
+                      Anotações do negócio
+                    </Label>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {notaObservacoes.length}/15.000
+                    </span>
+                  </div>
+                  <Textarea
+                    placeholder="Escreva detalhes técnicos, condições de entrega ou histórico prévio..."
+                    value={notaObservacoes}
+                    maxLength={15000}
+                    onChange={(e) => setNotaObservacoes(e.target.value)}
+                    className="text-xs bg-white rounded-lg border-[#D5DBDB] min-h-[90px]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ======================================================== */}
+            {/* RODAPÉ DO MODAL (ESTILO PIPEDRIVE)                       */}
+            {/* ======================================================== */}
+            <div className="px-6 py-3.5 bg-white border-t border-[#E3E7EB] flex items-center justify-between shrink-0">
+              {/* Lado esquerdo: Botão Excluir (modo edição, afastado do X) ou Link Importação (criação) */}
+              {isEditMode && dealId ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="h-9 px-3 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center space-x-1.5 rounded-lg"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Excluir negócio</span>
+                </Button>
+              ) : (
+                <a
+                  href="/importacao"
+                  className="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center space-x-1.5 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Importação</span>
+                </a>
+              )}
+
+              {/* Lado direito: Contador 0/15.000 ⓘ + Cancelar + Salvar (verde primário #017848) */}
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-1 text-xs text-slate-500">
+                  <span className="font-mono">{notaObservacoes.length}/15.000</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
                       </TooltipTrigger>
                       <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                        Previsão de assinatura de contrato ou efetivação do pedido.
+                        Limite de caracteres para notas e histórico do negócio.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <Input
-                  type="date"
-                  value={dataFechamento}
-                  onChange={(e) => setDataFechamento(e.target.value)}
-                  placeholder="DD/MM/YYYY"
-                  className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                />
-              </div>
 
-              {/* Documento Fiscal para Fechamento (obrigatório do NTC) */}
-              <div className="space-y-1 p-2.5 bg-slate-50 border border-[#E3E7EB] rounded-xl">
-                <Label className="text-[11px] font-semibold text-slate-700">
-                  Documento Fiscal de Faturamento
-                </Label>
-                <Select
-                  value={documentoFaturamento}
-                  onValueChange={(v) => setDocumentoFaturamento(v as 'CPF' | 'CNPJ' | 'AMBOS')}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setProprietarioId(user?.id || '')
+                    onOpenChange(false)
+                  }}
+                  className="h-9 px-4 text-xs font-semibold rounded-lg border-[#D5DBDB] text-slate-700 hover:bg-slate-50"
                 >
-                  <SelectTrigger className="h-8 text-xs rounded-lg bg-white border-[#D5DBDB]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="CNPJ">Emitir por CNPJ (Organização)</SelectItem>
-                    <SelectItem value="CPF">Emitir por CPF (Pessoa Física)</SelectItem>
-                    <SelectItem value="AMBOS">Referenciar Ambos no Faturamento</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  Cancelar
+                </Button>
 
-              {/* Próxima Ação / Follow-up (opcional conforme decisão de produto) */}
-              <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
-                <div className="flex items-center space-x-1.5 text-amber-900 text-xs font-bold">
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Próxima Ação / Follow-up (opcional)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-[10px] font-semibold text-amber-900">
-                      Data Vencimento (opcional)
-                    </Label>
-                    <Input
-                      type="date"
-                      value={followUpData}
-                      onChange={(e) => setFollowUpData(e.target.value)}
-                      className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] font-semibold text-amber-900">
-                      Descrição da ação (opcional)
-                    </Label>
-                    <Input
-                      value={followUpDesc}
-                      onChange={(e) => setFollowUpDesc(e.target.value)}
-                      placeholder="ex: Primeiro alinhamento (opcional)..."
-                      className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 8. Proprietário */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Proprietário</Label>
-                <Select value={proprietarioId} onValueChange={setProprietarioId}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
-                    <SelectValue placeholder="Selecione o proprietário..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {usersList.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name || u.email} {u.id === user?.id ? '(Você)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 9. Canal da origem */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Canal de origem</Label>
-                <Select value={canalOrigem} onValueChange={setCanalOrigem}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg border-[#D5DBDB] bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="Formulário Web">Formulário Web</SelectItem>
-                    <SelectItem value="Chat / WhatsApp">Chat / WhatsApp</SelectItem>
-                    <SelectItem value="Indicação">Indicação</SelectItem>
-                    <SelectItem value="Evento / Feira">Evento / Feira</SelectItem>
-                    <SelectItem value="Campanha Paga">Campanha Paga</SelectItem>
-                    <SelectItem value="Prospecção Ativa">Prospecção Ativa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 10. ID do canal de origem */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">
-                  ID do canal de origem
-                </Label>
-                <Input
-                  value={idCanalOrigem}
-                  onChange={(e) => setIdCanalOrigem(e.target.value)}
-                  placeholder=""
-                  className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                />
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isLoadingMasterData}
+                  className="h-9 px-5 text-xs font-bold rounded-lg bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      <span>{isEditMode ? 'Salvando...' : 'Criando...'}</span>
+                    </>
+                  ) : isLoadingMasterData ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      <span>Carregando...</span>
+                    </>
+                  ) : (
+                    <span>{isEditMode ? 'Salvar alterações' : 'Salvar'}</span>
+                  )}
+                </Button>
               </div>
             </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            {/* ======================================================== */}
-            {/* PAINEL DIREITO: "PESSOA" (md:col-span-5)                 */}
-            {/* ======================================================== */}
-            <div className="md:col-span-5 p-6 bg-slate-50/50 space-y-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-[#E3E7EB] pb-2">
-                Pessoa
-              </div>
-
-              {/* CPF da Pessoa (Opcional) */}
-
-              {/* 1. Telefone + dropdown de tipo ("Comercial") + "+ Adicionar telefone" */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700">Telefone</Label>
-
-                {phones.map((phone, idx) => (
-                  <div key={phone.id} className="flex items-center space-x-1.5">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="(00) 00000-0000"
-                        value={phone.number}
-                        onChange={(e) => handleUpdatePhone(phone.id, e.target.value)}
-                        className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                      />
-                    </div>
-                    <div className="w-32">
-                      <Select
-                        value={phone.tipo}
-                        onValueChange={(val) =>
-                          handleUpdatePhone(phone.id, phone.number, val as PhoneEntry['tipo'])
-                        }
-                      >
-                        <SelectTrigger className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="Comercial">Comercial</SelectItem>
-                          <SelectItem value="Celular">Celular</SelectItem>
-                          <SelectItem value="Trabalho">Trabalho</SelectItem>
-                          <SelectItem value="Casa">Casa</SelectItem>
-                          <SelectItem value="Outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {phones.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePhone(phone.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-md"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-
-                {/* Link azul "+ Adicionar telefone" */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleAddPhone}
-                    className="text-xs text-[#0284C7] hover:underline font-semibold"
-                  >
-                    + Adicionar telefone
-                  </button>
-                </div>
-              </div>
-
-              {/* 2. E-mail + dropdown de tipo ("Comercial") + "+ Adicionar e-mail" */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700">E-mail</Label>
-
-                {emails.map((email) => (
-                  <div key={email.id} className="flex items-center space-x-1.5">
-                    <div className="flex-1">
-                      <Input
-                        type="email"
-                        placeholder="contato@exemplo.com.br"
-                        value={email.address}
-                        onChange={(e) => handleUpdateEmail(email.id, e.target.value)}
-                        className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                      />
-                    </div>
-                    <div className="w-32">
-                      <Select
-                        value={email.tipo}
-                        onValueChange={(val) =>
-                          handleUpdateEmail(email.id, email.address, val as EmailEntry['tipo'])
-                        }
-                      >
-                        <SelectTrigger className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="Comercial">Comercial</SelectItem>
-                          <SelectItem value="Trabalho">Trabalho</SelectItem>
-                          <SelectItem value="Pessoal">Pessoal</SelectItem>
-                          <SelectItem value="Outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {emails.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveEmail(email.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-md"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-
-                {/* Link azul "+ Adicionar e-mail" */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleAddEmail}
-                    className="text-xs text-[#0284C7] hover:underline font-semibold"
-                  >
-                    + Adicionar e-mail
-                  </button>
-                </div>
-              </div>
-
-              {/* Campo expansível de Nota/Observação */}
-              <div className="pt-3 border-t border-[#E3E7EB]">
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">
-                    Anotações do negócio
-                  </Label>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {notaObservacoes.length}/15.000
-                  </span>
-                </div>
-                <Textarea
-                  placeholder="Escreva detalhes técnicos, condições de entrega ou histórico prévio..."
-                  value={notaObservacoes}
-                  maxLength={15000}
-                  onChange={(e) => setNotaObservacoes(e.target.value)}
-                  className="text-xs bg-white rounded-lg border-[#D5DBDB] min-h-[90px]"
-                />
-              </div>
+      {/* DIÁLOGO DE CONFIRMAÇÃO: EXCLUIR OPORTUNIDADE (REPLICADO DO DRAWER) */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-2">
+              <Trash2 className="w-6 h-6" />
             </div>
-          </div>
-
-          {/* ======================================================== */}
-          {/* RODAPÉ DO MODAL (ESTILO PIPEDRIVE)                       */}
-          {/* ======================================================== */}
-          <div className="px-6 py-3.5 bg-white border-t border-[#E3E7EB] flex items-center justify-between shrink-0">
-            {/* Lado esquerdo: Botão Excluir (modo edição, afastado do X) ou Link Importação (criação) */}
-            {isEditMode && dealId ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDeleteConfirmOpen(true)}
-                className="h-9 px-3 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center space-x-1.5 rounded-lg"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                <span>Excluir negócio</span>
-              </Button>
-            ) : (
-              <a
-                href="/importacao"
-                className="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center space-x-1.5 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                <span>Importação</span>
-              </a>
-            )}
-
-            {/* Lado direito: Contador 0/15.000 ⓘ + Cancelar + Salvar (verde primário #017848) */}
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1 text-xs text-slate-500">
-                <span className="font-mono">{notaObservacoes.length}/15.000</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="start" avoidCollisions className="text-xs">
-                      Limite de caracteres para notas e histórico do negócio.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setProprietarioId(user?.id || '')
-                  onOpenChange(false)
-                }}
-                className="h-9 px-4 text-xs font-semibold rounded-lg border-[#D5DBDB] text-slate-700 hover:bg-slate-50"
-              >
-                Cancelar
-              </Button>
-
-              <Button
-                type="submit"
-                disabled={isSubmitting || isLoadingMasterData}
-                className="h-9 px-5 text-xs font-bold rounded-lg bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                    <span>{isEditMode ? 'Salvando...' : 'Criando...'}</span>
-                  </>
-                ) : isLoadingMasterData ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                    <span>Carregando...</span>
-                  </>
-                ) : (
-                  <span>{isEditMode ? 'Salvar alterações' : 'Salvar'}</span>
-                )}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    {/* DIÁLOGO DE CONFIRMAÇÃO: EXCLUIR OPORTUNIDADE (REPLICADO DO DRAWER) */}
-    <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-      <DialogContent className="max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200">
-        <DialogHeader>
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-2">
-            <Trash2 className="w-6 h-6" />
-          </div>
-          <DialogTitle className="text-lg font-bold text-slate-900">
-            Excluir Oportunidade?
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-600">
-            Tem certeza que deseja excluir esta oportunidade? As atividades vinculadas a este
-            negócio também serão removidas. Esta ação não pode ser desfeita.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="mt-4 flex items-center justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isDeleting}
-            onClick={() => setDeleteConfirmOpen(false)}
-            className="text-xs"
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={handleDeleteOpportunity}
-            className="text-xs bg-red-600 hover:bg-red-700 font-bold"
-          >
-            {isDeleting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                Excluindo...
-              </>
-            ) : (
-              'Sim, excluir'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Excluir Oportunidade?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600">
+              Tem certeza que deseja excluir esta oportunidade? As atividades vinculadas a este
+              negócio também serão removidas. Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex items-center justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDeleting}
+              onClick={() => setDeleteConfirmOpen(false)}
+              className="text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={handleDeleteOpportunity}
+              className="text-xs bg-red-600 hover:bg-red-700 font-bold"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  Excluindo...
+                </>
+              ) : (
+                'Sim, excluir'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
