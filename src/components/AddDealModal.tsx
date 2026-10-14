@@ -37,7 +37,7 @@ import {
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { toast } from '@/hooks/use-toast'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { maskPhone, maskCNPJ, maskCPF, isValidCNPJ, isValidCPF, onlyDigits } from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
@@ -122,7 +122,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   initialValues,
 }) => {
   const isEditMode = mode === 'edit' || !!dealId
-  const { activeBrand } = useBrand()
+  const { activeBrand, marcas } = useBrand()
   const { user, isAdmin } = useAuth()
   const { toast } = useToast()
   const mouseDownOutsideRef = useRef(false)
@@ -2340,4 +2340,5 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     </>
   )
 }
+
 export default AddDealModal

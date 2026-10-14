@@ -1945,16 +1945,19 @@ export default function Pipelines() {
             <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-2">
               <p className="font-bold text-slate-900">Agendar Próxima Ação (Follow-up)</p>
               <div>
-                <Label className="text-[10px] font-semibold text-slate-600">
-                  Data da Próxima Interação{' '}
-                  <span className="font-normal text-slate-400">(opcional)</span>
+                <Label className="text-[10px] font-semibold text-slate-700">
+                  Data da Próxima Interação <span className="text-red-500 font-bold">*</span>
                 </Label>
                 <Input
                   type="date"
                   value={dragFollowUpData}
                   onChange={(e) => setDragFollowUpData(e.target.value)}
-                  className="h-8 text-xs bg-white rounded-lg"
+                  className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                 />
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Este negócio ainda não possui follow-up agendado. Defina a data da próxima ação
+                  para avançar de etapa.
+                </p>
               </div>
               <div>
                 <Label className="text-[10px] font-semibold text-slate-600">
