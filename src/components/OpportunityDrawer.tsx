@@ -60,6 +60,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [opportunity, setOpportunity] = useState<Oportunidade | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const [preferencias, setPreferencias] = useState<PreferenciaComunicacao[]>([])
+  const [linkedPessoa, setLinkedPessoa] = useState<Pessoa | null>(null)
   const [wonOrgIds, setWonOrgIds] = useState<Set<string>>(new Set())
   const [wonPessoaIds, setWonPessoaIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
@@ -121,8 +122,34 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       const b2cId = opp.cliente_b2c_id || opp.pessoa_id
       if (b2bId) {
         prefFilter = `cliente_b2b_id = "${b2bId}"`
+        // Se houver b2c vinculado explicitamente ou se a organização tiver pessoas associadas
+        if (opp.expand?.cliente_b2c_id || opp.expand?.pessoa_id) {
+          setLinkedPessoa(opp.expand?.cliente_b2c_id || opp.expand?.pessoa_id || null)
+        } else if (b2cId) {
+          try {
+            const p = await pb.collection('pessoas').getOne<Pessoa>(b2cId)
+            setLinkedPessoa(p)
+          } catch {
+            setLinkedPessoa(null)
+          }
+        } else {
+          // Busca primeira pessoa vinculada à organização
+          try {
+            const orgPessoas = await pb.collection('pessoas').getFullList<Pessoa>({
+              filter: `organizacao_id = "${b2bId}"`,
+              sort: 'nome_completo',
+              limit: 1,
+            })
+            setLinkedPessoa(orgPessoas[0] || null)
+          } catch {
+            setLinkedPessoa(null)
+          }
+        }
       } else if (b2cId) {
         prefFilter = `cliente_b2c_id = "${b2cId}"`
+        setLinkedPessoa(null)
+      } else {
+        setLinkedPessoa(null)
       }
 
       if (prefFilter) {
@@ -632,43 +659,43 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     )}
 
                     {/* Dados do Cliente Vinculado */}
-                    <div className="pt-2 border-t border-[#D5DBDB]/60">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
-                          Ficha do Contato / Organização
-                        </span>
-                        {clienteB2B &&
-                          (wonOrgIds.has(clienteB2B.id) ? (
-                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                              Cliente
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
-                              Prospect
-                            </Badge>
-                          ))}
-                        {clienteB2C &&
-                          !clienteB2B &&
-                          (wonPessoaIds.has(clienteB2C.id) ? (
-                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                              Cliente
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
-                              Prospect
-                            </Badge>
-                          ))}
-                      </div>
-                      <div className="mt-2 p-3 rounded-lg border border-[#D5DBDB] bg-white space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#5D6D7E]">Nome/Razão Social:</span>
-                          <span className="font-bold text-[#1C2833]">{clienteNome}</span>
-                        </div>
-                        {clienteB2B && (
-                          <>
+                    <div className="pt-2 border-t border-[#D5DBDB]/60 space-y-3">
+                      {/* Bloco Organização (se houver B2B) */}
+                      {clienteB2B && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E] flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                              Organização B2B
+                            </span>
+                            {wonOrgIds.has(clienteB2B.id) ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                Cliente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                                Prospect
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-2 p-3 rounded-lg border border-[#D5DBDB] bg-white space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[#5D6D7E]">Razão Social:</span>
+                              <span className="font-bold text-[#1C2833]">
+                                {clienteB2B.razao_social || '—'}
+                              </span>
+                            </div>
+                            {clienteB2B.nome_fantasia && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#5D6D7E]">Nome Fantasia:</span>
+                                <span className="text-[#1C2833]">{clienteB2B.nome_fantasia}</span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between">
                               <span className="text-[#5D6D7E]">CNPJ:</span>
-                              <span className="font-mono text-[#1C2833]">{clienteB2B.cnpj}</span>
+                              <span className="font-mono text-[#1C2833]">
+                                {clienteB2B.cnpj || '—'}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[#5D6D7E]">E-mail Corporativo:</span>
@@ -680,13 +707,108 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                               <span className="text-[#5D6D7E]">Telefone:</span>
                               <span className="text-[#1C2833]">{clienteB2B.telefone || '—'}</span>
                             </div>
-                          </>
-                        )}
-                        {clienteB2C && (
-                          <>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bloco Pessoa Vinculada à Organização */}
+                      {clienteB2B && (
+                        <div className="pt-2 border-t border-slate-200/70">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E] flex items-center gap-1.5">
+                                <User className="w-3.5 h-3.5 text-emerald-600" />
+                                Pessoa Vinculada
+                              </span>
+                              <p className="text-[11px] text-[#5D6D7E]">
+                                Contato-chave ou comprador técnico associado
+                              </p>
+                            </div>
+                            {linkedPessoa &&
+                              (wonPessoaIds.has(linkedPessoa.id) ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                  Cliente
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                                  Prospect
+                                </Badge>
+                              ))}
+                          </div>
+                          {linkedPessoa ? (
+                            <div className="mt-2 p-3 rounded-lg border border-[#D5DBDB] bg-white space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#5D6D7E]">Nome Completo:</span>
+                                <span className="font-bold text-[#1C2833]">
+                                  {linkedPessoa.nome_completo}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#5D6D7E]">Cargo:</span>
+                                <span className="font-semibold text-slate-800">
+                                  {linkedPessoa.cargo || 'Não especificado'}
+                                  {linkedPessoa.departamento && ` • ${linkedPessoa.departamento}`}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#5D6D7E]">E-mail:</span>
+                                <span className="text-[#1C2833]">
+                                  {linkedPessoa.email_principal || '—'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#5D6D7E]">Telefone:</span>
+                                <span className="text-[#1C2833]">
+                                  {linkedPessoa.telefone || '—'}
+                                </span>
+                              </div>
+                              {linkedPessoa.cpf && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[#5D6D7E]">CPF:</span>
+                                  <span className="font-mono text-[#1C2833]">
+                                    {linkedPessoa.cpf}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-2 p-3 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg bg-slate-50/50">
+                              Nenhuma pessoa vinculada a este negócio ou organização.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* B2C puro (só pessoa, sem organização) */}
+                      {!clienteB2B && clienteB2C && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E] flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-emerald-600" />
+                              Ficha do Contato (Pessoa B2C)
+                            </span>
+                            {wonPessoaIds.has(clienteB2C.id) ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                Cliente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
+                                Prospect
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-2 p-3 rounded-lg border border-[#D5DBDB] bg-white space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[#5D6D7E]">Nome Completo:</span>
+                              <span className="font-bold text-[#1C2833]">
+                                {clienteB2C.nome_completo || '—'}
+                              </span>
+                            </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[#5D6D7E]">CPF:</span>
-                              <span className="font-mono text-[#1C2833]">{clienteB2C.cpf}</span>
+                              <span className="font-mono text-[#1C2833]">
+                                {clienteB2C.cpf || '—'}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[#5D6D7E]">E-mail Pessoal:</span>
@@ -698,9 +820,21 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                               <span className="text-[#5D6D7E]">Telefone:</span>
                               <span className="text-[#1C2833]">{clienteB2C.telefone || '—'}</span>
                             </div>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sem vínculo nenhum */}
+                      {!clienteB2B && !clienteB2C && (
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                            Ficha do Contato
+                          </span>
+                          <div className="mt-2 p-3 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
+                            Nenhum contato ou organização vinculado a esta oportunidade.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </TabsContent>

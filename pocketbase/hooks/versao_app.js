@@ -9,7 +9,7 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Expires', '0')
 
   // Versão canônica publicada do app
-  const currentVersion = '0.0.70'
+  const currentVersion = '0.0.69'
 
   return e.json(200, {
     version: currentVersion,

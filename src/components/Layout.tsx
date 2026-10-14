@@ -86,6 +86,33 @@ export default function Layout() {
   const fetchSidebarCounts = async () => {
     try {
       const nowIso = new Date().toISOString()
+
+      // Unificar filtros de marca e escopo de visibilidade com a listagem de Clientes
+      const b2bFilters: string[] = []
+      const b2cFilters: string[] = []
+      const leadFilters: string[] = []
+
+      if (activeBrand) {
+        b2bFilters.push(`marca_captura_id = "${activeBrand.id}"`)
+        b2cFilters.push(`marca_captura_id = "${activeBrand.id}"`)
+        leadFilters.push(`marca_origem_id = "${activeBrand.id}"`)
+      }
+
+      if (user && !isAdmin && !isDiretoria) {
+        if (
+          isRepresentante ||
+          (user.permissoes && (user.permissoes as any).escopo === 'proprios')
+        ) {
+          b2bFilters.push(`criado_por_id = "${user.id}"`)
+          b2cFilters.push(`criado_por_id = "${user.id}"`)
+          leadFilters.push(`criado_por_id = "${user.id}"`)
+        }
+      }
+
+      const filterB2B = b2bFilters.join(' && ') || undefined
+      const filterB2C = b2cFilters.join(' && ') || undefined
+      const filterLeads = leadFilters.join(' && ') || undefined
+
       const [tarefasRes, dupRes, b2bRes, b2cRes, leadsRes] = await Promise.all([
         pb
           .collection('atividades')
@@ -101,15 +128,21 @@ export default function Layout() {
           .catch(() => ({ totalItems: 0 })),
         pb
           .collection('organizacoes')
-          .getList(1, 1)
+          .getList(1, 1, {
+            filter: filterB2B,
+          })
           .catch(() => ({ totalItems: 0 })),
         pb
           .collection('pessoas')
-          .getList(1, 1)
+          .getList(1, 1, {
+            filter: filterB2C,
+          })
           .catch(() => ({ totalItems: 0 })),
         pb
           .collection('leads')
-          .getList(1, 1)
+          .getList(1, 1, {
+            filter: filterLeads,
+          })
           .catch(() => ({ totalItems: 0 })),
       ])
 
@@ -127,7 +160,7 @@ export default function Layout() {
     fetchSidebarCounts()
     const timer = setInterval(fetchSidebarCounts, 30000)
     return () => clearInterval(timer)
-  }, [activeBrand])
+  }, [activeBrand, user?.id, isAdmin, isDiretoria, isRepresentante])
 
   // Quando o pin está desativado, o menu NÃO expande no hover: só abre com pin ativado
   const isExpanded = isSidebarPinned

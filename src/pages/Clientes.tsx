@@ -77,6 +77,7 @@ import {
   Trash2,
   Edit2,
   XCircle,
+  RefreshCw,
 } from 'lucide-react'
 import type { Lead, Funil } from '@/types'
 import { toast } from '@/hooks/use-toast'
@@ -121,6 +122,8 @@ export default function Clientes() {
   const [leadsList, setLeadsList] = useState<import('@/types').Lead[]>([])
   const [timelineAtividades, setTimelineAtividades] = useState<Atividade[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [hasAutoSwitchedTab, setHasAutoSwitchedTab] = useState(false)
 
   // Estados e filtros de Leads
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('all')
@@ -212,6 +215,7 @@ export default function Clientes() {
 
   const fetchContatos = async () => {
     setIsLoading(true)
+    setLoadError(null)
     try {
       const b2bFilters: string[] = []
       const b2cFilters: string[] = []
@@ -294,14 +298,30 @@ export default function Clientes() {
       setLeadsList(leadsRes)
       setTimelineAtividades(ativList)
       setFunis(funisRes)
+
+      // Aba inteligente inicial: se o usuário não definiu URL explícita e ainda não houve troca manual
+      if (!subnavParam && !hasAutoSwitchedTab) {
+        if (b2bList.length === 0 && b2cList.length > 0) {
+          setActiveSubNav('pessoas')
+        } else if (b2cList.length === 0 && b2bList.length > 0) {
+          setActiveSubNav('organizacoes')
+        }
+        setHasAutoSwitchedTab(true)
+      }
+
       if (funisRes.length > 0 && !convFunilId) {
         setConvFunilId(funisRes[0].id)
         if (funisRes[0].etapas?.length > 0) {
           setConvEtapa(funisRes[0].etapas[0].nome)
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Erro ao buscar contatos:', err)
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível carregar os contatos. Verifique sua conexão e permissões de acesso.'
+      setLoadError(msg)
     } finally {
       setIsLoading(false)
     }
@@ -1116,6 +1136,28 @@ export default function Clientes() {
             </div>
           </div>
         </div>
+
+        {/* BANNER DE ERRO VISÍVEL COM BOTÃO TENTAR NOVAMENTE */}
+        {loadError && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-red-800 shadow-xs">
+            <div className="flex items-start sm:items-center space-x-2.5">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <p className="font-bold text-red-900">Falha ao carregar registros de contatos</p>
+                <p className="text-red-700 text-[11px] mt-0.5">{loadError}</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchContatos}
+              className="text-xs font-semibold border-red-300 text-red-800 hover:bg-red-100 self-start sm:self-auto shrink-0 h-8"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Tentar novamente
+            </Button>
+          </div>
+        )}
 
         {/* CONTEÚDO PRINCIPAL (PESSOAS, ORGANIZAÇÕES OU TIMELINE) */}
         {isLoading ? (
