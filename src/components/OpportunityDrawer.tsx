@@ -413,15 +413,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       <Trash2 className="w-3.5 h-3.5 mr-1" />
                       Excluir
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onClose}
-                      className="text-xs text-slate-500 hover:bg-slate-100 h-8 px-2"
-                      title="Fechar"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
 
