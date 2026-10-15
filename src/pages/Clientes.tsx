@@ -274,7 +274,7 @@ export default function Clientes() {
         }),
         pb.collection('leads').getFullList<Lead>({
           filter: filterLeads || undefined,
-          expand: 'marca_origem_id,marca_id,convertido_para_id',
+          expand: 'marca_id,convertido_para_id',
           sort: '-created',
         }),
         pb
@@ -740,7 +740,6 @@ export default function Clientes() {
         estado: newLeadEstado.trim() || null,
         pais: newLeadPais.trim() || 'Brasil',
         marca_id: marcaId,
-        marca_origem_id: marcaId,
         status_qualificacao: 'Novo',
       })
       toast({
@@ -842,8 +841,7 @@ export default function Clientes() {
 
   const handleOpenConvert = (lead: Lead) => {
     setSelectedLeadToConvert(lead)
-    const brandName =
-      lead.expand?.marca_origem_id?.nome || lead.expand?.marca_id?.nome || activeBrand?.nome
+    const brandName = lead.expand?.marca_id?.nome || activeBrand?.nome
     const inits = prepararInitialValuesDeLead(lead, brandName)
     setLeadDealInitialValues(inits)
     setIsAddDealLeadOpen(true)
@@ -1445,17 +1443,14 @@ export default function Clientes() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            {ld.expand?.marca_origem_id || ld.expand?.marca_id ? (
+                            {ld.expand?.marca_id ? (
                               <Badge
                                 className="text-[10px] text-white rounded-full font-semibold"
                                 style={{
-                                  backgroundColor:
-                                    ld.expand?.marca_origem_id?.cor_destaque ||
-                                    ld.expand?.marca_id?.cor_destaque ||
-                                    '#017848',
+                                  backgroundColor: ld.expand?.marca_id?.cor_destaque || '#017848',
                                 }}
                               >
-                                {ld.expand?.marca_origem_id?.nome || ld.expand?.marca_id?.nome}
+                                {ld.expand?.marca_id?.nome}
                               </Badge>
                             ) : (
                               <span className="text-slate-500">NTC Geral</span>

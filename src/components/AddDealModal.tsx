@@ -39,7 +39,7 @@ import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import { maskPhone, maskCNPJ, maskCPF, isValidCNPJ, isValidCPF, onlyDigits } from '@/lib/formatters'
+import { maskPhone, maskCPF, isValidCPF, onlyDigits } from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import type {
   Funil,
@@ -149,13 +149,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   // 2. Organização (busca / seleção + criação inline com badge NOVO)
   const [orgSearch, setOrgSearch] = useState('')
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
-  const [newOrgCnpj, setNewOrgCnpj] = useState('')
   const [isNewOrgCandidate, setIsNewOrgCandidate] = useState(false)
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
   const orgInputRef = useRef<HTMLInputElement>(null)
 
   // Erros de validação inline de documentos
-  const [orgCnpjError, setOrgCnpjError] = useState<string | null>(null)
   const [personCpfError, setPersonCpfError] = useState<string | null>(null)
 
   // 3. Título
@@ -440,13 +438,13 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           }
 
           if (effectiveValues.proxima_acao_data) {
-            setFollowUpData(effectiveValues.proxima_acao_data.split('T')[0])
+            setFollowUpData(effectiveValues.proxima_acao_data.substring(0, 10))
           }
           if (effectiveValues.proxima_acao_descricao) {
             setFollowUpDesc(effectiveValues.proxima_acao_descricao)
           }
           if (effectiveValues.data_fechamento_esperada) {
-            setDataFechamento(effectiveValues.data_fechamento_esperada.split('T')[0])
+            setDataFechamento(effectiveValues.data_fechamento_esperada.substring(0, 10))
           }
 
           const targetOrgId = effectiveValues.cliente_b2b_id || effectiveValues.organizacao_id
@@ -769,8 +767,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const handleSelectOrg = (o: ClienteB2B) => {
     setSelectedOrgId(o.id)
     setOrgSearch(o.razao_social)
-    setNewOrgCnpj(o.cnpj || '')
-    setOrgCnpjError(null)
     setIsNewOrgCandidate(false)
     setIsOrgDropdownOpen(false)
     if (!personSearch && !userEditedTitle) {
@@ -979,17 +975,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     const finalTitulo = titulo.trim() || 'Novo negócio'
 
     // Valida formato dos documentos caso informados
-    const cleanOrgCnpj = onlyDigits(newOrgCnpj)
-    if (cleanOrgCnpj && !isValidCNPJ(cleanOrgCnpj)) {
-      setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos e dígitos verificadores válidos)')
-      toast({
-        variant: 'destructive',
-        title: 'CNPJ inválido',
-        description: 'Verifique o número do CNPJ informado no campo da organização.',
-      })
-      return
-    }
-
     const cleanPersonCpf = onlyDigits(newPersonCpf)
     if (cleanPersonCpf && !isValidCPF(cleanPersonCpf)) {
       setPersonCpfError('CPF inválido (deve conter 11 dígitos e dígitos verificadores válidos)')
@@ -1241,7 +1226,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               ? {
                   razao_social: orgSearch.trim(),
                   nome_fantasia: orgSearch.trim(),
-                  cnpj: cleanOrgCnpj || null,
                   cidade: cidadeFaturamento.trim() || null,
                   estado: estadoFaturamento.trim() || null,
                   pais: paisFaturamento.trim() || 'Brasil',
@@ -1359,8 +1343,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setPersonCpfError(null)
         setSelectedOrgId(null)
         setOrgSearch('')
-        setNewOrgCnpj('')
-        setOrgCnpjError(null)
+
         setNotaObservacoes('')
         setProprietarioId(user?.id || '')
         setEtapaId('')
@@ -1394,15 +1377,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         errorTitle = 'Trava de Follow-up Ativa'
         errorDescription =
           'Não é permitido alterar ou avançar a oportunidade de etapa sem agendar uma próxima ação com data.'
-      } else if (
-        serverField === 'cnpj' ||
-        serverError === 'cnpj_duplicado' ||
-        serverError === 'cnpj_invalido'
-      ) {
-        setOrgCnpjError(serverMessage)
-        errorTitle = 'Organização já cadastrada'
-        errorDescription =
-          serverMessage || 'Já existe uma organização cadastrada com este CNPJ no sistema.'
       } else if (
         serverField === 'cpf' ||
         serverError === 'cpf_duplicado' ||
@@ -1509,12 +1483,15 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                       placeholder=""
                       value={personSearch}
                       onChange={(e) => {
-                        setPersonSearch(e.target.value)
+                        const val = e.target.value
+                        setPersonSearch(val)
                         setIsNewPersonCandidate(false)
                         setSelectedPersonId(null)
-                        setIsPersonDropdownOpen(true)
+                        const matchingPerson = pessoas.find(
+                          (p) => p.nome_completo.trim().toLowerCase() === val.trim().toLowerCase(),
+                        )
+                        setIsPersonDropdownOpen(!!val.trim() && !matchingPerson)
                       }}
-                      onFocus={() => setIsPersonDropdownOpen(true)}
                       className="pl-9 pr-16 h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
                     />
 
@@ -1644,45 +1621,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                         </span>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Campo neutro e opcional de CNPJ para a Organização */}
-                <div className="space-y-1 pl-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-medium text-slate-600">
-                      CNPJ da Organização{' '}
-                      <span className="text-slate-400 font-normal">(opcional)</span>
-                    </Label>
-                  </div>
-                  <Input
-                    placeholder="00.000.000/0000-00 (opcional)"
-                    value={newOrgCnpj}
-                    onChange={(e) => {
-                      const masked = maskCNPJ(e.target.value)
-                      setNewOrgCnpj(masked)
-                      const digits = onlyDigits(masked)
-                      if (!digits || isValidCNPJ(digits)) {
-                        setOrgCnpjError(null)
-                      } else if (digits.length === 14) {
-                        setOrgCnpjError('CNPJ inválido (verifique os números)')
-                      }
-                    }}
-                    onBlur={() => {
-                      const digits = onlyDigits(newOrgCnpj)
-                      if (digits && !isValidCNPJ(digits)) {
-                        setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
-                      } else {
-                        setOrgCnpjError(null)
-                      }
-                    }}
-                    className={cn(
-                      'h-8 text-xs rounded-lg border-[#D5DBDB] bg-white',
-                      orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
-                    )}
-                  />
-                  {orgCnpjError && (
-                    <p className="text-[11px] font-semibold text-red-600 mt-0.5">{orgCnpjError}</p>
                   )}
                 </div>
 

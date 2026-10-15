@@ -90,9 +90,7 @@ export function gerarTituloLeadDeal(lead: Lead, marcaSlugOuNome?: string): strin
   const isPierplas =
     (marcaSlugOuNome && /pierplas/i.test(marcaSlugOuNome)) ||
     (lead.expand?.marca_id?.nome && /pierplas/i.test(lead.expand.marca_id.nome)) ||
-    (lead.expand?.marca_origem_id?.nome && /pierplas/i.test(lead.expand.marca_origem_id.nome)) ||
-    (lead.origem === 'Formulário Web' &&
-      (lead.marca_id === 'miglxzi2xmf3pmi' || lead.marca_origem_id === 'miglxzi2xmf3pmi'))
+    (lead.origem === 'Formulário Web' && lead.marca_id === 'miglxzi2xmf3pmi')
 
   const isFormWeb =
     lead.origem === 'Formulário Web' ||

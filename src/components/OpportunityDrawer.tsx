@@ -6,7 +6,6 @@ import { getClientStatusSets } from '@/lib/relationshipStatus'
 import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import { cn } from '@/lib/utils'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,6 +39,7 @@ import {
   Loader2,
   Copy,
   Edit,
+  X,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { AddDealModal } from '@/components/AddDealModal'
@@ -105,7 +105,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       setOpportunity(opp)
       setTitulo(opp.titulo)
       setValorEstimado(opp.valor_estimado ? formatCurrencyString(opp.valor_estimado) : '')
-      setProximaAcaoData(opp.proxima_acao_data ? opp.proxima_acao_data.split('T')[0] : '')
+      setProximaAcaoData(opp.proxima_acao_data ? opp.proxima_acao_data.substring(0, 10) : '')
       setProximaAcaoDescricao(opp.proxima_acao_descricao || '')
       setDocumentoFaturamento(opp.documento_faturamento || '')
       // Atividades associadas
@@ -355,20 +355,17 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
   return (
     <>
-      <Sheet open={!!opportunityId} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-xl md:max-w-2xl p-0 flex flex-col bg-white border-l border-[#D5DBDB] shadow-2xl z-50"
-        >
+      <Dialog open={!!opportunityId} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-3xl w-full p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col">
           {isLoading || !opportunity ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-3">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-3 min-h-[300px]">
               <Loader2 className="w-8 h-8 animate-spin text-[#1B4F72]" />
               <p className="text-xs text-[#5D6D7E]">Carregando dados da negociação...</p>
             </div>
           ) : (
             <>
-              {/* TOP DRAWER HEADER */}
-              <SheetHeader className="p-5 border-b border-[#D5DBDB] bg-slate-50/70 text-left">
+              {/* TOP HEADER */}
+              <DialogHeader className="p-5 border-b border-[#D5DBDB] bg-slate-50/70 text-left shrink-0">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center space-x-2">
                     <span
@@ -381,23 +378,8 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       variant="outline"
                       className="text-[10px] font-bold border-[#D5DBDB] uppercase tracking-wider"
                     >
-                      {opportunity.expand?.marca_id?.nome}
+                      {opportunity.expand?.marca_id?.nome || 'NTC'}
                     </Badge>
-                    <Badge className="bg-[#1B4F72] text-white text-[10px]">
-                      {opportunity.etapa_atual}
-                    </Badge>
-                    {opportunity.tipo_cliente && (
-                      <Badge
-                        className={cn(
-                          'text-[10px] font-bold',
-                          opportunity.tipo_cliente === 'Recompra'
-                            ? 'bg-purple-100 text-purple-800 border-purple-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                        )}
-                      >
-                        {opportunity.tipo_cliente}
-                      </Badge>
-                    )}
                   </div>
                   <div className="flex items-center space-x-1">
                     <Button
@@ -415,11 +397,11 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                         variant="outline"
                         size="sm"
                         onClick={() => onDuplicate(opportunity)}
-                        className="text-xs h-8 border-[#D5DBDB] text-slate-700 hover:bg-slate-100"
+                        className="text-xs h-8 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold"
                         title="Duplicar negócio como cópia editável não salva"
                       >
                         <Copy className="w-3.5 h-3.5 mr-1 text-[#017848]" />
-                        Duplicar negócio
+                        Duplicar
                       </Button>
                     )}
                     <Button
@@ -431,12 +413,21 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       <Trash2 className="w-3.5 h-3.5 mr-1" />
                       Excluir
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onClose}
+                      className="text-xs text-slate-500 hover:bg-slate-100 h-8 px-2"
+                      title="Fechar"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
 
-                <SheetTitle className="text-lg font-bold text-[#1C2833] mt-2">
+                <DialogTitle className="text-lg font-bold text-[#1C2833] mt-2">
                   {opportunity.titulo}
-                </SheetTitle>
+                </DialogTitle>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-[#5D6D7E] mt-1">
                   <span className="flex items-center">
                     {clienteB2B ? (
@@ -453,9 +444,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     {formatCurrencyBRL(opportunity.valor_estimado)}
                   </span>
                 </div>
-              </SheetHeader>
+              </DialogHeader>
 
-              {/* TABS DO DRAWER: DETALHES, ATIVIDADES, LGPD */}
+              {/* TABS: DETALHES, ATIVIDADES, LGPD */}
               <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
                 <div className="px-5 border-b border-[#D5DBDB] bg-white">
                   <TabsList className="h-11 bg-transparent p-0 space-x-4">
@@ -463,7 +454,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       value="detalhes"
                       className="text-xs font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1B4F72] rounded-none px-1 py-2.5"
                     >
-                      Detalhes & Trava Follow-up
+                      Detalhes
                     </TabsTrigger>
                     <TabsTrigger
                       value="atividades"
@@ -482,21 +473,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
 
                 {/* ABA 1: DETALHES */}
                 <TabsContent value="detalhes" className="flex-1 overflow-y-auto p-5 space-y-5 m-0">
-                  {/* ALERTA DE TRAVA DE FOLLOW-UP */}
-                  {followStatus === 'missing' && (
-                    <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs flex items-start space-x-2.5">
-                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold">Trava de Follow-up Ativa</p>
-                        <p className="mt-0.5 text-red-700">
-                          Esta negociação não possui data de retorno agendada. Conforme a regra de
-                          negócio da NTC, ela não poderá avançar de etapa no Kanban até que um
-                          follow-up seja definido.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
@@ -983,8 +959,8 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
               </Tabs>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL NOVA ATIVIDADE */}
       <Dialog open={newAtivOpen} onOpenChange={setNewAtivOpen}>
