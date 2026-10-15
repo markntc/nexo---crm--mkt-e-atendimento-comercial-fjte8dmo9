@@ -54,6 +54,7 @@ export default function Layout() {
     isAdmin,
     isDiretoria,
     isRepresentante,
+    escopoVisibilidade,
     podeVerConsolidado,
     podeAcessarPreferencias,
     podeAcessarConciliacao,
@@ -165,7 +166,7 @@ export default function Layout() {
     fetchSidebarCounts()
     const timer = setInterval(fetchSidebarCounts, 30000)
     return () => clearInterval(timer)
-  }, [activeBrand, user?.id, isAdmin, isDiretoria, isRepresentante])
+  }, [activeBrand, user?.id, isAdmin, isDiretoria, isRepresentante, escopoVisibilidade])
 
   // Quando o pin está desativado, o menu NÃO expande no hover: só abre com pin ativado
   const isExpanded = isSidebarPinned
