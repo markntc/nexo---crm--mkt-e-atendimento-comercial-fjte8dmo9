@@ -99,9 +99,9 @@ export default function Pipelines() {
 
   // Filtro de status estilo Pipedrive ("Status é Aberto" / "Todos")
   const [statusFilter, setStatusFilter] = useState<'aberto' | 'todos'>('aberto')
-  // Chip de filtro rápido de data esperada de fechamento: todos | 30d | 60d | 90d | atrasados
+  // Chip de filtro rápido de data esperada de fechamento: todos | 30d | 60d | 90d | atrasados | sem_proxima_acao
   const [quickDateFilter, setQuickDateFilter] = useState<
-    'todos' | '30d' | '60d' | '90d' | 'atrasados'
+    'todos' | '30d' | '60d' | '90d' | 'atrasados' | 'sem_proxima_acao'
   >('todos')
 
   // Deep linking para OpportunityDrawer
@@ -144,15 +144,6 @@ export default function Pipelines() {
 
   // Efeito Shake de Trava de Follow-up
   const [shakingOppId, setShakingOppId] = useState<string | null>(null)
-
-  // Modal de Drag & Drop para confirmação de avanço com novo follow-up obrigatório
-  const [dragConfirmModalOpen, setDragConfirmModalOpen] = useState(false)
-  const [draggedOpportunity, setDraggedOpportunity] = useState<Oportunidade | null>(null)
-  const [targetEtapa, setTargetEtapa] = useState('')
-  const [dragFollowUpData, setDragFollowUpData] = useState(
-    new Date(Date.now() + 48 * 3600 * 1000).toISOString().split('T')[0],
-  )
-  const [dragFollowUpDesc, setDragFollowUpDesc] = useState('')
 
   // 1. Carrega funis e equipes da marca ativa
   const loadFunisAndEquipes = async () => {
@@ -406,45 +397,22 @@ export default function Pipelines() {
     if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
     if (!opp.etapa_id && opp.etapa_atual === targetColEtapa) return
 
-    // TRAVA DE FOLLOW-UP (Padrão Pipedrive obrigatório)
-    // Se a oportunidade já tem proxima_acao_data preenchida, avança a etapa direto sem abrir quadro modal.
-    // Se não tem, abre o quadro de agendamento de próxima ação para cumprir a trava.
-    if (opp.proxima_acao_data && opp.proxima_acao_data.trim()) {
-      executeDirectMoveEtapa(opp, resolved)
-      return
-    }
-
-    // Caso não tenha proxima_acao_data, abre o modal de agendamento obrigatório
-    setDraggedOpportunity(opp)
-    setTargetEtapa(resolved.nome)
-    setDragFollowUpDesc(
-      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
-    )
-    setDragConfirmModalOpen(true)
+    // Arrasto direto e instantâneo, sempre, sem quadro condicional
+    executeDirectMoveEtapa(opp, resolved)
   }
 
-  // Avanço rápido via Lista/Tabela com verificação condicional
+  // Avanço rápido via Lista/Tabela direto e instantâneo
   const handleQuickChangeEtapa = (opp: Oportunidade, newEtapaTarget: string) => {
     if (newEtapaTarget === ETAPA_SEM_ETAPA_VALIDA) return
     const resolved = resolveTargetEtapaConfig(newEtapaTarget)
     if (opp.etapa_id && resolved.id && opp.etapa_id === resolved.id) return
     if (!opp.etapa_id && opp.etapa_atual === newEtapaTarget) return
 
-    // Se já possui data de próxima ação, avança direto sem o quadro
-    if (opp.proxima_acao_data && opp.proxima_acao_data.trim()) {
-      executeDirectMoveEtapa(opp, resolved)
-      return
-    }
-
-    setDraggedOpportunity(opp)
-    setTargetEtapa(resolved.nome)
-    setDragFollowUpDesc(
-      opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
-    )
-    setDragConfirmModalOpen(true)
+    executeDirectMoveEtapa(opp, resolved)
   }
 
-  // Executa transição direta quando a oportunidade já tem proxima_acao_data
+  // Executa transição direta enviando SOMENTE etapa_atual (+ derivados etapa_id, is_won, is_lost)
+  // NUNCA envia proxima_acao_data/proxima_acao_descricao para preservar follow-ups existentes
   const executeDirectMoveEtapa = async (
     opp: Oportunidade,
     resolved: { nome: string; id?: string; is_won?: boolean; is_lost?: boolean },
@@ -472,105 +440,13 @@ export default function Pipelines() {
 
       loadOportunidades()
     } catch (err: unknown) {
-      const errObj = err as any
-      const serverData = errObj?.data || errObj?.response?.data || {}
-      const isTrava =
-        serverData?.data?.proxima_acao_data ||
-        String(errObj?.message || '').includes('TRAVA DE FOLLOW-UP') ||
-        String(JSON.stringify(serverData)).includes('TRAVA DE FOLLOW-UP')
-
-      if (isTrava) {
-        toast({
-          variant: 'destructive',
-          title: 'Trava de Follow-up Ativa!',
-          description:
-            'O servidor bloqueou a transição: é obrigatório registrar uma próxima ação com data para mudar de etapa.',
-        })
-        // Abre o quadro para o usuário definir a data já que a trava rejeitou
-        setDraggedOpportunity(opp)
-        setTargetEtapa(resolved.nome)
-        setDragFollowUpDesc(
-          opp.proxima_acao_descricao || `Follow-up para acompanhamento da etapa ${resolved.nome}`,
-        )
-        setDragConfirmModalOpen(true)
-      } else {
-        const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
-        toast({
-          variant: 'destructive',
-          title: 'Erro na transição de etapa',
-          description: msg,
-        })
-      }
-      // Garante que o card permaneça na etapa original
-      loadOportunidades()
-    }
-  }
-
-  const confirmMoveEtapa = async () => {
-    if (!draggedOpportunity || !targetEtapa) return
-
-    if (!dragFollowUpData) {
+      const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
       toast({
         variant: 'destructive',
-        title: 'Data de follow-up obrigatória',
-        description: 'Informe a data do próximo contato para concluir a transição.',
+        title: 'Erro na transição de etapa',
+        description: msg,
       })
-      return
-    }
-
-    try {
-      const resolved = resolveTargetEtapaConfig(targetEtapa)
-      const payload: Record<string, unknown> = {
-        etapa_atual: resolved.nome,
-        proxima_acao_data: new Date(dragFollowUpData).toISOString(),
-        proxima_acao_descricao: dragFollowUpDesc,
-      }
-      if (resolved.id) {
-        payload.etapa_id = resolved.id
-      }
-      if (resolved.is_won !== undefined) {
-        payload.is_won = Boolean(resolved.is_won)
-      }
-      if (resolved.is_lost !== undefined) {
-        payload.is_lost = Boolean(resolved.is_lost)
-      }
-
-      await pb.collection('oportunidades').update(draggedOpportunity.id, payload)
-
-      toast({
-        title: 'Etapa atualizada com sucesso!',
-        description: `Negócio movido para "${resolved.nome}" com follow-up agendado.`,
-      })
-
-      setDragConfirmModalOpen(false)
-      setDraggedOpportunity(null)
-      loadOportunidades()
-    } catch (err: unknown) {
-      const errObj = err as any
-      const serverData = errObj?.data || errObj?.response?.data || {}
-      const isTrava =
-        serverData?.data?.proxima_acao_data ||
-        String(errObj?.message || '').includes('TRAVA DE FOLLOW-UP') ||
-        String(JSON.stringify(serverData)).includes('TRAVA DE FOLLOW-UP')
-
-      if (isTrava) {
-        toast({
-          variant: 'destructive',
-          title: 'Trava de Follow-up Ativa!',
-          description:
-            'O servidor bloqueou a transição: é obrigatório registrar uma próxima ação com data para mudar de etapa.',
-        })
-      } else {
-        const msg = err instanceof Error ? err.message : 'Falha ao movimentar negociação'
-        toast({
-          variant: 'destructive',
-          title: 'Erro na transição de etapa',
-          description: msg,
-        })
-      }
-      // Garante que o card permaneça na etapa original recarregando o estado
-      setDragConfirmModalOpen(false)
-      setDraggedOpportunity(null)
+      // Garante que o card permaneça na etapa original
       loadOportunidades()
     }
   }
@@ -651,8 +527,10 @@ export default function Pipelines() {
       if (isWon || isLost) return false
     }
 
-    // 2. Filtro de data esperada de fechamento (30d / 60d / 90d / atrasados)
-    if (quickDateFilter !== 'todos') {
+    // 2. Filtro rápido de data / status de ação (30d / 60d / 90d / atrasados / sem_proxima_acao)
+    if (quickDateFilter === 'sem_proxima_acao') {
+      if (op.proxima_acao_data && op.proxima_acao_data.trim()) return false
+    } else if (quickDateFilter !== 'todos') {
       const isWon =
         typeof op.is_won === 'boolean' ? op.is_won : isWonStage(op.etapa_id || op.etapa_atual)
       const isLost =
@@ -1045,13 +923,29 @@ export default function Pipelines() {
             <span>Atrasados</span>
           </button>
 
+          {/* Chip Sem próxima ação (brinde) */}
+          <button
+            type="button"
+            onClick={() =>
+              setQuickDateFilter(
+                quickDateFilter === 'sem_proxima_acao' ? 'todos' : 'sem_proxima_acao',
+              )
+            }
+            className={cn(
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
+              quickDateFilter === 'sem_proxima_acao'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100',
+            )}
+            title="Filtrar negócios sem data de próxima ação agendada"
+          >
+            <Calendar className="w-3 h-3" />
+            <span>Sem próxima ação</span>
+          </button>
+
           <span className="text-slate-400 text-[11px] ml-2">
             ({filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'})
           </span>
-        </div>
-
-        <div className="text-[11px] text-slate-500">
-          Trava de follow-up: <strong className="text-emerald-700">Ativa</strong>
         </div>
       </div>
 
@@ -1263,11 +1157,11 @@ export default function Pipelines() {
                               </div>
                             </div>
 
-                            {/* BADGE DE FOLLOW-UP / TRAVA PIPEDRIVE */}
+                            {/* BADGE DE FOLLOW-UP */}
                             <div className="mt-2.5">
                               {followStatus === 'missing' && (
-                                <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
-                                  <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                                <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-medium">
+                                  <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
                                   <span className="truncate">Sem follow-up agendado</span>
                                 </div>
                               )}
@@ -1419,8 +1313,8 @@ export default function Pipelines() {
                           {/* Status de follow-up */}
                           <div className="mt-2.5">
                             {followStatus === 'missing' && (
-                              <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold">
-                                <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                              <div className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-medium">
+                                <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
                                 <span className="truncate">Sem follow-up agendado</span>
                               </div>
                             )}
@@ -1674,7 +1568,7 @@ export default function Pipelines() {
                         {/* Status de Follow-up */}
                         <div className="w-36 text-right">
                           {followStatus === 'missing' && (
-                            <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] rounded-full font-medium">
                               Sem follow-up
                             </Badge>
                           )}
@@ -1833,7 +1727,7 @@ export default function Pipelines() {
                           </td>
                           <td className="px-4 py-3">
                             {followStatus === 'missing' && (
-                              <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] rounded-full">
+                              <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] rounded-full font-medium">
                                 Sem follow-up
                               </Badge>
                             )}
@@ -1924,74 +1818,6 @@ export default function Pipelines() {
           loadOportunidades()
         }}
       />
-
-      {/* MODAL DE CONFIRMAÇÃO DE AVANÇO DE ETAPA COM PRÓXIMO FOLLOW-UP OBRIGATÓRIO */}
-      <Dialog open={dragConfirmModalOpen} onOpenChange={setDragConfirmModalOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              Confirmar Avanço de Etapa
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs">
-            <p className="text-slate-600">
-              Movendo <strong>{draggedOpportunity?.titulo}</strong> para a etapa:{' '}
-              <Badge className="bg-[#017848] text-white text-[11px] ml-1 rounded-full">
-                {targetEtapa}
-              </Badge>
-            </p>
-
-            <div className="p-3 bg-slate-50 border border-[#E3E7EB] rounded-xl space-y-2">
-              <p className="font-bold text-slate-900">Agendar Próxima Ação (Follow-up)</p>
-              <div>
-                <Label className="text-[10px] font-semibold text-slate-700">
-                  Data da Próxima Interação <span className="text-red-500 font-bold">*</span>
-                </Label>
-                <Input
-                  type="date"
-                  value={dragFollowUpData}
-                  onChange={(e) => setDragFollowUpData(e.target.value)}
-                  className="h-8 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                />
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  Este negócio ainda não possui follow-up agendado. Defina a data da próxima ação
-                  para avançar de etapa.
-                </p>
-              </div>
-              <div>
-                <Label className="text-[10px] font-semibold text-slate-600">
-                  Descrição da Ação <span className="font-normal text-slate-400">(opcional)</span>
-                </Label>
-                <Input
-                  value={dragFollowUpDesc}
-                  onChange={(e) => setDragFollowUpDesc(e.target.value)}
-                  placeholder="ex: Enviar minuta contratual ou agendar reunião técnica (opcional)"
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDragConfirmModalOpen(false)}
-              className="text-xs rounded-xl border-[#E3E7EB]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={confirmMoveEtapa}
-              className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
-            >
-              Confirmar & Salvar Follow-up
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

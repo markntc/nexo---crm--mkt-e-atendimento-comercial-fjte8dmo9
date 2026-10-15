@@ -95,14 +95,19 @@ export default function Layout() {
       if (activeBrand) {
         b2bFilters.push(`marca_captura_id = "${activeBrand.id}"`)
         b2cFilters.push(`marca_captura_id = "${activeBrand.id}"`)
-        leadFilters.push(`marca_origem_id = "${activeBrand.id}"`)
+        leadFilters.push(`marca_id = "${activeBrand.id}"`)
       }
 
       if (user && !isAdmin && !isDiretoria) {
-        if (
+        // Escopo "proprios" restringe aos criados pelo usuário
+        // Representante sempre 'proprios'; Supervisor com escopo equipe/marca vê todos da marca
+        const isPropriosOnly =
           isRepresentante ||
+          escopoVisibilidade === 'proprios' ||
+          (user.permissoes && (user.permissoes as any).escopo_visibilidade === 'proprios') ||
           (user.permissoes && (user.permissoes as any).escopo === 'proprios')
-        ) {
+
+        if (isPropriosOnly) {
           b2bFilters.push(`criado_por_id = "${user.id}"`)
           b2cFilters.push(`criado_por_id = "${user.id}"`)
           leadFilters.push(`criado_por_id = "${user.id}"`)

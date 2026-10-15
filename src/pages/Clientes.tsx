@@ -222,22 +222,25 @@ export default function Clientes() {
       const leadFilters: string[] = []
 
       // 1. Marca ativa:
-      // Para Supervisor e Vendedor: estritamente a marca ativa
+      // Para Supervisor e Vendedor: estritamente a marca ativa (campo correto na collection leads é marca_id)
       if (activeBrand) {
         b2bFilters.push(`marca_captura_id = "${activeBrand.id}"`)
         b2cFilters.push(`marca_captura_id = "${activeBrand.id}"`)
-        leadFilters.push(`marca_origem_id = "${activeBrand.id}"`)
+        leadFilters.push(`marca_id = "${activeBrand.id}"`)
       }
 
-      // 2. Escopo de visibilidade:
-      // Representante: escopo FIXO 'proprios' (vê apenas cadastros que ele mesmo criou na marca autorizada)
-      // Vendedor: se escopo 'proprios', visualiza seus próprios cadastros criados
+      // 2. Escopo de visibilidade unificado com Layout.tsx:
+      // Supervisor com escopo 'equipe': vê TODOS os contatos da marca ativa (membresia de equipe)
+      // Representante: escopo FIXO 'proprios' (apenas cadastros que ele mesmo criou na marca autorizada)
+      // Vendedor com escopo 'proprios': visualiza apenas seus próprios cadastros criados
       if (user && !isAdmin && !isDiretoria) {
-        if (
+        const isPropriosOnly =
           isRepresentante ||
-          (isVendedor && escopoVisibilidade === 'proprios') ||
-          escopoVisibilidade === 'proprios'
-        ) {
+          escopoVisibilidade === 'proprios' ||
+          (user.permissoes && (user.permissoes as any).escopo_visibilidade === 'proprios') ||
+          (user.permissoes && (user.permissoes as any).escopo === 'proprios')
+
+        if (isPropriosOnly) {
           b2bFilters.push(`criado_por_id = "${user.id}"`)
           b2cFilters.push(`criado_por_id = "${user.id}"`)
           leadFilters.push(`criado_por_id = "${user.id}"`)
@@ -271,7 +274,7 @@ export default function Clientes() {
         }),
         pb.collection('leads').getFullList<Lead>({
           filter: filterLeads || undefined,
-          expand: 'marca_origem_id,convertido_para_id',
+          expand: 'marca_origem_id,marca_id,convertido_para_id',
           sort: '-created',
         }),
         pb
@@ -322,6 +325,11 @@ export default function Clientes() {
           ? err.message
           : 'Não foi possível carregar os contatos. Verifique sua conexão e permissões de acesso.'
       setLoadError(msg)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar contatos',
+        description: msg,
+      })
     } finally {
       setIsLoading(false)
     }
@@ -731,6 +739,7 @@ export default function Clientes() {
         cidade: newLeadCidade.trim() || null,
         estado: newLeadEstado.trim() || null,
         pais: newLeadPais.trim() || 'Brasil',
+        marca_id: marcaId,
         marca_origem_id: marcaId,
         status_qualificacao: 'Novo',
       })

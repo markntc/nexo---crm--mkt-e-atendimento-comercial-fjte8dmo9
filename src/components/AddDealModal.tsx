@@ -1647,48 +1647,44 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   )}
                 </div>
 
-                {/* Campo opcional de CNPJ para a Organização (exibido quando selecionada ou em criação) */}
-                {(isNewOrgCandidate || selectedOrgId || orgSearch.trim()) && (
-                  <div className="space-y-1 pl-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px] font-medium text-slate-600">
-                        CNPJ da Organização{' '}
-                        <span className="text-slate-400 font-normal">(opcional)</span>
-                      </Label>
-                    </div>
-                    <Input
-                      placeholder="00.000.000/0000-00 (opcional)"
-                      value={newOrgCnpj}
-                      onChange={(e) => {
-                        const masked = maskCNPJ(e.target.value)
-                        setNewOrgCnpj(masked)
-                        const digits = onlyDigits(masked)
-                        if (!digits || isValidCNPJ(digits)) {
-                          setOrgCnpjError(null)
-                        } else if (digits.length === 14) {
-                          setOrgCnpjError('CNPJ inválido (verifique os números)')
-                        }
-                      }}
-                      onBlur={() => {
-                        const digits = onlyDigits(newOrgCnpj)
-                        if (digits && !isValidCNPJ(digits)) {
-                          setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
-                        } else {
-                          setOrgCnpjError(null)
-                        }
-                      }}
-                      className={cn(
-                        'h-8 text-xs rounded-lg border-[#D5DBDB] bg-slate-50/50',
-                        orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
-                      )}
-                    />
-                    {orgCnpjError && (
-                      <p className="text-[11px] font-semibold text-red-600 mt-0.5">
-                        {orgCnpjError}
-                      </p>
-                    )}
+                {/* Campo neutro e opcional de CNPJ para a Organização */}
+                <div className="space-y-1 pl-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-medium text-slate-600">
+                      CNPJ da Organização{' '}
+                      <span className="text-slate-400 font-normal">(opcional)</span>
+                    </Label>
                   </div>
-                )}
+                  <Input
+                    placeholder="00.000.000/0000-00 (opcional)"
+                    value={newOrgCnpj}
+                    onChange={(e) => {
+                      const masked = maskCNPJ(e.target.value)
+                      setNewOrgCnpj(masked)
+                      const digits = onlyDigits(masked)
+                      if (!digits || isValidCNPJ(digits)) {
+                        setOrgCnpjError(null)
+                      } else if (digits.length === 14) {
+                        setOrgCnpjError('CNPJ inválido (verifique os números)')
+                      }
+                    }}
+                    onBlur={() => {
+                      const digits = onlyDigits(newOrgCnpj)
+                      if (digits && !isValidCNPJ(digits)) {
+                        setOrgCnpjError('CNPJ inválido (deve conter 14 dígitos válidos)')
+                      } else {
+                        setOrgCnpjError(null)
+                      }
+                    }}
+                    className={cn(
+                      'h-8 text-xs rounded-lg border-[#D5DBDB] bg-white',
+                      orgCnpjError && 'border-red-500 focus:border-red-500 bg-red-50/20',
+                    )}
+                  />
+                  {orgCnpjError && (
+                    <p className="text-[11px] font-semibold text-red-600 mt-0.5">{orgCnpjError}</p>
+                  )}
+                </div>
 
                 {/* 3. Título */}
                 <div className="space-y-1">
@@ -1754,22 +1750,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  {/* Link azul "Adicionar produtos" */}
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toast({
-                          title: 'Catálogo de Produtos NTC',
-                          description: 'O valor estimado foi habilitado para cálculo por itens.',
-                        })
-                      }}
-                      className="text-xs text-[#0284C7] hover:underline font-semibold"
-                    >
-                      Adicionar produtos
-                    </button>
                   </div>
                 </div>
 
@@ -1989,38 +1969,6 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </Select>
                 </div>
 
-                {/* Próxima Ação / Follow-up (opcional conforme decisão de produto) */}
-                <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
-                  <div className="flex items-center space-x-1.5 text-amber-900 text-xs font-bold">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Próxima Ação / Follow-up (opcional)</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-[10px] font-semibold text-amber-900">
-                        Data Vencimento (opcional)
-                      </Label>
-                      <Input
-                        type="date"
-                        value={followUpData}
-                        onChange={(e) => setFollowUpData(e.target.value)}
-                        className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] font-semibold text-amber-900">
-                        Descrição da ação (opcional)
-                      </Label>
-                      <Input
-                        value={followUpDesc}
-                        onChange={(e) => setFollowUpDesc(e.target.value)}
-                        placeholder="ex: Primeiro alinhamento (opcional)..."
-                        className="h-8 text-xs bg-white border-amber-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 {/* 8. Proprietário */}
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700">Proprietário</Label>
@@ -2038,7 +1986,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </Select>
                 </div>
 
-                {/* 9. Canal da origem */}
+                {/* 9. Canal de origem */}
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700">Canal de origem</Label>
                   <Select value={canalOrigem} onValueChange={setCanalOrigem}>
@@ -2056,17 +2004,37 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                   </Select>
                 </div>
 
-                {/* 10. ID do canal de origem */}
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">
-                    ID do canal de origem
-                  </Label>
-                  <Input
-                    value={idCanalOrigem}
-                    onChange={(e) => setIdCanalOrigem(e.target.value)}
-                    placeholder=""
-                    className="h-9 text-xs rounded-lg border-[#D5DBDB] focus:border-[#017848]"
-                  />
+                {/* 10. Próxima ação — ÚLTIMO item do formulário, estilo padrão de input, sem bloco destacado/alerta */}
+                <div className="space-y-2 pt-1 border-t border-slate-100">
+                  <div className="flex items-center space-x-1.5 text-slate-700 text-xs font-semibold">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Próxima ação</span>
+                    <span className="text-slate-400 font-normal text-[11px]">(opcional)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[11px] font-medium text-slate-600">
+                        Data da próxima ação
+                      </Label>
+                      <Input
+                        type="date"
+                        value={followUpData}
+                        onChange={(e) => setFollowUpData(e.target.value)}
+                        className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-medium text-slate-600">
+                        Descrição da ação
+                      </Label>
+                      <Input
+                        value={followUpDesc}
+                        onChange={(e) => setFollowUpDesc(e.target.value)}
+                        placeholder="ex: Contato comercial (opcional)"
+                        className="h-9 text-xs bg-white rounded-lg border-[#D5DBDB] focus:border-[#017848]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
