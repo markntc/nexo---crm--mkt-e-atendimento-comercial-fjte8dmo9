@@ -30,7 +30,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Plus,
-  Trash2,
   Calendar,
   Building2,
   User,
@@ -38,8 +37,7 @@ import {
   Briefcase,
   Loader2,
   Copy,
-  Edit,
-  X,
+  Trash2,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { AddDealModal } from '@/components/AddDealModal'
@@ -381,39 +379,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       {opportunity.expand?.marca_id?.nome || 'NTC'}
                     </Badge>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditDealModalOpen(true)}
-                      className="text-xs h-8 border-[#017848] text-[#017848] hover:bg-emerald-50 font-semibold"
-                      title="Editar todos os campos do negócio (origem, valor, localidade, contatos, etc.)"
-                    >
-                      <Edit className="w-3.5 h-3.5 mr-1" />
-                      Editar
-                    </Button>
-                    {onDuplicate && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onDuplicate(opportunity)}
-                        className="text-xs h-8 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold"
-                        title="Duplicar negócio como cópia editável não salva"
-                      >
-                        <Copy className="w-3.5 h-3.5 mr-1 text-[#017848]" />
-                        Duplicar
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteConfirmOpen(true)}
-                      className="text-xs text-red-600 hover:bg-red-50 h-8"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      Excluir
-                    </Button>
-                  </div>
                 </div>
 
                 <DialogTitle className="text-lg font-bold text-[#1C2833] mt-2">
@@ -465,18 +430,42 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                 {/* ABA 1: DETALHES */}
                 <TabsContent value="detalhes" className="flex-1 overflow-y-auto p-5 space-y-5 m-0">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
                         Dados da Negociação
                       </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsEditing(!isEditing)}
-                        className="text-xs h-7 border-[#D5DBDB]"
-                      >
-                        {isEditing ? 'Cancelar Edição' : 'Editar Oportunidade'}
-                      </Button>
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditing(!isEditing)}
+                          className="text-xs h-7 border-[#D5DBDB]"
+                        >
+                          {isEditing ? 'Cancelar Edição' : 'Editar Oportunidade'}
+                        </Button>
+                        {onDuplicate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDuplicate(opportunity)}
+                            className="text-xs h-7 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold"
+                            title="Duplicar negócio como cópia editável não salva"
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-1 text-[#017848]" />
+                            Duplicar
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteConfirmOpen(true)}
+                          className="text-xs h-7 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 font-semibold"
+                          title="Excluir negócio"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Excluir
+                        </Button>
+                      </div>
                     </div>
 
                     {isEditing ? (
