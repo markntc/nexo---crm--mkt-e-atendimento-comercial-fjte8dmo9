@@ -38,9 +38,21 @@ import {
   Loader2,
   Copy,
   Trash2,
+  Paperclip,
+  Download,
+  FileText,
+  UploadCloud,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { AddDealModal } from '@/components/AddDealModal'
+import type { AnexoOportunidade } from '@/types'
+import {
+  listarAnexosOportunidade,
+  uploadAnexoOportunidade,
+  excluirAnexo,
+  getAnexoFileUrl,
+  formatFileSize,
+} from '@/services/anexos'
 
 interface OpportunityDrawerProps {
   opportunityId: string | null
@@ -62,6 +74,13 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [wonOrgIds, setWonOrgIds] = useState<Set<string>>(new Set())
   const [wonPessoaIds, setWonPessoaIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
+
+  // Anexos vinculados à oportunidade
+  const [anexos, setAnexos] = useState<AnexoOportunidade[]>([])
+  const [isLoadingAnexos, setIsLoadingAnexos] = useState(false)
+  const [isUploadingAnexo, setIsUploadingAnexo] = useState(false)
+  const [deletingAnexoId, setDeletingAnexoId] = useState<string | null>(null)
+  const drawerFileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Edição inline dos dados da oportunidade
   const [isEditing, setIsEditing] = useState(false)
@@ -114,6 +133,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       })
       setAtividades(ativList)
 
+      // Anexos vinculados à oportunidade
+      try {
+        const anexosList = await listarAnexosOportunidade(id)
+        setAnexos(anexosList)
+      } catch (errAnx) {
+        console.warn('Aviso ao carregar anexos da oportunidade:', errAnx)
+        setAnexos([])
+      }
       // Preferências de comunicação do cliente vinculado
       let prefFilter = ''
       const b2bId = opp.cliente_b2b_id || opp.organizacao_id
@@ -293,6 +320,83 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     }
   }
 
+  const handleUploadFilesFromDrawer = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0 || !opportunity) return
+    const fileList = Array.from(files)
+    const maxSizeBytes = 50 * 1024 * 1024
+
+    setIsUploadingAnexo(true)
+    let successCount = 0
+    const failedNames: string[] = []
+
+    for (const file of fileList) {
+      if (file.size > maxSizeBytes) {
+        failedNames.push(`${file.name} (excede 50MB)`)
+        continue
+      }
+      try {
+        await uploadAnexoOportunidade({
+          oportunidadeId: opportunity.id,
+          marcaId: opportunity.marca_id,
+          file,
+          criadoPorId: pb.authStore.record?.id,
+        })
+        successCount++
+      } catch (err: any) {
+        console.error(`Erro ao subir anexo ${file.name}:`, err)
+        failedNames.push(file.name)
+      }
+    }
+
+    if (successCount > 0) {
+      toast({
+        title: 'Anexo(s) enviado(s)',
+        description: `${successCount} arquivo(s) adicionado(s) com sucesso.`,
+      })
+      try {
+        const updatedList = await listarAnexosOportunidade(opportunity.id)
+        setAnexos(updatedList)
+      } catch (reErr) {
+        console.warn('Erro ao recarregar anexos:', reErr)
+      }
+    }
+
+    if (failedNames.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha no upload',
+        description: `Não foi possível anexar: ${failedNames.join(', ')}`,
+      })
+    }
+
+    if (drawerFileInputRef.current) {
+      drawerFileInputRef.current.value = ''
+    }
+    setIsUploadingAnexo(false)
+  }
+
+  const handleDeleteAnexoFromDrawer = async (anexoId: string) => {
+    try {
+      setDeletingAnexoId(anexoId)
+      await excluirAnexo(anexoId)
+      setAnexos((prev) => prev.filter((a) => a.id !== anexoId))
+      toast({
+        title: 'Anexo excluído',
+        description: 'Documento removido da oportunidade.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao excluir anexo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir anexo',
+        description: err?.message || 'Falha ao remover arquivo.',
+      })
+    } finally {
+      setDeletingAnexoId(null)
+    }
+  }
+
   const handleDeleteOpportunity = async () => {
     if (!opportunity) return
     setIsDeleting(true)
@@ -402,7 +506,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                 </div>
               </DialogHeader>
 
-              {/* TABS: DETALHES, ATIVIDADES, LGPD */}
+              {/* TABS: DETALHES, ATIVIDADES, ANEXOS, LGPD */}
               <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
                 <div className="px-5 border-b border-[#D5DBDB] bg-white">
                   <TabsList className="h-11 bg-transparent p-0 space-x-4">
@@ -419,6 +523,12 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                       Atividades ({atividades.length})
                     </TabsTrigger>
                     <TabsTrigger
+                      value="anexos"
+                      className="text-xs font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1B4F72] rounded-none px-1 py-2.5"
+                    >
+                      Anexos ({anexos.length})
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="lgpd"
                       className="text-xs font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1B4F72] rounded-none px-1 py-2.5"
                     >
@@ -426,7 +536,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     </TabsTrigger>
                   </TabsList>
                 </div>
-
                 {/* ABA 1: DETALHES */}
                 <TabsContent value="detalhes" className="flex-1 overflow-y-auto p-5 space-y-5 m-0">
                   <div className="space-y-4">
@@ -794,7 +903,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     </div>
                   </div>
                 </TabsContent>
-
                 {/* ABA 2: ATIVIDADES */}
                 <TabsContent
                   value="atividades"
@@ -868,8 +976,143 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                     </div>
                   )}
                 </TabsContent>
+                {/* ABA 3: ANEXOS (POSICIONADA ENTRE ATIVIDADES E LGPD) */}
+                <TabsContent value="anexos" className="flex-1 overflow-y-auto p-5 space-y-4 m-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#5D6D7E]">
+                        Documentos Anexados ({anexos.length})
+                      </span>
+                      <p className="text-[11px] text-[#5D6D7E] mt-0.5">
+                        Propostas comerciais, plantas, laudos, contratos e imagens do negócio.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={isUploadingAnexo}
+                      onClick={() => drawerFileInputRef.current?.click()}
+                      className="text-xs h-7 bg-[#1B4F72] hover:bg-[#154360] text-white flex items-center space-x-1"
+                    >
+                      {isUploadingAnexo ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          <span>Enviando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5 mr-1" />
+                          <span>Anexar Arquivo</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
 
-                {/* ABA 3: LGPD CONSENTIMENTO */}
+                  {/* Input de arquivo invisível para a aba */}
+                  <input
+                    ref={drawerFileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleUploadFilesFromDrawer}
+                    className="hidden"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                  />
+
+                  {/* Área rápida de upload com drag/drop visual */}
+                  <div
+                    onClick={() => !isUploadingAnexo && drawerFileInputRef.current?.click()}
+                    className="p-4 border-2 border-dashed border-[#D5DBDB] hover:border-[#1B4F72] hover:bg-slate-50/70 rounded-xl cursor-pointer transition-colors text-center text-xs text-slate-600 space-y-1"
+                  >
+                    <UploadCloud className="w-6 h-6 mx-auto text-[#1B4F72]" />
+                    <p className="font-semibold text-slate-800">
+                      Clique aqui para selecionar documentos do seu computador
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Formatos aceitos: PDF, DOCX, XLSX, PNG, JPG e outros (limite de 50MB por
+                      arquivo)
+                    </p>
+                  </div>
+
+                  {anexos.length === 0 ? (
+                    <div className="py-10 text-center text-xs text-[#5D6D7E] border border-dashed border-[#D5DBDB] rounded-lg">
+                      <Paperclip className="w-8 h-8 mx-auto mb-2 text-slate-300 stroke-1" />
+                      <p>Nenhum documento anexado a este negócio ainda.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Adicione orçamentos, contratos assinados ou imagens de visitas técnicas.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {anexos.map((anx) => {
+                        const fileUrl = getAnexoFileUrl(anx, { download: true })
+                        const viewUrl = getAnexoFileUrl(anx, { download: false })
+                        const uploaderName =
+                          anx.expand?.criado_por_id?.name ||
+                          anx.expand?.criado_por_id?.email ||
+                          'Usuário do CRM'
+
+                        return (
+                          <div
+                            key={anx.id}
+                            className="p-3 rounded-lg border border-[#D5DBDB] bg-white hover:bg-slate-50 transition-colors flex items-center justify-between text-xs gap-3"
+                          >
+                            <div className="flex items-start space-x-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+                                <FileText className="w-4 h-4 text-[#1B4F72]" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <a
+                                  href={viewUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-bold text-[#1C2833] hover:text-[#1B4F72] hover:underline truncate block"
+                                  title={anx.nome_original || anx.arquivo}
+                                >
+                                  {anx.nome_original || anx.arquivo}
+                                </a>
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#5D6D7E] mt-0.5">
+                                  <span>{formatFileSize(anx.tamanho)}</span>
+                                  <span>•</span>
+                                  <span>Anexado em {formatDateBR(anx.created)}</span>
+                                  <span>•</span>
+                                  <span className="truncate">Por {uploaderName}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <a
+                                href={fileUrl}
+                                download={anx.nome_original || anx.arquivo}
+                                className="inline-flex items-center justify-center h-8 px-2.5 rounded-lg border border-[#D5DBDB] bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors"
+                                title="Baixar arquivo"
+                              >
+                                <Download className="w-3.5 h-3.5 mr-1 text-[#1B4F72]" />
+                                <span>Baixar</span>
+                              </a>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={deletingAnexoId === anx.id}
+                                onClick={() => handleDeleteAnexoFromDrawer(anx.id)}
+                                className="h-8 px-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-xs"
+                                title="Excluir anexo"
+                              >
+                                {deletingAnexoId === anx.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+                {/* ABA 4: LGPD CONSENTIMENTO */}{' '}
                 <TabsContent value="lgpd" className="flex-1 overflow-y-auto p-5 space-y-4 m-0">
                   <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-[#1B4F72] flex items-start space-x-2.5">
                     <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-[#1B4F72]" />

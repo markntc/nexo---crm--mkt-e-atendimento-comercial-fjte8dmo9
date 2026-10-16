@@ -33,6 +33,10 @@ import {
   Clock,
   Sparkles,
   MapPin,
+  Paperclip,
+  FileText,
+  X,
+  UploadCloud,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
@@ -48,7 +52,15 @@ import type {
   EtapaItem,
   EtapaConfig,
   EtapaFunilRecord,
+  AnexoOportunidade,
 } from '@/types'
+import {
+  listarAnexosOportunidade,
+  uploadAnexoOportunidade,
+  excluirAnexo,
+  getAnexoFileUrl,
+  formatFileSize,
+} from '@/services/anexos'
 import { getEtapaNome, isWonStage } from '@/lib/relationshipStatus'
 import { extrairCidadeEstado, ESTADOS_BRASIL } from '@/lib/geoUtils'
 import { GeoSelector } from './GeoSelector'
@@ -211,6 +223,13 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
   const [notaObservacoes, setNotaObservacoes] = useState<string>('')
   const [showNotaField, setShowNotaField] = useState(false)
 
+  // Anexos do negócio
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [existingAnexos, setExistingAnexos] = useState<AnexoOportunidade[]>([])
+  const [isLoadingAnexos, setIsLoadingAnexos] = useState(false)
+  const [deletingAnexoId, setDeletingAnexoId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Carrega dados mestre ao abrir
   useEffect(() => {
     if (!open) return
@@ -267,6 +286,25 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setPessoas(pessoasRes)
         setOrganizacoes(orgsRes)
         setUsersList(usersRes)
+
+        // Limpa lista de arquivos pendentes ao abrir o modal
+        setPendingFiles([])
+
+        // Carrega anexos existentes se estiver em modo edição
+        if (isEditMode && dealId) {
+          try {
+            setIsLoadingAnexos(true)
+            const anexosList = await listarAnexosOportunidade(dealId)
+            setExistingAnexos(anexosList)
+          } catch (errAnexos) {
+            console.warn('Aviso ao carregar anexos da oportunidade no modal:', errAnexos)
+            setExistingAnexos([])
+          } finally {
+            setIsLoadingAnexos(false)
+          }
+        } else {
+          setExistingAnexos([])
+        }
 
         // Se estiver em modo edição com dealId mas initialValues não tiver sido passado ou estiver incompleto,
         // busca o registro live da oportunidade para garantir dados precisos
@@ -851,6 +889,67 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     }
   }
 
+  // Handlers de Anexos
+  const handleSelectFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const newFiles = Array.from(files)
+    // Limite preventivo de 50MB por arquivo
+    const maxSizeBytes = 50 * 1024 * 1024
+    const validFiles: File[] = []
+    const oversizedFiles: string[] = []
+
+    for (const f of newFiles) {
+      if (f.size > maxSizeBytes) {
+        oversizedFiles.push(f.name)
+      } else {
+        validFiles.push(f)
+      }
+    }
+
+    if (oversizedFiles.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Arquivo muito grande',
+        description: `Os seguintes arquivos excedem o limite de 50 MB: ${oversizedFiles.join(', ')}`,
+      })
+    }
+
+    if (validFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...validFiles])
+    }
+
+    // Reseta o input para permitir selecionar o mesmo arquivo novamente se desejado
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemovePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleDeleteExistingAnexo = async (anexoId: string) => {
+    try {
+      setDeletingAnexoId(anexoId)
+      await excluirAnexo(anexoId)
+      setExistingAnexos((prev) => prev.filter((a) => a.id !== anexoId))
+      toast({
+        title: 'Anexo removido',
+        description: 'Documento excluído com sucesso.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao excluir anexo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir anexo',
+        description: err?.message || 'Não foi possível remover o arquivo.',
+      })
+    } finally {
+      setDeletingAnexoId(null)
+    }
+  }
+
   // Adicionar nova etapa inline ao funil ativo na collection etapas_funil + espelho funis.etapas_ordenadas
   const handleSaveNewEtapa = async () => {
     if (!novaEtapaNome.trim() || !funilId) return
@@ -1204,11 +1303,43 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           }
         }
 
+        // Se houver novos arquivos selecionados no modo edição, faz o upload vinculado
+        if (pendingFiles.length > 0) {
+          const uploadErrors: string[] = []
+          for (const file of pendingFiles) {
+            try {
+              await uploadAnexoOportunidade({
+                oportunidadeId: dealId,
+                marcaId: activeMarcaId,
+                file,
+                criadoPorId: currentUserId,
+              })
+            } catch (upErr: any) {
+              console.error(`Falha no upload do anexo ${file.name}:`, upErr)
+              uploadErrors.push(file.name)
+            }
+          }
+
+          if (uploadErrors.length === 0) {
+            toast({
+              title: 'Anexos atualizados',
+              description: `${pendingFiles.length} documento(s) anexado(s) com sucesso.`,
+            })
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Aviso sobre anexos',
+              description: `${uploadErrors.length} anexo(s) falharam no upload: ${uploadErrors.join(', ')}.`,
+            })
+          }
+        }
+
         toast({
           title: 'Negócio atualizado com sucesso!',
           description: `"${finalTitulo}" foi atualizado com todas as alterações.`,
         })
 
+        setPendingFiles([])
         onOpenChange(false)
         if (onSuccess) {
           onSuccess(dealId)
@@ -1333,6 +1464,37 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           })
         }
 
+        // Se houver arquivos pendentes na criação, realiza upload vinculado ao negócio recém-criado
+        if (pendingFiles.length > 0 && res.oportunidade_id) {
+          const uploadErrors: string[] = []
+          for (const file of pendingFiles) {
+            try {
+              await uploadAnexoOportunidade({
+                oportunidadeId: res.oportunidade_id,
+                marcaId: activeMarcaId,
+                file,
+                criadoPorId: currentUserId,
+              })
+            } catch (upErr: any) {
+              console.error(`Falha no upload do anexo ${file.name}:`, upErr)
+              uploadErrors.push(file.name)
+            }
+          }
+
+          if (uploadErrors.length === 0) {
+            toast({
+              title: 'Anexos salvos',
+              description: `${pendingFiles.length} documento(s) anexado(s) com sucesso ao negócio.`,
+            })
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Aviso sobre anexos',
+              description: `O negócio foi criado, mas ${uploadErrors.length} anexo(s) falharam no upload: ${uploadErrors.join(', ')}. Você pode tentar anexá-los novamente pelo painel do negócio.`,
+            })
+          }
+        }
+
         // Limpa e fecha modal
         setTitulo('')
         setUserEditedTitle(false)
@@ -1345,6 +1507,8 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         setOrgSearch('')
 
         setNotaObservacoes('')
+        setPendingFiles([])
+        setExistingAnexos([])
         setProprietarioId(user?.id || '')
         setEtapaId('')
         setEtapaAtual('')
@@ -2117,6 +2281,123 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                     onChange={(e) => setNotaObservacoes(e.target.value)}
                     className="text-xs bg-white rounded-lg border-[#D5DBDB] min-h-[90px]"
                   />
+                </div>
+
+                {/* Campo Anexos (opcional) */}
+                <div className="pt-3 border-t border-[#E3E7EB] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Anexos</Label>
+                      <span className="text-[10px] text-slate-400 font-normal">(opcional)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      PDF, imagens, DOCX, XLSX (até 50MB)
+                    </span>
+                  </div>
+
+                  {/* Input invisível para seleção de múltiplos arquivos */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleSelectFiles}
+                    className="hidden"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                  />
+
+                  {/* Área de arrastar / botão de anexar */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 border-2 border-dashed border-[#D5DBDB] hover:border-[#1B4F72] hover:bg-slate-50/60 rounded-xl cursor-pointer transition-colors flex items-center justify-center space-x-2 text-xs text-slate-600"
+                  >
+                    <Paperclip className="w-4 h-4 text-[#1B4F72]" />
+                    <span className="font-semibold text-slate-700">
+                      Clique para escolher ou anexar documentos
+                    </span>
+                  </div>
+
+                  {/* Lista de anexos existentes (modo edição) */}
+                  {isEditMode && existingAnexos.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Anexos Salvos ({existingAnexos.length})
+                      </p>
+                      <div className="space-y-1 max-h-36 overflow-y-auto">
+                        {existingAnexos.map((anx) => (
+                          <div
+                            key={anx.id}
+                            className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs"
+                          >
+                            <div className="flex items-center space-x-2 min-w-0 flex-1">
+                              <FileText className="w-3.5 h-3.5 text-[#1B4F72] shrink-0" />
+                              <a
+                                href={getAnexoFileUrl(anx, { download: true })}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-medium text-slate-800 hover:text-[#1B4F72] hover:underline truncate"
+                                title={anx.nome_original || anx.arquivo}
+                              >
+                                {anx.nome_original || anx.arquivo}
+                              </a>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                ({formatFileSize(anx.tamanho)})
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={deletingAnexoId === anx.id}
+                              onClick={() => handleDeleteExistingAnexo(anx.id)}
+                              className="h-6 w-6 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 ml-1 shrink-0"
+                              title="Remover anexo salvo"
+                            >
+                              {deletingAnexoId === anx.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de novos arquivos selecionados (pendentes de salvar) */}
+                  {pendingFiles.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#017848]">
+                        Novos Arquivos para Upload ({pendingFiles.length})
+                      </p>
+                      <div className="space-y-1 max-h-36 overflow-y-auto">
+                        {pendingFiles.map((file, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/60 border border-emerald-200 text-xs"
+                          >
+                            <div className="flex items-center space-x-2 min-w-0 flex-1">
+                              <FileText className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                              <span className="font-medium text-emerald-900 truncate">
+                                {file.name}
+                              </span>
+                              <span className="text-[10px] text-emerald-600 shrink-0">
+                                ({formatFileSize(file.size)})
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePendingFile(idx)}
+                              className="p-1 text-slate-400 hover:text-red-500 rounded-md shrink-0"
+                              title="Remover da lista de upload"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

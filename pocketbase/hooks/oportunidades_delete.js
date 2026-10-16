@@ -34,7 +34,37 @@ onRecordDelete((e) => {
       )
     }
 
-    // 2. Verificar se há leads vinculados com lead_origem_id ou outras referências
+    // 2. Remover anexos vinculados (e seus arquivos físicos no storage)
+    try {
+      const anexos = $app.findRecordsByFilter(
+        'anexos',
+        `oportunidade_id = '${oportunidadeId}'`,
+        '-created',
+        500,
+        0,
+      )
+
+      for (let j = 0; j < anexos.length; j++) {
+        try {
+          $app.delete(anexos[j])
+        } catch (errAnexo) {
+          console.error(
+            `[Exclusão em Cascata] Erro ao excluir anexo ${anexos[j].id} da oportunidade ${oportunidadeId}:`,
+            errAnexo,
+          )
+        }
+      }
+
+      if (anexos.length > 0) {
+        console.log(
+          `[Exclusão em Cascata] ${anexos.length} anexo(s) excluído(s) para a oportunidade ${oportunidadeId}`,
+        )
+      }
+    } catch (errAnxFilter) {
+      console.warn(`[Exclusão em Cascata] Aviso ao buscar anexos vinculados:`, errAnxFilter)
+    }
+
+    // 3. Outras dependências futuras
     // (em leads não há campo direto com required para oportunidade, mas caso exista vínculo em outras collections futuras)
   } catch (err) {
     console.error(

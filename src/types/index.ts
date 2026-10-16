@@ -331,3 +331,21 @@ export interface LogAuditoria {
   created: string
   updated: string
 }
+
+export interface AnexoOportunidade {
+  id: string
+  oportunidade_id: string
+  marca_id?: string
+  arquivo: string
+  nome_original?: string
+  tamanho?: number
+  mime_type?: string
+  criado_por_id?: string
+  created: string
+  updated: string
+  expand?: {
+    oportunidade_id?: Oportunidade
+    marca_id?: Marca
+    criado_por_id?: { id: string; name?: string; email?: string }
+  }
+}

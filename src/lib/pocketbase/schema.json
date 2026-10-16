@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-15T20:20:22.979Z",
+  "generatedAt": "2026-10-16T11:26:04.201Z",
   "collections": [
     {
       "name": "users",
@@ -1234,6 +1234,82 @@
       "indexes": [
         "CREATE INDEX idx_etapas_funil_id ON etapas_funil (funil_id)",
         "CREATE INDEX idx_etapas_funil_ordem ON etapas_funil (funil_id, ordem)"
+      ]
+    },
+    {
+      "name": "anexos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "oportunidade_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "oportunidades"
+        },
+        {
+          "name": "marca_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "marcas"
+        },
+        {
+          "name": "arquivo",
+          "type": "file",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nome_original",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tamanho",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criado_por_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_anexos_oportunidade ON anexos (oportunidade_id)",
+        "CREATE INDEX idx_anexos_marca ON anexos (marca_id)"
       ]
     }
   ]
