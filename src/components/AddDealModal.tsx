@@ -290,6 +290,17 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
         // Limpa lista de arquivos pendentes ao abrir o modal
         setPendingFiles([])
 
+        // Se estiver em modo edição com dealId mas initialValues não tiver sido passado ou estiver incompleto,
+        // busca o registro live da oportunidade para garantir dados precisos
+        let liveDeal: any = null
+        if (isEditMode && dealId) {
+          try {
+            liveDeal = await pb.collection('oportunidades').getOne(dealId)
+          } catch (e) {
+            console.warn('Aviso ao carregar dados live da oportunidade no modal:', e)
+          }
+        }
+
         // Carrega anexos existentes se estiver em modo edição
         if (isEditMode && dealId) {
           try {
@@ -306,18 +317,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
           setExistingAnexos([])
         }
 
-        // Se estiver em modo edição com dealId mas initialValues não tiver sido passado ou estiver incompleto,
-        // busca o registro live da oportunidade para garantir dados precisos
-        let liveDeal: any = null
-        if (isEditMode && dealId) {
-          try {
-            liveDeal = await pb.collection('oportunidades').getOne(dealId)
-          } catch (e) {
-            console.warn('Aviso ao carregar dados live da oportunidade no modal:', e)
-          }
-        }
-
-        const effectiveValues = {
+        const rawEffectiveValues = {
           ...liveDeal,
           ...initialValues,
           // Garante que campos presentes no liveDeal tenham prioridade se initialValues for vazio
@@ -335,11 +335,92 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
               : liveDeal?.data_fechamento_esperada,
         }
 
+        // Identifica se há qualquer pré-preenchimento legítimo de dados além de contexto puro de funil/etapa do Kanban (+)
+        const hasSpecificInitialData = Boolean(
+          isEditMode ||
+          dealId ||
+          rawEffectiveValues?.titulo ||
+          (rawEffectiveValues?.valor !== undefined &&
+            rawEffectiveValues?.valor !== null &&
+            rawEffectiveValues?.valor !== '') ||
+          rawEffectiveValues?.cliente_b2b_id ||
+          rawEffectiveValues?.organizacao_id ||
+          rawEffectiveValues?.cliente_b2c_id ||
+          rawEffectiveValues?.pessoa_id ||
+          rawEffectiveValues?.contato_nome ||
+          rawEffectiveValues?.contato_email ||
+          rawEffectiveValues?.contato_telefone ||
+          rawEffectiveValues?.lead_origem_id ||
+          rawEffectiveValues?.observacoes ||
+          rawEffectiveValues?.cidade ||
+          rawEffectiveValues?.estado ||
+          rawEffectiveValues?.cidade_entrega ||
+          rawEffectiveValues?.estado_entrega ||
+          rawEffectiveValues?.proxima_acao_data ||
+          rawEffectiveValues?.proxima_acao_descricao ||
+          rawEffectiveValues?.data_fechamento_esperada ||
+          rawEffectiveValues?.origem ||
+          rawEffectiveValues?.id_canal_origem,
+        )
+
+        // Reseta todos os campos para estado de fábrica em modo de criação sem dados herdados
+        // Isso previne que reaberturas após edições ou criações anteriores retenham dados residuais
+        setPersonSearch('')
+        setSelectedPersonId(null)
+        setNewPersonCpf('')
+        setIsNewPersonCandidate(false)
+        setIsPersonDropdownOpen(false)
+        setPersonCpfError(null)
+
+        setOrgSearch('')
+        setSelectedOrgId(null)
+        setIsNewOrgCandidate(false)
+        setIsOrgDropdownOpen(false)
+
+        setTitulo('')
+        setUserEditedTitle(false)
+        setValor('')
+        setMoeda('BRL')
+        setDocumentoFaturamento('CNPJ')
+        setDataFechamento('')
+        setFollowUpData('')
+        setFollowUpDesc('')
+        setCanalOrigem('Formulário Web')
+        setIdCanalOrigem('')
+        setLeadOrigemId('')
+
+        setCidadeFaturamento('')
+        setEstadoFaturamento('')
+        setPaisFaturamento('Brasil')
+        setCidadeEntrega('')
+        setEstadoEntrega('')
+        setPaisEntrega('Brasil')
+        setEntregaDiferente(false)
+
+        setPhones([{ id: '1', number: '', tipo: 'Comercial' }])
+        setEmails([{ id: '1', address: '', tipo: 'Comercial' }])
+        setNotaObservacoes('')
+        setShowNotaField(false)
+        setIsAddingNewEtapa(false)
+        setNovaEtapaNome('')
+
+        // Proprietário: default para vendedor_id se especificado ou usuário logado
+        if (rawEffectiveValues?.vendedor_id) {
+          setProprietarioId(rawEffectiveValues.vendedor_id)
+        } else if (user?.id) {
+          setProprietarioId(user.id)
+        } else {
+          setProprietarioId('')
+        }
+
+        // Se houver dados específicos (edição, duplicação, conversão de lead, recompra), usa effectiveValues
+        const effectiveValues = hasSpecificInitialData ? rawEffectiveValues : null
+
         // Preenche com effectiveValues se fornecido (ex: Recompra, Duplicar ou Edição)
-        const targetFunilId = effectiveValues?.funil_id || defaultFunilId
+        const targetFunilId = rawEffectiveValues?.funil_id || defaultFunilId
         const initialFunil = funisRes.find((f) => f.id === targetFunilId) || funisRes[0] || null
-        const requestedEtapaId = initialValues?.etapa_id || defaultEtapaId
-        const requestedEtapaNome = initialValues?.etapa_atual || defaultEtapaNome
+        const requestedEtapaId = rawEffectiveValues?.etapa_id || defaultEtapaId
+        const requestedEtapaNome = rawEffectiveValues?.etapa_atual || defaultEtapaNome
 
         if (initialFunil) {
           setFunilId(initialFunil.id)
@@ -551,12 +632,12 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
     loadData()
   }, [open, activeBrand, defaultFunilId, defaultEtapaId, defaultEtapaNome, user?.id, initialValues])
 
-  // Garante que o proprietário sempre venha preenchido com o usuário logado ao abrir o modal
+  // Garante que o proprietário sempre venha preenchido com o usuário logado ao abrir o modal (caso ainda não esteja definido)
   useEffect(() => {
-    if (open && user?.id && !proprietarioId) {
+    if (open && user?.id && !proprietarioId && !initialValues?.vendedor_id) {
       setProprietarioId(user.id)
     }
-  }, [open, user?.id, proprietarioId])
+  }, [open, user?.id, proprietarioId, initialValues?.vendedor_id])
 
   // Rastreia se o mousedown ocorreu fora do painel do modal (no backdrop/overlay)
   // para fechar apenas se mousedown E mouseup ocorrerem estritamente fora do painel.
@@ -2446,10 +2527,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setProprietarioId(user?.id || '')
-                    onOpenChange(false)
-                  }}
+                  onClick={() => onOpenChange(false)}
                   className="h-9 px-4 text-xs font-semibold rounded-lg border-[#D5DBDB] text-slate-700 hover:bg-slate-50"
                 >
                   Cancelar
