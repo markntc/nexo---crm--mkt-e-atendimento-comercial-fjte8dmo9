@@ -5,7 +5,7 @@ import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Atividade, Oportunidade } from '@/types'
-import { formatDateBR } from '@/lib/formatters'
+import { formatDateBR, extractPureDate, getDiffDaysFromToday } from '@/lib/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -178,18 +178,7 @@ export default function Tarefas() {
 
       let pureVencimento: string | null = null
       if (newVencimento && newVencimento.trim()) {
-        const clean = newVencimento.trim()
-        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-          pureVencimento = clean.substring(0, 10)
-        } else {
-          const d = new Date(clean)
-          if (!isNaN(d.getTime())) {
-            const y = d.getFullYear()
-            const m = String(d.getMonth() + 1).padStart(2, '0')
-            const day = String(d.getDate()).padStart(2, '0')
-            pureVencimento = `${y}-${m}-${day}`
-          }
-        }
+        pureVencimento = extractPureDate(newVencimento.trim())
       }
 
       await pb.collection('atividades').create({
@@ -247,17 +236,8 @@ export default function Tarefas() {
   }
 
   // Separação em seções com comparação de data pura dia-a-dia
-  const todayStr = new Date().toISOString().substring(0, 10)
-  const [currY, currM, currD] = todayStr.split('-').map(Number)
-  const todayCal = new Date(currY, currM - 1, currD)
-
   const getTaskDiffDays = (dateStr?: string | null): number | null => {
-    if (!dateStr) return null
-    const pure = dateStr.trim().substring(0, 10)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(pure)) return null
-    const [y, m, d] = pure.split('-').map(Number)
-    const target = new Date(y, m - 1, d)
-    return Math.round((target.getTime() - todayCal.getTime()) / (1000 * 60 * 60 * 24))
+    return getDiffDaysFromToday(dateStr)
   }
 
   const tarefasConcluidas = atividades.filter((a) => a.concluida)

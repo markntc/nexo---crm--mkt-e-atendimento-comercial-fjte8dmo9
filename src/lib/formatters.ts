@@ -49,9 +49,10 @@ export function extractPureDate(dateStr?: string | null): string | null {
  * - diffDays === 2: depois de amanhã (até 48h)
  * - diffDays > 2: futuro
  */
-export function getDiffDaysFromToday(dateInput: string): number {
+export function getDiffDaysFromToday(dateInput?: string | null): number | null {
+  if (!dateInput) return null
   const pure = extractPureDate(dateInput)
-  if (!pure) return 0
+  if (!pure) return null
   const [y, m, d] = pure.substring(0, 10).split('-').map(Number)
   const targetDate = new Date(y, m - 1, d)
   const now = new Date()
@@ -209,6 +210,7 @@ export function getFollowUpStatus(dateStr?: string | null): 'missing' | 'overdue
   // - Em 48h (soon): hoje, amanhã ou depois de amanhã (0 <= diffDays <= 2)
   // - Em dia (ok): a partir de 3 dias no futuro (diffDays > 2)
   const diffDays = getDiffDaysFromToday(pure)
+  if (diffDays === null) return 'missing'
   if (diffDays < 0) return 'overdue'
   if (diffDays <= 2) return 'soon'
   return 'ok'

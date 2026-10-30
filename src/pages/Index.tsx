@@ -134,11 +134,10 @@ export default function Index() {
   const valorTotalPipeline = oportunidades.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
 
   // Tarefas vencidas
-  const now = new Date()
   const tarefasVencidas = atividades.filter((a) => {
-    if (a.concluida) return false
-    const due = new Date(a.data_vencimento)
-    return due.getTime() < now.getTime()
+    if (a.concluida || !a.data_vencimento) return false
+    const diff = getDiffDaysFromToday(a.data_vencimento)
+    return diff !== null && diff < 0
   })
 
   // Taxa de conversão: passa a usar as flags is_won/is_lost prioritariamente com fallback canônico
@@ -605,7 +604,7 @@ export default function Index() {
             ) : (
               proximasTarefas.map((at) => {
                 const diffDays = at.data_vencimento
-                  ? getDiffDaysFromToday(at.data_vencimento.trim().substring(0, 10))
+                  ? getDiffDaysFromToday(at.data_vencimento)
                   : null
                 const isOverdue = diffDays !== null && diffDays < 0
                 return (

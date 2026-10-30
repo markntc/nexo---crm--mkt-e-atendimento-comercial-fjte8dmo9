@@ -3,7 +3,12 @@ import React, { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
 import type { Oportunidade, Atividade, PreferenciaComunicacao, Organizacao, Pessoa } from '@/types'
 import { getClientStatusSets } from '@/lib/relationshipStatus'
-import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
+import {
+  formatCurrencyBRL,
+  formatDateBR,
+  getFollowUpStatus,
+  extractPureDate,
+} from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber, formatCurrencyString } from '@/lib/currencyMask'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -122,7 +127,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       setOpportunity(opp)
       setTitulo(opp.titulo)
       setValorEstimado(opp.valor_estimado ? formatCurrencyString(opp.valor_estimado) : '')
-      setProximaAcaoData(opp.proxima_acao_data ? opp.proxima_acao_data.substring(0, 10) : '')
+      setProximaAcaoData(opp.proxima_acao_data ? extractPureDate(opp.proxima_acao_data) || '' : '')
       setProximaAcaoDescricao(opp.proxima_acao_descricao || '')
       setDocumentoFaturamento(opp.documento_faturamento || '')
       // Atividades associadas
@@ -210,18 +215,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     try {
       let pureAcaoData: string | null = null
       if (proximaAcaoData && proximaAcaoData.trim()) {
-        const clean = proximaAcaoData.trim()
-        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-          pureAcaoData = clean.substring(0, 10)
-        } else {
-          const d = new Date(clean)
-          if (!isNaN(d.getTime())) {
-            const y = d.getFullYear()
-            const m = String(d.getMonth() + 1).padStart(2, '0')
-            const day = String(d.getDate()).padStart(2, '0')
-            pureAcaoData = `${y}-${m}-${day}`
-          }
-        }
+        pureAcaoData = extractPureDate(proximaAcaoData.trim())
       }
 
       await pb.collection('oportunidades').update(opportunity.id, {
@@ -283,18 +277,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     try {
       let pureAtivVencimento: string | null = null
       if (ativVencimento && ativVencimento.trim()) {
-        const clean = ativVencimento.trim()
-        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-          pureAtivVencimento = clean.substring(0, 10)
-        } else {
-          const d = new Date(clean)
-          if (!isNaN(d.getTime())) {
-            const y = d.getFullYear()
-            const m = String(d.getMonth() + 1).padStart(2, '0')
-            const day = String(d.getDate()).padStart(2, '0')
-            pureAtivVencimento = `${y}-${m}-${day}`
-          }
-        }
+        pureAtivVencimento = extractPureDate(ativVencimento.trim())
       }
 
       await pb.collection('atividades').create({

@@ -22,7 +22,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/hooks/use-toast'
-import { isValidCPF, isValidCNPJ, maskCPF, maskCNPJ, maskPhone } from '@/lib/formatters'
+import {
+  isValidCPF,
+  isValidCNPJ,
+  maskCPF,
+  maskCNPJ,
+  maskPhone,
+  extractPureDate,
+} from '@/lib/formatters'
 import { getEtapaNome } from '@/lib/relationshipStatus'
 import type { Funil, Organizacao, Pessoa, Oportunidade } from '@/types'
 import { AddDealModal } from '@/components/AddDealModal'
@@ -267,7 +274,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           cliente_b2c_id: negPessoaId || null,
           documento_faturamento: negDocFaturamento || null,
           proxima_acao_data:
-            negProxData && negProxData.trim() ? negProxData.trim().substring(0, 10) : null,
+            negProxData && negProxData.trim() ? extractPureDate(negProxData.trim()) : null,
           proxima_acao_descricao: negProxDesc.trim() || null,
         })
         toast({
@@ -392,7 +399,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           responsavel_id: user?.id,
           tipo: tarTipo,
           descricao: tarDescricao.trim() || 'Atividade comercial',
-          data_vencimento: tarVencimento ? new Date(tarVencimento).toISOString() : null,
+          data_vencimento: tarVencimento ? extractPureDate(tarVencimento) : null,
           concluida: false,
         })
         toast({

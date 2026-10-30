@@ -12,7 +12,13 @@ import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C, EtapaConfig }
 import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { AddDealModal } from '@/components/AddDealModal'
-import { formatCurrencyBRL, formatDateBR, getFollowUpStatus } from '@/lib/formatters'
+import {
+  formatCurrencyBRL,
+  formatDateBR,
+  getFollowUpStatus,
+  extractPureDate,
+  getDiffDaysFromToday,
+} from '@/lib/formatters'
 import { maskCurrency, parseCurrencyToNumber } from '@/lib/currencyMask'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -492,7 +498,7 @@ export default function Pipelines() {
         documento_faturamento: newDocFaturamento || null,
         proxima_acao_data:
           newFollowUpData && newFollowUpData.trim()
-            ? newFollowUpData.trim().substring(0, 10)
+            ? extractPureDate(newFollowUpData.trim())
             : null,
         proxima_acao_descricao: newFollowUpDesc,
       })
@@ -541,14 +547,8 @@ export default function Pipelines() {
       const rawDate = op.data_fechamento_esperada
       if (!rawDate) return false
 
-      // Extração de data pura (AAAA-MM-DD) imune a fuso horário
-      const pureRaw = rawDate.trim().substring(0, 10)
-      const [y, m, d] = pureRaw.split('-').map(Number)
-      const now = new Date()
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const targetDate = new Date(y, m - 1, d)
-      const diffTime = targetDate.getTime() - today.getTime()
-      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+      const diffDays = getDiffDaysFromToday(rawDate)
+      if (diffDays === null) return false
 
       if (quickDateFilter === 'atrasados') {
         // Negócios cuja data_fechamento_esperada já passou e NÃO estão ganhos/perdidos
@@ -577,10 +577,10 @@ export default function Pipelines() {
   // Ordenação das oportunidades
   const sortedOpps = [...filteredOpps].sort((a, b) => {
     if (sortBy === 'proxima_acao') {
-      if (!a.proxima_acao_data) return 1
-      if (!b.proxima_acao_data) return -1
-      const dateA = a.proxima_acao_data.trim().substring(0, 10)
-      const dateB = b.proxima_acao_data.trim().substring(0, 10)
+      const dateA = extractPureDate(a.proxima_acao_data)
+      const dateB = extractPureDate(b.proxima_acao_data)
+      if (!dateA) return 1
+      if (!dateB) return -1
       return dateA.localeCompare(dateB)
     }
     if (sortBy === 'valor_desc') {
