@@ -50,7 +50,7 @@ if (fs.existsSync(indexHtmlPath)) {
 const hookPath = path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js')
 if (fs.existsSync(hookPath)) {
   const hookContent = fs.readFileSync(hookPath, 'utf8')
-  const hookMatch = hookContent.match(/const\s+currentVersion\s*=\s*['"]([^'"]+)['"]/)
+  const hookMatch = hookContent.match(/(?:let|const)\s+currentVersion\s*=\s*['"]([^'"]+)['"]/)
   if (hookMatch && hookMatch[1]) {
     assert.strictEqual(
       hookMatch[1],

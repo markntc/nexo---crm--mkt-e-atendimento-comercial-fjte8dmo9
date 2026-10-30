@@ -2,8 +2,13 @@
  * Script de sincronização automática e trava de integridade da versão do app Nexo NTC.
  * Fonte única de verdade: package.json
  *
+ * ORDEM DE VERSIONAMENTO:
+ * - O build APENAS LÊ a versão do package.json e sincroniza os artefatos.
+ * - O build NUNCA BUMPA/INCREMENTA a versão. O incremento pertence exclusivamente
+ *   ao fluxo de commit/release (`npm run version:bump`).
+ *
  * Sincroniza e valida:
- * 1. public/version.json (gerado automaticamente com version do package.json + timestamp)
+ * 1. public/version.json (gerado com version de package.json + timestamp)
  * 2. index.html (garante consistência da tag meta name="app-version")
  * 3. pocketbase/hooks/versao_app.js (garante que a rota /backend/v1/versao sirva a versão canônica)
  */
@@ -87,4 +92,12 @@ if (fs.existsSync(appVersionTsPath)) {
     fs.writeFileSync(appVersionTsPath, tsContent, 'utf8')
     console.log(`[Version Sync] src/lib/appVersion.ts sincronizado com timestamp ${buildTimestamp}`)
   }
+}
+
+// 5. Se o diretório dist existir (em build/postbuild), sincronizar dist/version.json
+const distDir = path.join(rootDir, 'dist')
+if (fs.existsSync(distDir)) {
+  const distVersionPath = path.join(distDir, 'version.json')
+  fs.writeFileSync(distVersionPath, JSON.stringify(versionData, null, 2) + '\n', 'utf8')
+  console.log(`[Version Sync] dist/version.json sincronizado com v${targetVersion}`)
 }

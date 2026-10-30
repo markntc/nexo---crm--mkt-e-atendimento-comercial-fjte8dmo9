@@ -4,9 +4,11 @@
  *
  * Garante que:
  * 1. package.json é a fonte única de verdade.
- * 2. public/version.json coincide com package.json.
- * 3. src/lib/appVersion.ts exporta CURRENT_APP_VERSION derivada diretamente do package.json.
- * 4. A função isNewVersionAvailable detecta diferenças reais e ignora versões idênticas.
+ * 2. public/version.json coincide estritamente com package.json (sem desvio de +1).
+ * 3. pocketbase/hooks/versao_app.js coincide estritamente com package.json.
+ * 4. O fluxo de build/sync NÃO incrementa a versão (invariante de idempotência).
+ * 5. src/lib/appVersion.ts exporta CURRENT_APP_VERSION derivada diretamente do package.json.
+ * 6. A função isNewVersionAvailable detecta diferenças reais e ignora versões idênticas.
  */
 import test from 'node:test'
 import assert from 'node:assert'
@@ -54,7 +56,7 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
   await t.test('pocketbase/hooks/versao_app.js reflete package.json', () => {
     const hookPath = path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js')
     const hookContent = fs.readFileSync(hookPath, 'utf8')
-    const match = hookContent.match(/(?:let|const)\s+currentVersion\s*=\s*['"]([^'"]+)['"]/)
+    const match = hookContent.match(/(?:let|const)\s+currentVersion\s*=\s*['"]([^'"]+)['']/)
     assert.ok(match, 'versao_app.js deve declarar currentVersion')
     assert.strictEqual(
       match[1],
@@ -63,6 +65,23 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
     )
   })
 
+  await t.test('Invariante: sincronização de build NUNCA altera ou incrementa package.json', () => {
+    const pkgBefore = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+    // Sincronização repetida (como executado em prebuild) deve ser 100% idempotente
+    const syncScriptPath = path.join(rootDir, 'scripts', 'sync-version.js')
+    const syncContent = fs.readFileSync(syncScriptPath, 'utf8')
+    // Verifica que o script de sincronização não escreve de volta no package.json
+    assert.ok(
+      !syncContent.includes('fs.writeFileSync(pkgPath'),
+      'scripts/sync-version.js NUNCA deve gravar ou alterar package.json',
+    )
+    const pkgAfter = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+    assert.strictEqual(
+      pkgAfter.version,
+      pkgBefore.version,
+      'A versão do package.json deve permanecer estritamente inalterada após a sincronização',
+    )
+  })
   await t.test('src/lib/appVersion.ts importa versão diretamente do package.json', () => {
     const appVersionTsPath = path.join(rootDir, 'src', 'lib', 'appVersion.ts')
     const content = fs.readFileSync(appVersionTsPath, 'utf8')
