@@ -45,7 +45,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   Select,
   SelectContent,
@@ -1259,11 +1258,9 @@ export default function Clientes() {
                     <th className="px-4 py-3">Nome da Pessoa</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Organização Vinculada</th>
-                    <th className="px-4 py-3">CPF</th>
-                    <th className="px-4 py-3">E-mail Principal</th>
-                    <th className="px-4 py-3">Telefone</th>
-                    <th className="px-4 py-3">Marca de Captura</th>
-                    <th className="px-4 py-3 text-right">Ação</th>
+                    <th className="px-4 py-3">Marca</th>
+                    <th className="px-4 py-3">Atalho</th>
+                    <th className="px-4 py-3 text-left">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E3E7EB]/60">
@@ -1278,7 +1275,7 @@ export default function Clientes() {
                     if (filteredPessoas.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                          <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
                             <div className="flex flex-col items-center justify-center space-y-2">
                               <Users2 className="w-8 h-8 text-slate-300" />
                               <p className="font-semibold text-slate-700">
@@ -1342,9 +1339,6 @@ export default function Clientes() {
                               <span className="text-slate-400 italic text-[11px]">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-mono text-slate-700">{c.cpf}</td>
-                          <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
                           <td className="px-4 py-3">
                             {c.expand?.marca_captura_id ? (
                               <Badge
@@ -1357,33 +1351,36 @@ export default function Clientes() {
                               <span className="text-slate-500">NTC Geral</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <div
-                              className="flex items-center justify-end space-x-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {wonPessoaIds.has(c.id) && (
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleIniciarRecompra({ b2cId: c.id, nome: c.nome_completo })
-                                  }
-                                  className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
-                                  title="Iniciar novo negócio de recompra pré-preenchido"
-                                >
-                                  <Repeat className="w-3 h-3 mr-1" />
-                                  Recompra
-                                </Button>
-                              )}
+                          <td className="px-4 py-3">
+                            {wonPessoaIds.has(c.id) ? (
                               <Button
-                                variant="ghost"
                                 size="sm"
-                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                                onClick={() => handleOpenB2C(c)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleIniciarRecompra({ b2cId: c.id, nome: c.nome_completo })
+                                }}
+                                className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
+                                title="Iniciar novo negócio de recompra pré-preenchido"
                               >
-                                Ver Ficha
+                                <Repeat className="w-3 h-3 mr-1" />
+                                Recompra
                               </Button>
-                            </div>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-left">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenB2C(c)
+                              }}
+                            >
+                              Ver Ficha
+                            </Button>
                           </td>
                         </tr>
                       )
@@ -1771,8 +1768,8 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* DRAWER DE DETALHES DE CONTATO (B2B ou B2C) */}
-      <Sheet
+      {/* MODAL DE DETALHES DE CONTATO (B2B ou B2C) — CENTRALIZADO COM OVERLAY */}
+      <Dialog
         open={!!selectedB2B || !!selectedB2C}
         onOpenChange={(open) => {
           if (!open) {
@@ -1781,14 +1778,11 @@ export default function Clientes() {
           }
         }}
       >
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-xl md:max-w-2xl p-0 flex flex-col bg-white border-l border-[#E3E7EB] shadow-2xl z-50 rounded-l-3xl"
-        >
+        <DialogContent className="max-w-3xl w-full p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col">
           {selectedB2B ? (
             /* DETALHES ORGANIZAÇÃO B2B */
             <>
-              <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
+              <DialogHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Building2 className="w-5 h-5 text-sky-600" />
@@ -1835,13 +1829,13 @@ export default function Clientes() {
                     )}
                   </div>
                 </div>
-                <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
+                <DialogTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2B.razao_social}
-                </SheetTitle>
+                </DialogTitle>
                 <p className="text-xs text-slate-500 font-mono">
                   CNPJ: {selectedB2B.cnpj || 'Não informado'}
                 </p>
-              </SheetHeader>
+              </DialogHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
@@ -2043,7 +2037,7 @@ export default function Clientes() {
           ) : selectedB2C ? (
             /* DETALHES PESSOA B2C */
             <>
-              <SheetHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left">
+              <DialogHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <User className="w-5 h-5 text-emerald-600" />
@@ -2090,13 +2084,13 @@ export default function Clientes() {
                     )}
                   </div>
                 </div>
-                <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
+                <DialogTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2C.nome_completo}
-                </SheetTitle>
+                </DialogTitle>
                 <p className="text-xs text-slate-500 font-mono">
                   CPF: {selectedB2C.cpf || 'Não informado'}
                 </p>
-              </SheetHeader>
+              </DialogHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
@@ -2239,8 +2233,8 @@ export default function Clientes() {
               </div>
             </>
           ) : null}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL NOVO / EDITAR CONTATO (+ PESSOA OU + ORGANIZAÇÃO) */}
       <Dialog
