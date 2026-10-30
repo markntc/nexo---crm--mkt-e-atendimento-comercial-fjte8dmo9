@@ -106,3 +106,11 @@ if (fs.existsSync(distDir)) {
   fs.writeFileSync(distVersionPath, JSON.stringify(versionData, null, 2) + '\n', 'utf8')
   console.log(`[Version Sync] dist/version.json sincronizado com v${targetVersion}`)
 }
+
+// 6. Se o diretório dev-dist existir (em build:dev), sincronizar dev-dist/version.json
+const devDistDir = path.join(rootDir, 'dev-dist')
+if (fs.existsSync(devDistDir)) {
+  const devDistVersionPath = path.join(devDistDir, 'version.json')
+  fs.writeFileSync(devDistVersionPath, JSON.stringify(versionData, null, 2) + '\n', 'utf8')
+  console.log(`[Version Sync] dev-dist/version.json sincronizado com v${targetVersion}`)
+}

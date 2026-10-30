@@ -9,18 +9,20 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Expires', '0')
 
   // Determina dinamicamente a versão lendo arquivos de build/metadados caso existam
-  let currentVersion = '0.0.83'
+  let currentVersion = '0.0.84'
   let buildTimestamp = Date.now()
   let buildTime = new Date().toISOString()
 
-  // Tentativas de leitura de versão dinâmica dos arquivos gerados no deploy/build
+  // Tentativas de leitura de versão dinâmica dos arquivos gerados no deploy/build.
+  // Prioridade 1: package.json (que é atualizado automaticamente na plataforma no commit)
+  // Prioridade 2: public/version.json e outros artefatos sincronizados
   const possiblePaths = [
+    'package.json',
+    '../package.json',
     'public/version.json',
     '../public/version.json',
     'version.json',
     'pb_public/version.json',
-    'package.json',
-    '../package.json',
   ]
 
   for (let i = 0; i < possiblePaths.length; i++) {

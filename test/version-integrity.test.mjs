@@ -124,6 +124,20 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
     },
   )
 
+  await t.test(
+    'Invariante: pocketbase/hooks/versao_app.js lê dinamicamente package.json primeiro',
+    () => {
+      const hookContent = fs.readFileSync(
+        path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js'),
+        'utf8',
+      )
+      assert.ok(
+        hookContent.includes("'package.json'"),
+        'pocketbase/hooks/versao_app.js deve tentar ler package.json como fonte prioritária',
+      )
+    },
+  )
+
   await t.test('src/lib/appVersion.ts importa versão diretamente do package.json', () => {
     const appVersionTsPath = path.join(rootDir, 'src', 'lib', 'appVersion.ts')
     const content = fs.readFileSync(appVersionTsPath, 'utf8')
