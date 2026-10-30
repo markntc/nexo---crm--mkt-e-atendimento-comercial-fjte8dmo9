@@ -82,7 +82,10 @@ routerAdd(
     const titulo = (dealData.titulo || '').trim() || 'Novo negócio'
 
     const followUpData = body.follow_up || {}
-    const followUpDataVencimento = (followUpData.data_vencimento || '').trim()
+    let followUpDataVencimento = (followUpData.data_vencimento || '').trim()
+    if (followUpDataVencimento && followUpDataVencimento.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(followUpDataVencimento)) {
+      followUpDataVencimento = followUpDataVencimento.substring(0, 10)
+    }
 
     // Mapas e utilitários de normalização geográfica inline
     const UFS_MAP = {
@@ -618,7 +621,11 @@ routerAdd(
           oppRec.set('documento_faturamento', dealData.documento_faturamento || null)
 
           if (dealData.data_fechamento_esperada) {
-            oppRec.set('data_fechamento_esperada', dealData.data_fechamento_esperada)
+            let df = String(dealData.data_fechamento_esperada).trim()
+            if (df.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(df)) {
+              df = df.substring(0, 10)
+            }
+            oppRec.set('data_fechamento_esperada', df)
           }
 
           // Origem e observações

@@ -266,7 +266,7 @@ export function QuickActionModal({ type, onClose, onSuccess }: QuickActionModalP
           cliente_b2b_id: negOrgId || null,
           cliente_b2c_id: negPessoaId || null,
           documento_faturamento: negDocFaturamento || null,
-          proxima_acao_data: negProxData ? new Date(negProxData).toISOString() : null,
+          proxima_acao_data: negProxData && negProxData.trim() ? negProxData.trim().substring(0, 10) : null,
           proxima_acao_descricao: negProxDesc.trim() || null,
         })
         toast({

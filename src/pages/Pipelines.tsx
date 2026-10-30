@@ -490,7 +490,7 @@ export default function Pipelines() {
         cliente_b2b_id: b2bFinal,
         cliente_b2c_id: b2cFinal,
         documento_faturamento: newDocFaturamento || null,
-        proxima_acao_data: newFollowUpData ? new Date(newFollowUpData).toISOString() : null,
+        proxima_acao_data: newFollowUpData && newFollowUpData.trim() ? newFollowUpData.trim().substring(0, 10) : null,
         proxima_acao_descricao: newFollowUpDesc,
       })
 
@@ -538,17 +538,14 @@ export default function Pipelines() {
       const rawDate = op.data_fechamento_esperada
       if (!rawDate) return false
 
-      const closeDate = new Date(rawDate)
+      // Extração de data pura (AAAA-MM-DD) imune a fuso horário
+      const pureRaw = rawDate.trim().substring(0, 10)
+      const [y, m, d] = pureRaw.split('-').map(Number)
       const now = new Date()
-      // Zerando horas para comparação de datas puras
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const targetDate = new Date(
-        closeDate.getFullYear(),
-        closeDate.getMonth(),
-        closeDate.getDate(),
-      )
+      const targetDate = new Date(y, m - 1, d)
       const diffTime = targetDate.getTime() - today.getTime()
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
 
       if (quickDateFilter === 'atrasados') {
         // Negócios cuja data_fechamento_esperada já passou e NÃO estão ganhos/perdidos
@@ -579,7 +576,9 @@ export default function Pipelines() {
     if (sortBy === 'proxima_acao') {
       if (!a.proxima_acao_data) return 1
       if (!b.proxima_acao_data) return -1
-      return new Date(a.proxima_acao_data).getTime() - new Date(b.proxima_acao_data).getTime()
+      const dateA = a.proxima_acao_data.trim().substring(0, 10)
+      const dateB = b.proxima_acao_data.trim().substring(0, 10)
+      return dateA.localeCompare(dateB)
     }
     if (sortBy === 'valor_desc') {
       return (b.valor_estimado || 0) - (a.valor_estimado || 0)

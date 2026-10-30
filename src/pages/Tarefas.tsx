@@ -176,19 +176,35 @@ export default function Tarefas() {
       const opp = oppList.find((o) => o.id === newOppId)
       const marcaId = opp ? opp.marca_id : activeBrand?.id || (marcas[0]?.id ?? '')
 
+      let pureVencimento: string | null = null
+      if (newVencimento && newVencimento.trim()) {
+        const clean = newVencimento.trim()
+        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+          pureVencimento = clean.substring(0, 10)
+        } else {
+          const d = new Date(clean)
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            pureVencimento = `${y}-${m}-${day}`
+          }
+        }
+      }
+
       await pb.collection('atividades').create({
         marca_id: marcaId,
         oportunidade_id: newOppId,
         responsavel_id: pb.authStore.record?.id,
         tipo: newTipo,
         descricao: newDescricao.trim(),
-        data_vencimento: new Date(newVencimento).toISOString(),
+        data_vencimento: pureVencimento,
         concluida: false,
       })
 
       // Atualiza o follow up da oportunidade vinculada
       await pb.collection('oportunidades').update(newOppId, {
-        proxima_acao_data: new Date(newVencimento).toISOString(),
+        proxima_acao_data: pureVencimento,
         proxima_acao_descricao: newDescricao.trim(),
       })
 
@@ -230,34 +246,42 @@ export default function Tarefas() {
     }
   }
 
-  // Separação em seções: Vencidas, Próximas 7 dias, Posteriores, Concluídas
-  const now = new Date()
-  const next7Days = new Date(now.getTime() + 7 * 24 * 3600 * 1000)
+  // Separação em seções com comparação de data pura dia-a-dia
+  const todayStr = new Date().toISOString().substring(0, 10)
+  const [currY, currM, currD] = todayStr.split('-').map(Number)
+  const todayCal = new Date(currY, currM - 1, currD)
+
+  const getTaskDiffDays = (dateStr?: string | null): number | null => {
+    if (!dateStr) return null
+    const pure = dateStr.trim().substring(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pure)) return null
+    const [y, m, d] = pure.split('-').map(Number)
+    const target = new Date(y, m - 1, d)
+    return Math.round((target.getTime() - todayCal.getTime()) / (1000 * 60 * 60 * 24))
+  }
 
   const tarefasConcluidas = atividades.filter((a) => a.concluida)
   const tarefasPendentes = atividades.filter((a) => !a.concluida)
 
   const tarefasVencidas = tarefasPendentes.filter((a) => {
-    const d = new Date(a.data_vencimento)
-    return d.getTime() < now.getTime()
+    const diff = getTaskDiffDays(a.data_vencimento)
+    return diff !== null && diff < 0
   })
 
   const tarefasProximas7 = tarefasPendentes.filter((a) => {
-    const d = new Date(a.data_vencimento)
-    return d.getTime() >= now.getTime() && d.getTime() <= next7Days.getTime()
+    const diff = getTaskDiffDays(a.data_vencimento)
+    return diff !== null && diff >= 0 && diff <= 7
   })
 
   const tarefasPosteriores = tarefasPendentes.filter((a) => {
-    const d = new Date(a.data_vencimento)
-    return d.getTime() > next7Days.getTime()
+    const diff = getTaskDiffDays(a.data_vencimento)
+    return diff !== null && diff > 7
   })
 
   const renderTaskRow = (at: Atividade) => {
-    const isOverdue = !at.concluida && new Date(at.data_vencimento).getTime() < now.getTime()
-    const isWithin48h =
-      !at.concluida &&
-      new Date(at.data_vencimento).getTime() >= now.getTime() &&
-      new Date(at.data_vencimento).getTime() <= now.getTime() + 48 * 3600 * 1000
+    const diff = getTaskDiffDays(at.data_vencimento)
+    const isOverdue = !at.concluida && diff !== null && diff < 0
+    const isWithin48h = !at.concluida && diff !== null && diff >= 0 && diff <= 2
 
     return (
       <div

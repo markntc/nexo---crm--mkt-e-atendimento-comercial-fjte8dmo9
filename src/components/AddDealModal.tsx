@@ -1198,7 +1198,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
 
       let dataFechamentoIso: string | null = null
       if (dataFechamento) {
-        // Aceita DD/MM/AAAA ou AAAA-MM-DD
+        // Aceita DD/MM/AAAA ou AAAA-MM-DD - grava data pura AAAA-MM-DD sem hora/fuso
         let pureDate = dataFechamento.trim()
         if (pureDate.includes('/')) {
           const parts = pureDate.split('/')
@@ -1206,10 +1206,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
             pureDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
           }
         }
-        if (/^\d{4}-\d{2}-\d{2}$/.test(pureDate)) {
-          dataFechamentoIso = `${pureDate} 12:00:00.000Z`
+        if (/^\d{4}-\d{2}-\d{2}/.test(pureDate)) {
+          dataFechamentoIso = pureDate.substring(0, 10)
         } else {
-          dataFechamentoIso = new Date(dataFechamento).toISOString()
+          const d = new Date(dataFechamento)
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            dataFechamentoIso = `${y}-${m}-${day}`
+          } else {
+            dataFechamentoIso = null
+          }
         }
       }
 
@@ -1256,10 +1264,23 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({
       let proximaAcaoIso: string | null = null
       if (followUpData && followUpData.trim()) {
         const cleanDate = followUpData.trim()
-        if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
-          proximaAcaoIso = `${cleanDate} 12:00:00.000Z`
+        if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
+          proximaAcaoIso = cleanDate.substring(0, 10)
+        } else if (cleanDate.includes('/')) {
+          const parts = cleanDate.split('/')
+          if (parts.length === 3) {
+            proximaAcaoIso = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+          }
         } else {
-          proximaAcaoIso = new Date(cleanDate).toISOString()
+          const d = new Date(cleanDate)
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            proximaAcaoIso = `${y}-${m}-${day}`
+          } else {
+            proximaAcaoIso = null
+          }
         }
       }
 

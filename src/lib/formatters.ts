@@ -17,12 +17,47 @@ export function formatCurrencyBRL(value: number | null | undefined): string {
 }
 
 /**
- * Formata uma data para o padrão brasileiro dd/mm/aaaa ou dd/mm/aaaa hh:mm
+ * Extrai data pura no formato AAAA-MM-DD a partir de qualquer string de data válida
+ * (compatível com AAAA-MM-DD, AAAA-MM-DD HH:MM:SS.000Z e DD/MM/AAAA)
  */
+export function extractPureDate(dateStr?: string | null): string | null {
+  if (!dateStr) return null
+  const trimmed = dateStr.trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.substring(0, 10)
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
+    const parts = trimmed.substring(0, 10).split('/')
+    return `${parts[2]}-${parts[1]}-${parts[0]}`
+  }
+  return null
+}
+
+/**
+ * Retorna a diferença em dias corridos entre uma data pura (AAAA-MM-DD) e hoje (fuso local)
+ */
+export function getDiffDaysFromToday(pureDate: string): number {
+  const [y, m, d] = pureDate.substring(0, 10).split('-').map(Number)
+  const targetDate = new Date(y, m - 1, d)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffTime = targetDate.getTime() - today.getTime()
+  return Math.round(diffTime / (1000 * 60 * 60 * 24))
+}
+
 export function formatDateBR(dateStr: string | null | undefined, includeTime = false): string {
   if (!dateStr) return '—'
   try {
-    const d = new Date(dateStr)
+    const trimmed = dateStr.trim()
+    // Quando não inclui hora e possui prefixo AAAA-MM-DD, formata diretamente sem conversão de fuso
+    if (!includeTime && /^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      const pure = trimmed.substring(0, 10)
+      const parts = pure.split('-')
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`
+      }
+    }
+    const d = new Date(trimmed)
     if (isNaN(d.getTime())) return '—'
     const day = String(d.getDate()).padStart(2, '0')
     const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -151,13 +186,23 @@ export function maskPhone(value: string): string {
  */
 export function getFollowUpStatus(dateStr?: string | null): 'missing' | 'overdue' | 'soon' | 'ok' {
   if (!dateStr) return 'missing'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return 'missing'
+  const pure = extractPureDate(dateStr)
+  if (!pure) {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return 'missing'
+    const now = new Date()
+    const diffHours = (d.getTime() - now.getTime()) / (1000 * 60 * 60)
+    if (diffHours < 0) return 'overdue'
+    if (diffHours <= 48) return 'soon'
+    return 'ok'
+  }
 
-  const now = new Date()
-  const diffHours = (d.getTime() - now.getTime()) / (1000 * 60 * 60)
-
-  if (diffHours < 0) return 'overdue'
-  if (diffHours <= 48) return 'soon'
+  // Comparação pura de dias calendário sem contaminação de fuso horário UTC:
+  // - Vencido (overdue): somente se a data do follow-up for ANTERIOR ao dia de hoje (diffDays < 0)
+  // - Em 48h (soon): hoje, amanhã ou depois de amanhã (0 <= diffDays <= 2)
+  // - Em dia (ok): a partir de 3 dias no futuro (diffDays > 2)
+  const diffDays = getDiffDaysFromToday(pure)
+  if (diffDays < 0) return 'overdue'
+  if (diffDays <= 2) return 'soon'
   return 'ok'
 }

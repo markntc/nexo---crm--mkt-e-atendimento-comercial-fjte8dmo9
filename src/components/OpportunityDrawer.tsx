@@ -208,11 +208,27 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const handleSaveOpportunity = async () => {
     if (!opportunity) return
     try {
+      let pureAcaoData: string | null = null
+      if (proximaAcaoData && proximaAcaoData.trim()) {
+        const clean = proximaAcaoData.trim()
+        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+          pureAcaoData = clean.substring(0, 10)
+        } else {
+          const d = new Date(clean)
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            pureAcaoData = `${y}-${m}-${day}`
+          }
+        }
+      }
+
       await pb.collection('oportunidades').update(opportunity.id, {
         titulo,
         valor_estimado: parseCurrencyToNumber(valorEstimado),
         documento_faturamento: documentoFaturamento || null,
-        proxima_acao_data: proximaAcaoData ? new Date(proximaAcaoData).toISOString() : null,
+        proxima_acao_data: pureAcaoData,
         proxima_acao_descricao: proximaAcaoDescricao,
       })
       toast({
@@ -265,20 +281,36 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     if (!opportunity) return
     setIsSavingAtiv(true)
     try {
+      let pureAtivVencimento: string | null = null
+      if (ativVencimento && ativVencimento.trim()) {
+        const clean = ativVencimento.trim()
+        if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+          pureAtivVencimento = clean.substring(0, 10)
+        } else {
+          const d = new Date(clean)
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            pureAtivVencimento = `${y}-${m}-${day}`
+          }
+        }
+      }
+
       await pb.collection('atividades').create({
         marca_id: opportunity.marca_id,
         oportunidade_id: opportunity.id,
         responsavel_id: pb.authStore.record?.id,
         tipo: ativTipo,
         descricao: ativDescricao,
-        data_vencimento: new Date(ativVencimento).toISOString(),
+        data_vencimento: pureAtivVencimento,
         concluida: false,
       })
 
       // Se a oportunidade estava sem follow-up, atualiza automaticamente a próxima ação
-      if (!opportunity.proxima_acao_data) {
+      if (!opportunity.proxima_acao_data && pureAtivVencimento) {
         await pb.collection('oportunidades').update(opportunity.id, {
-          proxima_acao_data: new Date(ativVencimento).toISOString(),
+          proxima_acao_data: pureAtivVencimento,
           proxima_acao_descricao: ativDescricao,
         })
       }
