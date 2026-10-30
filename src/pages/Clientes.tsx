@@ -179,25 +179,26 @@ export default function Clientes() {
   const [clientOpps, setClientOpps] = useState<Oportunidade[]>([])
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
 
-  // Modal Novo Contato (+ Pessoa ou + Organização)
-  const [isNewContactOpen, setIsNewContactOpen] = useState(false)
-  const [newTipo, setNewTipo] = useState<'b2b' | 'b2c'>('b2c')
-  const [newCnpj, setNewCnpj] = useState('')
-  const [newRazao, setNewRazao] = useState('')
-  const [newFantasia, setNewFantasia] = useState('')
-  const [newIE, setNewIE] = useState('')
-  const [newEndereco, setNewEndereco] = useState('')
-  const [newCidade, setNewCidade] = useState('')
-  const [newEstado, setNewEstado] = useState('')
-  const [newPais, setNewPais] = useState('Brasil')
-  const [newCpf, setNewCpf] = useState('')
-  const [newNomeCompleto, setNewNomeCompleto] = useState('')
-  const [newEmail, setNewEmail] = useState('')
-  const [newTelefone, setNewTelefone] = useState('')
-  const [newMarcaCapturaId, setNewMarcaCapturaId] = useState('')
-  const [newOrganizacaoId, setNewOrganizacaoId] = useState<string>('')
-  const [newCargo, setNewCargo] = useState('')
-  const [newDepartamento, setNewDepartamento] = useState('')
+  // Modal Novo / Editar Contato (+ Pessoa ou + Organização)
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false)
+  const [editingContactId, setEditingContactId] = useState<string | null>(null)
+  const [contactTipo, setContactTipo] = useState<'b2b' | 'b2c'>('b2c')
+  const [formCnpj, setFormCnpj] = useState('')
+  const [formRazao, setFormRazao] = useState('')
+  const [formFantasia, setFormFantasia] = useState('')
+  const [formIE, setFormIE] = useState('')
+  const [formEndereco, setFormEndereco] = useState('')
+  const [formCidade, setFormCidade] = useState('')
+  const [formEstado, setFormEstado] = useState('')
+  const [formPais, setFormPais] = useState('Brasil')
+  const [formCpf, setFormCpf] = useState('')
+  const [formNomeCompleto, setFormNomeCompleto] = useState('')
+  const [formEmail, setFormEmail] = useState('')
+  const [formTelefone, setFormTelefone] = useState('')
+  const [formMarcaCapturaId, setFormMarcaCapturaId] = useState('')
+  const [formOrganizacaoId, setFormOrganizacaoId] = useState<string>('')
+  const [formCargo, setFormCargo] = useState('')
+  const [formDepartamento, setFormDepartamento] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -470,19 +471,21 @@ export default function Clientes() {
     }
   }
 
-  // Criação de Contato com validação matemática de dígitos verificadores
-  const handleCreateContact = async (e: React.FormEvent) => {
+  // Criação ou Edição de Contato com validação matemática de dígitos verificadores (se preenchidos)
+  const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault()
     setValidationError(null)
 
-    const marcaId = newMarcaCapturaId || activeBrand?.id || (marcas[0]?.id ?? '')
+    const marcaId = formMarcaCapturaId || activeBrand?.id || (marcas[0]?.id ?? '')
     if (!marcaId) {
       setValidationError('Selecione uma marca de captura.')
       return
     }
 
-    if (newTipo === 'b2b') {
-      const cleanCnpj = newCnpj.replace(/\D/g, '')
+    const isEditing = !!editingContactId
+
+    if (contactTipo === 'b2b') {
+      const cleanCnpj = formCnpj.replace(/\D/g, '')
       if (cleanCnpj && !isValidCNPJ(cleanCnpj)) {
         setValidationError('O CNPJ informado possui dígitos verificadores inválidos.')
         return
@@ -490,12 +493,15 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
-        // Busca deduplicação inteligente se CNPJ informado
+        // Busca deduplicação inteligente se CNPJ informado (exclui o próprio registro na edição)
         if (cleanCnpj) {
+          const filterQuery = isEditing
+            ? `cnpj = "${cleanCnpj}" && id != "${editingContactId}"`
+            : `cnpj = "${cleanCnpj}"`
           const orgExistente = await pb
             .collection('organizacoes')
             .getFullList<ClienteB2B>({
-              filter: `cnpj = "${cleanCnpj}"`,
+              filter: filterQuery,
               limit: 1,
             })
             .catch(() => [])
@@ -508,28 +514,44 @@ export default function Clientes() {
           }
         }
 
-        await pb.collection('organizacoes').create({
+        const payload: Record<string, any> = {
           cnpj: cleanCnpj ? maskCNPJ(cleanCnpj) : null,
-          razao_social: newRazao.trim() || 'Sem razão social informada',
-          nome_fantasia: newFantasia.trim() || null,
-          inscricao_estadual: newIE.trim() || null,
-          endereco_corporativo: newEndereco.trim() || null,
-          cidade: newCidade.trim() || null,
-          estado: newEstado.trim() || null,
-          pais: newPais.trim() || 'Brasil',
-          email_principal: newEmail.trim() || null,
-          telefone: newTelefone ? maskPhone(newTelefone) : null,
+          razao_social: formRazao.trim() || 'Sem razão social informada',
+          nome_fantasia: formFantasia.trim() || null,
+          inscricao_estadual: formIE.trim() || null,
+          endereco_corporativo: formEndereco.trim() || null,
+          cidade: formCidade.trim() || null,
+          estado: formEstado.trim() || null,
+          pais: formPais.trim() || 'Brasil',
+          email_principal: formEmail.trim() || null,
+          telefone: formTelefone ? maskPhone(formTelefone) : null,
           marca_captura_id: marcaId,
-          origem_sistema: 'Cadastro Manual Pipedrive NTC',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: pb.authStore.record?.id,
-        })
+        }
 
-        toast({
-          title: 'Organização cadastrada',
-          description: 'Registro de organização incluído na base mestre unificada.',
-        })
-        setIsNewContactOpen(false)
+        if (isEditing) {
+          const updated = await pb
+            .collection('organizacoes')
+            .update<Organizacao>(editingContactId, payload, {
+              expand: 'marca_captura_id',
+            })
+          toast({
+            title: 'Organização atualizada',
+            description: 'Os dados da organização foram atualizados com sucesso.',
+          })
+          setSelectedB2B(updated)
+        } else {
+          payload.origem_sistema = 'Cadastro Manual Pipedrive NTC'
+          payload.data_criacao = new Date().toISOString()
+          payload.criado_por_id = pb.authStore.record?.id
+
+          await pb.collection('organizacoes').create(payload)
+          toast({
+            title: 'Organização cadastrada',
+            description: 'Registro de organização incluído na base mestre unificada.',
+          })
+        }
+
+        setIsContactModalOpen(false)
         resetForm()
         fetchContatos()
       } catch (err: any) {
@@ -545,7 +567,7 @@ export default function Clientes() {
       }
     } else {
       // B2C / Pessoa
-      const cleanCpf = newCpf.replace(/\D/g, '')
+      const cleanCpf = formCpf.replace(/\D/g, '')
       if (cleanCpf && !isValidCPF(cleanCpf)) {
         setValidationError('O CPF informado possui dígitos verificadores inválidos.')
         return
@@ -553,12 +575,15 @@ export default function Clientes() {
 
       setIsSubmitting(true)
       try {
-        // Busca deduplicação inteligente se CPF informado
+        // Busca deduplicação inteligente se CPF informado (exclui o próprio registro na edição)
         if (cleanCpf) {
+          const filterQuery = isEditing
+            ? `cpf = "${cleanCpf}" && id != "${editingContactId}"`
+            : `cpf = "${cleanCpf}"`
           const pessoaExistente = await pb
             .collection('pessoas')
             .getFullList<ClienteB2C>({
-              filter: `cpf = "${cleanCpf}"`,
+              filter: filterQuery,
               limit: 1,
             })
             .catch(() => [])
@@ -571,28 +596,42 @@ export default function Clientes() {
           }
         }
 
-        await pb.collection('pessoas').create({
+        const payload: Record<string, any> = {
           cpf: cleanCpf ? maskCPF(cleanCpf) : null,
-          nome_completo: newNomeCompleto.trim() || 'Sem nome informado',
-          email_principal: newEmail.trim() || null,
-          telefone: newTelefone ? maskPhone(newTelefone) : null,
-          cidade: newCidade.trim() || null,
-          estado: newEstado.trim() || null,
-          pais: newPais.trim() || 'Brasil',
+          nome_completo: formNomeCompleto.trim() || 'Sem nome informado',
+          email_principal: formEmail.trim() || null,
+          telefone: formTelefone ? maskPhone(formTelefone) : null,
+          cidade: formCidade.trim() || null,
+          estado: formEstado.trim() || null,
+          pais: formPais.trim() || 'Brasil',
           marca_captura_id: marcaId,
-          origem_sistema: 'Cadastro Manual Pipedrive NTC',
-          data_criacao: new Date().toISOString(),
-          criado_por_id: pb.authStore.record?.id,
-          organizacao_id: newOrganizacaoId || null,
-          cargo: newCargo.trim() || null,
-          departamento: newDepartamento.trim() || null,
-        })
+          organizacao_id: formOrganizacaoId || null,
+          cargo: formCargo.trim() || null,
+          departamento: formDepartamento.trim() || null,
+        }
 
-        toast({
-          title: 'Pessoa cadastrada',
-          description: 'Registro de pessoa física incluído na base mestre de contatos.',
-        })
-        setIsNewContactOpen(false)
+        if (isEditing) {
+          const updated = await pb.collection('pessoas').update<Pessoa>(editingContactId, payload, {
+            expand: 'marca_captura_id,organizacao_id',
+          })
+          toast({
+            title: 'Pessoa atualizada',
+            description: 'Os dados do contato foram atualizados com sucesso.',
+          })
+          setSelectedB2C(updated)
+        } else {
+          payload.origem_sistema = 'Cadastro Manual Pipedrive NTC'
+          payload.data_criacao = new Date().toISOString()
+          payload.criado_por_id = pb.authStore.record?.id
+
+          await pb.collection('pessoas').create(payload)
+          toast({
+            title: 'Pessoa cadastrada',
+            description: 'Registro de pessoa física incluído na base mestre de contatos.',
+          })
+        }
+
+        setIsContactModalOpen(false)
         resetForm()
         fetchContatos()
       } catch (err: any) {
@@ -610,29 +649,67 @@ export default function Clientes() {
   }
 
   const resetForm = () => {
-    setNewCnpj('')
-    setNewRazao('')
-    setNewFantasia('')
-    setNewIE('')
-    setNewEndereco('')
-    setNewCidade('')
-    setNewEstado('')
-    setNewPais('Brasil')
-    setNewCpf('')
-    setNewNomeCompleto('')
-    setNewEmail('')
-    setNewTelefone('')
-    setNewOrganizacaoId('')
-    setNewCargo('')
-    setNewDepartamento('')
+    setEditingContactId(null)
+    setFormCnpj('')
+    setFormRazao('')
+    setFormFantasia('')
+    setFormIE('')
+    setFormEndereco('')
+    setFormCidade('')
+    setFormEstado('')
+    setFormPais('Brasil')
+    setFormCpf('')
+    setFormNomeCompleto('')
+    setFormEmail('')
+    setFormTelefone('')
+    setFormMarcaCapturaId('')
+    setFormOrganizacaoId('')
+    setFormCargo('')
+    setFormDepartamento('')
     setValidationError(null)
   }
 
   const openNewContactModal = (tipo: 'b2b' | 'b2c') => {
     resetForm()
-    setNewTipo(tipo)
-    setNewMarcaCapturaId(activeBrand?.id || (marcas[0]?.id ?? ''))
-    setIsNewContactOpen(true)
+    setContactTipo(tipo)
+    setFormMarcaCapturaId(activeBrand?.id || (marcas[0]?.id ?? ''))
+    setIsContactModalOpen(true)
+  }
+
+  const openEditB2BModal = (org: ClienteB2B) => {
+    resetForm()
+    setEditingContactId(org.id)
+    setContactTipo('b2b')
+    setFormCnpj(org.cnpj || '')
+    setFormRazao(org.razao_social || '')
+    setFormFantasia(org.nome_fantasia || '')
+    setFormIE(org.inscricao_estadual || '')
+    setFormEndereco(org.endereco_corporativo || '')
+    setFormCidade(org.cidade || '')
+    setFormEstado(org.estado || '')
+    setFormPais(org.pais || 'Brasil')
+    setFormEmail(org.email_principal || '')
+    setFormTelefone(org.telefone || '')
+    setFormMarcaCapturaId(org.marca_captura_id || activeBrand?.id || (marcas[0]?.id ?? ''))
+    setIsContactModalOpen(true)
+  }
+
+  const openEditB2CModal = (pes: ClienteB2C) => {
+    resetForm()
+    setEditingContactId(pes.id)
+    setContactTipo('b2c')
+    setFormCpf(pes.cpf || '')
+    setFormNomeCompleto(pes.nome_completo || '')
+    setFormEmail(pes.email_principal || '')
+    setFormTelefone(pes.telefone || '')
+    setFormCidade(pes.cidade || '')
+    setFormEstado(pes.estado || '')
+    setFormPais(pes.pais || 'Brasil')
+    setFormOrganizacaoId(pes.organizacao_id || '')
+    setFormCargo(pes.cargo || '')
+    setFormDepartamento(pes.departamento || '')
+    setFormMarcaCapturaId(pes.marca_captura_id || activeBrand?.id || (marcas[0]?.id ?? ''))
+    setIsContactModalOpen(true)
   }
 
   // Vínculo Pessoa -> Organização (atualiza diretamente o registro da Pessoa com organizacao_id + cargo)
@@ -1731,26 +1808,39 @@ export default function Clientes() {
                       </Badge>
                     )}
                   </div>
-                  {wonOrgIds.has(selectedB2B.id) && (
+                  <div className="flex items-center space-x-2">
                     <Button
                       size="sm"
-                      onClick={() =>
-                        handleIniciarRecompra({
-                          b2bId: selectedB2B.id,
-                          nome: selectedB2B.razao_social,
-                        })
-                      }
-                      className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                      variant="outline"
+                      onClick={() => openEditB2BModal(selectedB2B)}
+                      className="text-xs font-semibold h-8 px-3 rounded-xl border-slate-300 hover:bg-slate-100 text-slate-700"
                     >
-                      <Repeat className="w-3.5 h-3.5 mr-1.5" />
-                      Recompra
+                      <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                      Editar
                     </Button>
-                  )}
+                    {wonOrgIds.has(selectedB2B.id) && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          handleIniciarRecompra({
+                            b2bId: selectedB2B.id,
+                            nome: selectedB2B.razao_social,
+                          })
+                        }
+                        className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                      >
+                        <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                        Recompra
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2B.razao_social}
                 </SheetTitle>
-                <p className="text-xs text-slate-500 font-mono">CNPJ: {selectedB2B.cnpj}</p>
+                <p className="text-xs text-slate-500 font-mono">
+                  CNPJ: {selectedB2B.cnpj || 'Não informado'}
+                </p>
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -1973,26 +2063,39 @@ export default function Clientes() {
                       </Badge>
                     )}
                   </div>
-                  {wonPessoaIds.has(selectedB2C.id) && (
+                  <div className="flex items-center space-x-2">
                     <Button
                       size="sm"
-                      onClick={() =>
-                        handleIniciarRecompra({
-                          b2cId: selectedB2C.id,
-                          nome: selectedB2C.nome_completo,
-                        })
-                      }
-                      className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                      variant="outline"
+                      onClick={() => openEditB2CModal(selectedB2C)}
+                      className="text-xs font-semibold h-8 px-3 rounded-xl border-slate-300 hover:bg-slate-100 text-slate-700"
                     >
-                      <Repeat className="w-3.5 h-3.5 mr-1.5" />
-                      Recompra
+                      <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                      Editar
                     </Button>
-                  )}
+                    {wonPessoaIds.has(selectedB2C.id) && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          handleIniciarRecompra({
+                            b2cId: selectedB2C.id,
+                            nome: selectedB2C.nome_completo,
+                          })
+                        }
+                        className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
+                      >
+                        <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                        Recompra
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <SheetTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2C.nome_completo}
                 </SheetTitle>
-                <p className="text-xs text-slate-500 font-mono">CPF: {selectedB2C.cpf}</p>
+                <p className="text-xs text-slate-500 font-mono">
+                  CPF: {selectedB2C.cpf || 'Não informado'}
+                </p>
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -2139,16 +2242,38 @@ export default function Clientes() {
         </SheetContent>
       </Sheet>
 
-      {/* MODAL NOVO CONTATO (+ PESSOA OU + ORGANIZAÇÃO) */}
-      <Dialog open={isNewContactOpen} onOpenChange={setIsNewContactOpen}>
-        <DialogContent className="sm:max-w-lg rounded-2xl">
+      {/* MODAL NOVO / EDITAR CONTATO (+ PESSOA OU + ORGANIZAÇÃO) */}
+      <Dialog
+        open={isContactModalOpen}
+        onOpenChange={(open) => {
+          setIsContactModalOpen(open)
+          if (!open) resetForm()
+        }}
+      >
+        <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900">
-              {newTipo === 'b2c' ? 'Adicionar Nova Pessoa' : 'Adicionar Nova Organização'}
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center space-x-2">
+              {editingContactId ? (
+                <>
+                  <Edit2 className="w-4 h-4 text-[#017848]" />
+                  <span>{contactTipo === 'b2c' ? 'Editar Pessoa' : 'Editar Organização'}</span>
+                </>
+              ) : (
+                <>
+                  {contactTipo === 'b2c' ? (
+                    <User className="w-4 h-4 text-[#017848]" />
+                  ) : (
+                    <Building2 className="w-4 h-4 text-[#017848]" />
+                  )}
+                  <span>
+                    {contactTipo === 'b2c' ? 'Adicionar Nova Pessoa' : 'Adicionar Nova Organização'}
+                  </span>
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleCreateContact} className="space-y-4">
+          <form onSubmit={handleSaveContact} className="space-y-4">
             {validationError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-2 text-xs text-red-800">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
@@ -2156,39 +2281,41 @@ export default function Clientes() {
               </div>
             )}
 
-            {/* Alternância de Tipo de Contato */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewTipo('b2c')
-                  setValidationError(null)
-                }}
-                className={cn(
-                  'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
-                  newTipo === 'b2c' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
-                )}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Pessoa (CPF)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setNewTipo('b2b')
-                  setValidationError(null)
-                }}
-                className={cn(
-                  'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
-                  newTipo === 'b2b' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
-                )}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Organização (CNPJ)</span>
-              </button>
-            </div>
+            {/* Alternância de Tipo de Contato (apenas no modo criação; na edição o tipo é fixado) */}
+            {!editingContactId && (
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactTipo('b2c')
+                    setValidationError(null)
+                  }}
+                  className={cn(
+                    'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
+                    contactTipo === 'b2c' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
+                  )}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Pessoa (CPF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactTipo('b2b')
+                    setValidationError(null)
+                  }}
+                  className={cn(
+                    'py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-2',
+                    contactTipo === 'b2b' ? 'bg-white text-[#017848] shadow-xs' : 'text-slate-600',
+                  )}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Organização (CNPJ)</span>
+                </button>
+              </div>
+            )}
 
-            {newTipo === 'b2c' ? (
+            {contactTipo === 'b2c' ? (
               /* CAMPOS PESSOA */
               <>
                 <div className="space-y-1">
@@ -2196,21 +2323,21 @@ export default function Clientes() {
                     <Label className="text-xs font-semibold text-slate-600">
                       CPF <span className="text-slate-400 font-normal">(opcional)</span>
                     </Label>
-                    {newCpf && (
+                    {formCpf && (
                       <span
                         className={cn(
                           'text-[10px] font-bold',
-                          isValidCPF(newCpf) ? 'text-emerald-600' : 'text-red-500',
+                          isValidCPF(formCpf) ? 'text-emerald-600' : 'text-red-500',
                         )}
                       >
-                        {isValidCPF(newCpf) ? 'Dígitos verificadores válidos' : 'CPF Inválido'}
+                        {isValidCPF(formCpf) ? 'Dígitos verificadores válidos' : 'CPF Inválido'}
                       </span>
                     )}
                   </div>
                   <Input
                     placeholder="000.000.000-00 (opcional)"
-                    value={newCpf}
-                    onChange={(e) => setNewCpf(maskCPF(e.target.value))}
+                    value={formCpf}
+                    onChange={(e) => setFormCpf(maskCPF(e.target.value))}
                     className="h-9 text-xs font-mono rounded-xl"
                   />
                 </div>
@@ -2221,8 +2348,8 @@ export default function Clientes() {
                   </Label>
                   <Input
                     placeholder="Nome da pessoa (opcional)"
-                    value={newNomeCompleto}
-                    onChange={(e) => setNewNomeCompleto(e.target.value)}
+                    value={formNomeCompleto}
+                    onChange={(e) => setFormNomeCompleto(e.target.value)}
                     className="h-9 text-xs rounded-xl"
                   />
                 </div>
@@ -2233,8 +2360,8 @@ export default function Clientes() {
                     Vincular a uma Organização (Opcional)
                   </Label>
                   <Select
-                    value={newOrganizacaoId}
-                    onValueChange={(val) => setNewOrganizacaoId(val === 'none' ? '' : val)}
+                    value={formOrganizacaoId || 'none'}
+                    onValueChange={(val) => setFormOrganizacaoId(val === 'none' ? '' : val)}
                   >
                     <SelectTrigger className="h-9 text-xs rounded-xl">
                       <SelectValue placeholder="Sem vínculo (Pessoa independente)" />
@@ -2243,7 +2370,7 @@ export default function Clientes() {
                       <SelectItem value="none">Sem vínculo (Pessoa independente)</SelectItem>
                       {clientesB2B.map((b) => (
                         <SelectItem key={b.id} value={b.id}>
-                          {b.razao_social} (CNPJ: {b.cnpj})
+                          {b.razao_social} {b.cnpj ? `(CNPJ: ${b.cnpj})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -2255,8 +2382,8 @@ export default function Clientes() {
                     <Label className="text-xs font-semibold text-slate-600">Cargo</Label>
                     <Input
                       placeholder="ex: Comprador Técnico"
-                      value={newCargo}
-                      onChange={(e) => setNewCargo(e.target.value)}
+                      value={formCargo}
+                      onChange={(e) => setFormCargo(e.target.value)}
                       className="h-9 text-xs rounded-xl"
                     />
                   </div>
@@ -2264,8 +2391,8 @@ export default function Clientes() {
                     <Label className="text-xs font-semibold text-slate-600">Departamento</Label>
                     <Input
                       placeholder="ex: Suprimentos"
-                      value={newDepartamento}
-                      onChange={(e) => setNewDepartamento(e.target.value)}
+                      value={formDepartamento}
+                      onChange={(e) => setFormDepartamento(e.target.value)}
                       className="h-9 text-xs rounded-xl"
                     />
                   </div>
@@ -2275,13 +2402,13 @@ export default function Clientes() {
                 <div className="pt-2 border-t border-slate-100">
                   <GeoSelector
                     label="Localidade Residencial"
-                    cidade={newCidade}
-                    estado={newEstado}
-                    pais={newPais}
+                    cidade={formCidade}
+                    estado={formEstado}
+                    pais={formPais}
                     onChange={(geo) => {
-                      setNewCidade(geo.cidade)
-                      setNewEstado(geo.estado)
-                      setNewPais(geo.pais)
+                      setFormCidade(geo.cidade)
+                      setFormEstado(geo.estado)
+                      setFormPais(geo.pais)
                     }}
                   />
                 </div>
@@ -2294,21 +2421,21 @@ export default function Clientes() {
                     <Label className="text-xs font-semibold text-slate-600">
                       CNPJ <span className="text-slate-400 font-normal">(opcional)</span>
                     </Label>
-                    {newCnpj && (
+                    {formCnpj && (
                       <span
                         className={cn(
                           'text-[10px] font-bold',
-                          isValidCNPJ(newCnpj) ? 'text-emerald-600' : 'text-red-500',
+                          isValidCNPJ(formCnpj) ? 'text-emerald-600' : 'text-red-500',
                         )}
                       >
-                        {isValidCNPJ(newCnpj) ? 'Dígitos verificadores válidos' : 'CNPJ Inválido'}
+                        {isValidCNPJ(formCnpj) ? 'Dígitos verificadores válidos' : 'CNPJ Inválido'}
                       </span>
                     )}
                   </div>
                   <Input
                     placeholder="00.000.000/0000-00 (opcional)"
-                    value={newCnpj}
-                    onChange={(e) => setNewCnpj(maskCNPJ(e.target.value))}
+                    value={formCnpj}
+                    onChange={(e) => setFormCnpj(maskCNPJ(e.target.value))}
                     className="h-9 text-xs font-mono rounded-xl"
                   />
                 </div>
@@ -2319,8 +2446,8 @@ export default function Clientes() {
                   </Label>
                   <Input
                     placeholder="Nome empresarial formal (opcional)"
-                    value={newRazao}
-                    onChange={(e) => setNewRazao(e.target.value)}
+                    value={formRazao}
+                    onChange={(e) => setFormRazao(e.target.value)}
                     className="h-9 text-xs rounded-xl"
                   />
                 </div>
@@ -2330,8 +2457,8 @@ export default function Clientes() {
                     <Label className="text-xs font-semibold text-slate-600">Nome Fantasia</Label>
                     <Input
                       placeholder="Nome comercial"
-                      value={newFantasia}
-                      onChange={(e) => setNewFantasia(e.target.value)}
+                      value={formFantasia}
+                      onChange={(e) => setFormFantasia(e.target.value)}
                       className="h-9 text-xs rounded-xl"
                     />
                   </div>
@@ -2341,8 +2468,8 @@ export default function Clientes() {
                     </Label>
                     <Input
                       placeholder="IE"
-                      value={newIE}
-                      onChange={(e) => setNewIE(e.target.value)}
+                      value={formIE}
+                      onChange={(e) => setFormIE(e.target.value)}
                       className="h-9 text-xs rounded-xl"
                     />
                   </div>
@@ -2354,8 +2481,8 @@ export default function Clientes() {
                   </Label>
                   <Input
                     placeholder="ex: Av. Paulista, 1000 - Cj 52"
-                    value={newEndereco}
-                    onChange={(e) => setNewEndereco(e.target.value)}
+                    value={formEndereco}
+                    onChange={(e) => setFormEndereco(e.target.value)}
                     className="h-9 text-xs rounded-xl"
                   />
                 </div>
@@ -2364,13 +2491,13 @@ export default function Clientes() {
                 <div className="pt-2 border-t border-slate-100">
                   <GeoSelector
                     label="Localidade Corporativa"
-                    cidade={newCidade}
-                    estado={newEstado}
-                    pais={newPais}
+                    cidade={formCidade}
+                    estado={formEstado}
+                    pais={formPais}
                     onChange={(geo) => {
-                      setNewCidade(geo.cidade)
-                      setNewEstado(geo.estado)
-                      setNewPais(geo.pais)
+                      setFormCidade(geo.cidade)
+                      setFormEstado(geo.estado)
+                      setFormPais(geo.pais)
                     }}
                   />
                 </div>
@@ -2383,8 +2510,8 @@ export default function Clientes() {
                 <Input
                   type="email"
                   placeholder="contato@exemplo.com.br"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
                   className="h-9 text-xs rounded-xl"
                 />
               </div>
@@ -2393,8 +2520,8 @@ export default function Clientes() {
                 <Label className="text-xs font-semibold text-slate-600">Telefone</Label>
                 <Input
                   placeholder="(00) 00000-0000"
-                  value={newTelefone}
-                  onChange={(e) => setNewTelefone(maskPhone(e.target.value))}
+                  value={formTelefone}
+                  onChange={(e) => setFormTelefone(maskPhone(e.target.value))}
                   className="h-9 text-xs rounded-xl"
                 />
               </div>
@@ -2402,7 +2529,7 @@ export default function Clientes() {
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-600">Marca de Captura</Label>
-              <Select value={newMarcaCapturaId} onValueChange={setNewMarcaCapturaId}>
+              <Select value={formMarcaCapturaId} onValueChange={setFormMarcaCapturaId}>
                 <SelectTrigger className="h-9 text-xs rounded-xl">
                   <SelectValue placeholder="Selecione a marca..." />
                 </SelectTrigger>
@@ -2421,7 +2548,10 @@ export default function Clientes() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setIsNewContactOpen(false)}
+                onClick={() => {
+                  setIsContactModalOpen(false)
+                  resetForm()
+                }}
                 className="text-xs rounded-xl border-[#E3E7EB]"
               >
                 Cancelar
@@ -2432,7 +2562,11 @@ export default function Clientes() {
                 disabled={isSubmitting}
                 className="text-xs font-bold rounded-xl bg-[#017848] hover:bg-[#01653c] text-white"
               >
-                {isSubmitting ? 'Salvando...' : 'Salvar Contato'}
+                {isSubmitting
+                  ? 'Salvando...'
+                  : editingContactId
+                    ? 'Salvar Alterações'
+                    : 'Salvar Contato'}
               </Button>
             </DialogFooter>
           </form>
