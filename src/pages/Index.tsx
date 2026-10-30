@@ -5,7 +5,12 @@ import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Oportunidade, Atividade, Lead } from '@/types'
-import { formatCurrencyBRL, formatDateBR, getFollowUpStatus, getDiffDaysFromToday } from '@/lib/formatters'
+import {
+  formatCurrencyBRL,
+  formatDateBR,
+  getFollowUpStatus,
+  getDiffDaysFromToday,
+} from '@/lib/formatters'
 import { isWonStage } from '@/lib/relationshipStatus'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -599,7 +604,9 @@ export default function Index() {
               </div>
             ) : (
               proximasTarefas.map((at) => {
-                const diffDays = at.data_vencimento ? getDiffDaysFromToday(at.data_vencimento.trim().substring(0, 10)) : null
+                const diffDays = at.data_vencimento
+                  ? getDiffDaysFromToday(at.data_vencimento.trim().substring(0, 10))
+                  : null
                 const isOverdue = diffDays !== null && diffDays < 0
                 return (
                   <div

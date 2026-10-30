@@ -28,16 +28,31 @@ export function extractPureDate(dateStr?: string | null): string | null {
   }
   if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
     const parts = trimmed.substring(0, 10).split('/')
-    return `${parts[2]}-${parts[1]}-${parts[0]}`
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+  }
+  // Fallback caso venha em outro formato parseável
+  const d = new Date(trimmed)
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
   }
   return null
 }
 
 /**
- * Retorna a diferença em dias corridos entre uma data pura (AAAA-MM-DD) e hoje (fuso local)
+ * Retorna a diferença em dias corridos entre uma data (pura ou string) e hoje (fuso local do navegador).
+ * - diffDays < 0: anterior a hoje (ontem ou antes = vencido)
+ * - diffDays === 0: hoje
+ * - diffDays === 1: amanhã
+ * - diffDays === 2: depois de amanhã (até 48h)
+ * - diffDays > 2: futuro
  */
-export function getDiffDaysFromToday(pureDate: string): number {
-  const [y, m, d] = pureDate.substring(0, 10).split('-').map(Number)
+export function getDiffDaysFromToday(dateInput: string): number {
+  const pure = extractPureDate(dateInput)
+  if (!pure) return 0
+  const [y, m, d] = pure.substring(0, 10).split('-').map(Number)
   const targetDate = new Date(y, m - 1, d)
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -187,18 +202,10 @@ export function maskPhone(value: string): string {
 export function getFollowUpStatus(dateStr?: string | null): 'missing' | 'overdue' | 'soon' | 'ok' {
   if (!dateStr) return 'missing'
   const pure = extractPureDate(dateStr)
-  if (!pure) {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return 'missing'
-    const now = new Date()
-    const diffHours = (d.getTime() - now.getTime()) / (1000 * 60 * 60)
-    if (diffHours < 0) return 'overdue'
-    if (diffHours <= 48) return 'soon'
-    return 'ok'
-  }
+  if (!pure) return 'missing'
 
   // Comparação pura de dias calendário sem contaminação de fuso horário UTC:
-  // - Vencido (overdue): somente se a data do follow-up for ANTERIOR ao dia de hoje (diffDays < 0)
+  // - Vencido (overdue): somente se a data do follow-up for estritamente anterior a hoje (diffDays < 0)
   // - Em 48h (soon): hoje, amanhã ou depois de amanhã (0 <= diffDays <= 2)
   // - Em dia (ok): a partir de 3 dias no futuro (diffDays > 2)
   const diffDays = getDiffDaysFromToday(pure)

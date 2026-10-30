@@ -490,7 +490,10 @@ export default function Pipelines() {
         cliente_b2b_id: b2bFinal,
         cliente_b2c_id: b2cFinal,
         documento_faturamento: newDocFaturamento || null,
-        proxima_acao_data: newFollowUpData && newFollowUpData.trim() ? newFollowUpData.trim().substring(0, 10) : null,
+        proxima_acao_data:
+          newFollowUpData && newFollowUpData.trim()
+            ? newFollowUpData.trim().substring(0, 10)
+            : null,
         proxima_acao_descricao: newFollowUpDesc,
       })
 

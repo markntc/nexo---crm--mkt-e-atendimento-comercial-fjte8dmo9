@@ -83,7 +83,11 @@ routerAdd(
 
     const followUpData = body.follow_up || {}
     let followUpDataVencimento = (followUpData.data_vencimento || '').trim()
-    if (followUpDataVencimento && followUpDataVencimento.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(followUpDataVencimento)) {
+    if (
+      followUpDataVencimento &&
+      followUpDataVencimento.length >= 10 &&
+      /^\d{4}-\d{2}-\d{2}/.test(followUpDataVencimento)
+    ) {
       followUpDataVencimento = followUpDataVencimento.substring(0, 10)
     }
 
