@@ -159,6 +159,32 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
     )
   })
 
+  await t.test('use-version-checker implementa guards anti-loop e desativação em iframe', () => {
+    const hookPath = path.join(rootDir, 'src', 'hooks', 'use-version-checker.ts')
+    const hookContent = fs.readFileSync(hookPath, 'utf8')
+
+    assert.ok(
+      hookContent.includes('isRunningInIframe'),
+      'use-version-checker.ts deve conter a função isRunningInIframe',
+    )
+    assert.ok(
+      hookContent.includes('window.self !== window.top'),
+      'use-version-checker.ts deve checar window.self !== window.top para detectar iframe',
+    )
+    assert.ok(
+      hookContent.includes('inMemoryReloadedVersions'),
+      'use-version-checker.ts deve conter guard em memória para evitar recargas repetidas',
+    )
+    assert.ok(
+      hookContent.includes('localStorage'),
+      'use-version-checker.ts deve usar localStorage com try/catch como camada anti-loop',
+    )
+    assert.ok(
+      hookContent.includes('hasAlreadyReloadedForVersion'),
+      'use-version-checker.ts deve verificar se já houve recarga para a versão',
+    )
+  })
+
   await t.test('Lógica de comparação semântica de versão (isNewVersionAvailable)', () => {
     function compareSemver(v1, v2) {
       if (!v1 || !v2) return 0

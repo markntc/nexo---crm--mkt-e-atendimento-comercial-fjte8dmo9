@@ -19,24 +19,40 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   const possiblePaths = [
     'package.json',
     '../package.json',
+    '../../package.json',
     'public/version.json',
     '../public/version.json',
+    '../../public/version.json',
     'version.json',
+    '../version.json',
     'pb_public/version.json',
+    'dist/version.json',
+    '../dist/version.json',
   ]
 
   for (let i = 0; i < possiblePaths.length; i++) {
     try {
       const content = $os.readFile(possiblePaths[i])
       if (content && content.length > 0) {
-        const text =
-          typeof content === 'string' ? content : String.fromCharCode.apply(null, content)
-        const parsed = JSON.parse(text)
-        if (parsed && typeof parsed.version === 'string' && parsed.version.trim()) {
-          currentVersion = parsed.version.trim()
-          if (parsed.buildTimestamp) buildTimestamp = parsed.buildTimestamp
-          if (parsed.buildTime) buildTime = parsed.buildTime
-          break
+        let text = ''
+        if (typeof content === 'string') {
+          text = content
+        } else if (content.length) {
+          // Converte bytes para string em blocos para evitar stack overflow em arquivos maiores
+          const CHUNK = 4096
+          for (let j = 0; j < content.length; j += CHUNK) {
+            const slice = content.slice(j, j + CHUNK)
+            text += String.fromCharCode.apply(null, slice)
+          }
+        }
+        if (text) {
+          const parsed = JSON.parse(text)
+          if (parsed && typeof parsed.version === 'string' && parsed.version.trim()) {
+            currentVersion = parsed.version.trim()
+            if (parsed.buildTimestamp) buildTimestamp = parsed.buildTimestamp
+            if (parsed.buildTime) buildTime = parsed.buildTime
+            break
+          }
         }
       }
     } catch (_) {

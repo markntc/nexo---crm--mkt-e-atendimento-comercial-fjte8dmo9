@@ -8,7 +8,91 @@ import {
 } from '@/lib/appVersion'
 
 const SESSION_RELOAD_KEY = 'ntc_app_version_auto_reloaded'
+const LOCAL_RELOAD_KEY = 'ntc_app_version_auto_reloaded_v2'
 const DISMISSED_VERSION_KEY = 'ntc_app_version_dismissed'
+
+// Guard em memória persistente durante o ciclo de vida do script / módulo:
+// Impede categoricamente mais de 1 recarga automática por versão mesmo se
+// sessionStorage e localStorage falharem, forem limpos ou bloqueados no iframe.
+const inMemoryReloadedVersions = new Set<string>()
+
+/**
+ * Detecta se o aplicativo está sendo executado dentro de um iframe
+ * (ex: preview do builder, embed, etc.).
+ */
+export function isRunningInIframe(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.self !== window.top
+  } catch {
+    // Acesso a window.top bloqueado por cross-origin => está dentro de iframe
+    return true
+  }
+}
+
+/**
+ * Verifica se já houve recarga para esta versão específica em qualquer camada
+ * (memória, sessionStorage ou localStorage).
+ */
+function hasAlreadyReloadedForVersion(version: string): boolean {
+  if (!version) return false
+
+  // 1. Guard em memória
+  if (inMemoryReloadedVersions.has(version)) {
+    return true
+  }
+
+  // 2. Guard em sessionStorage
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const val = window.sessionStorage.getItem(SESSION_RELOAD_KEY)
+      if (val === version) return true
+    }
+  } catch {
+    // sessionStorage inacessível
+  }
+
+  // 3. Guard em localStorage
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const val = window.localStorage.getItem(LOCAL_RELOAD_KEY)
+      if (val === version) return true
+    }
+  } catch {
+    // localStorage inacessível
+  }
+
+  return false
+}
+
+/**
+ * Marca uma versão como recarregada em todas as camadas disponíveis
+ * (memória, sessionStorage e localStorage com try/catch).
+ */
+function markVersionAsReloaded(version: string): void {
+  if (!version) return
+
+  // 1. Memória
+  inMemoryReloadedVersions.add(version)
+
+  // 2. sessionStorage
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(SESSION_RELOAD_KEY, version)
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. localStorage
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(LOCAL_RELOAD_KEY, version)
+    }
+  } catch {
+    // ignore
+  }
+}
 
 export interface UseVersionCheckerOptions {
   checkIntervalMs?: number // padrão: 2 minutos (120000)
@@ -41,21 +125,27 @@ export function useVersionChecker(options: UseVersionCheckerOptions = {}): UseVe
 
   const applyUpdate = useCallback(() => {
     try {
-      // Limpa sessionStorage de recarregamento para o próximo ciclo se necessário
       if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(SESSION_RELOAD_KEY)
+        // Se uma nova versão está detectada, registra que já recarregou para ela antes de disparar
+        if (newVersion) {
+          markVersionAsReloaded(newVersion)
+        }
         // Força recarga sem cache no navegador
         window.location.reload()
       }
     } catch {
-      window.location.replace(window.location.href)
+      if (typeof window !== 'undefined') {
+        window.location.replace(window.location.href)
+      }
     }
-  }, [])
+  }, [newVersion])
 
   const dismissUpdate = useCallback(() => {
     if (newVersion) {
       try {
-        sessionStorage.setItem(DISMISSED_VERSION_KEY, newVersion)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          window.sessionStorage.setItem(DISMISSED_VERSION_KEY, newVersion)
+        }
       } catch {
         // Ignora erro de storage
       }
@@ -75,27 +165,41 @@ export function useVersionChecker(options: UseVersionCheckerOptions = {}): UseVe
         setNewVersion(remote.version)
 
         // Verifica se usuário já descartou essa mesma versão na sessão
-        const dismissed = sessionStorage.getItem(DISMISSED_VERSION_KEY)
-        if (dismissed === remote.version) {
-          setIsDismissed(true)
+        try {
+          const dismissed =
+            typeof window !== 'undefined' && window.sessionStorage
+              ? window.sessionStorage.getItem(DISMISSED_VERSION_KEY)
+              : null
+          if (dismissed === remote.version) {
+            setIsDismissed(true)
+            return
+          }
+        } catch {
+          // ignore
+        }
+
+        // REGRA CRÍTICA ANTI-LOOP:
+        // 1. Em IFRAME (preview do builder): NUNCA recarregar automaticamente.
+        //    Apenas exibe o banner de atualização para o usuário decidir quando aplicar.
+        const inIframe = isRunningInIframe()
+        if (inIframe) {
+          // Apenas notifica visualmente através do banner
           return
         }
 
-        // Tenta auto-recarregar se for seguro (sem modal / workflow)
-        // e se ainda não foi feito um reload nesta sessão para evitar loops
-        const alreadyReloadedFor = sessionStorage.getItem(SESSION_RELOAD_KEY)
+        // 2. FORA DE IFRAME:
+        //    Tenta auto-recarregar se habilitado (autoReloadIfIdle), se o usuário não estiver em workflow/modal
+        //    E NUNCA mais de 1x por versão (trava em memória + localStorage + sessionStorage).
+        const alreadyReloaded = hasAlreadyReloadedForVersion(remote.version)
 
-        if (autoReloadIfIdle && alreadyReloadedFor !== remote.version) {
+        if (autoReloadIfIdle && !alreadyReloaded) {
           const isBusy = hasActiveUserModalOrWorkflow()
           if (!isBusy) {
-            // Marca flag ANTES do reload para evitar loop em cascata caso o cache ainda persista
-            try {
-              sessionStorage.setItem(SESSION_RELOAD_KEY, remote.version)
-            } catch {
-              // ignora
-            }
+            // Marca flag em memória, sessionStorage e localStorage ANTES do reload
+            markVersionAsReloaded(remote.version)
+
             console.log(
-              `[Nexo NTC] Nova versão detectada (${remote.version}). Recarregando de forma transparente...`,
+              `[Nexo NTC] Nova versão detectada (${remote.version}). Recarregando de forma transparente (fora de iframe)...`,
             )
             applyUpdate()
             return
@@ -122,14 +226,27 @@ export function useVersionChecker(options: UseVersionCheckerOptions = {}): UseVe
     }, checkIntervalMs)
 
     // 3. Verificação ao retornar à aba/janela (visibilitychange e focus)
+    // Com debounce/throttling de 30 segundos para não amplificar verificações repetitivas
+    let lastEventCheckTime = 0
+    const THROTTLE_MS = 30000
+
+    const triggerThrottledCheck = () => {
+      const now = Date.now()
+      if (now - lastEventCheckTime < THROTTLE_MS) {
+        return
+      }
+      lastEventCheckTime = now
+      checkNow()
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkNow()
+        triggerThrottledCheck()
       }
     }
 
     const handleFocus = () => {
-      checkNow()
+      triggerThrottledCheck()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
