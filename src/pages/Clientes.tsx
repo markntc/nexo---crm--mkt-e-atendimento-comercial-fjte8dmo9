@@ -4,7 +4,7 @@
 // Botão primário verde "+ Pessoa" ou "+ Organização"
 // Contador de contatos ("X pessoas", "Y organizações"), busca e filtro
 // Integrado com regras de unicidade e validação de CPF / CNPJ matematicamente
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useBrand } from '@/contexts/BrandContext'
@@ -171,12 +171,32 @@ export default function Clientes() {
   // Filtro de status de relacionamento comercial (Todos, Cliente, Prospect)
   const [statusFilter, setStatusFilter] = useState<'todos' | 'cliente' | 'prospect'>('todos')
 
-  // Detail View State (Drawer)
+  // Detail View State (Ficha de detalhes centralizada)
   const [selectedB2B, setSelectedB2B] = useState<ClienteB2B | null>(null)
   const [selectedB2C, setSelectedB2C] = useState<ClienteB2C | null>(null)
   const [linkedPessoas, setLinkedPessoas] = useState<Pessoa[]>([])
   const [clientOpps, setClientOpps] = useState<Oportunidade[]>([])
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
+
+  // Lock de fechamento da ficha de detalhes: quando um submodal está aberto sobre a ficha,
+  // ou acabando de fechar (grace period para descartar eventos propagados/desferidos),
+  // impede que a ficha de detalhes seja desmontada em cascata.
+  const isSubModalOpenRef = useRef(false)
+  const subModalCloseTimestampRef = useRef<number>(0)
+
+  const markSubModalOpen = () => {
+    isSubModalOpenRef.current = true
+  }
+
+  const markSubModalClosed = () => {
+    isSubModalOpenRef.current = false
+    subModalCloseTimestampRef.current = Date.now()
+  }
+
+  const isFichaProtectedFromCascade = () => {
+    if (isSubModalOpenRef.current) return true
+    return Date.now() - subModalCloseTimestampRef.current < 500
+  }
 
   // Modal Novo / Editar Contato (+ Pessoa ou + Organização)
   const [isContactModalOpen, setIsContactModalOpen] = useState(false)
@@ -207,8 +227,17 @@ export default function Clientes() {
   const [contatoCargo, setContatoCargo] = useState('')
   const [contatoDepto, setContatoDepto] = useState('')
 
+  const openAddContatoModal = () => {
+    markSubModalOpen()
+    setIsAddContatoOpen(true)
+  }
+
   // Modal Adicionar Preferência LGPD
   const [isAddPrefOpen, setIsAddPrefOpen] = useState(false)
+  const openAddPrefModal = () => {
+    markSubModalOpen()
+    setIsAddPrefOpen(true)
+  }
   const [prefMarcaId, setPrefMarcaId] = useState('')
   const [prefCanal, setPrefCanal] = useState<'E-mail' | 'WhatsApp' | 'Telefone' | 'SMS'>('WhatsApp')
   const [prefStatus, setPrefStatus] = useState<'Opt-in' | 'Opt-out'>('Opt-in')
@@ -408,6 +437,7 @@ export default function Clientes() {
     b2cId?: string
     nome: string
   }) => {
+    markSubModalOpen()
     try {
       const filter = target.b2bId
         ? `cliente_b2b_id = "${target.b2bId}"`
@@ -461,6 +491,7 @@ export default function Clientes() {
 
       setIsRecompraModalOpen(true)
     } catch (err) {
+      markSubModalClosed()
       console.error('Erro ao iniciar recompra:', err)
       toast({
         variant: 'destructive',
@@ -538,6 +569,7 @@ export default function Clientes() {
             description: 'Os dados da organização foram atualizados com sucesso.',
           })
           setSelectedB2B(updated)
+          loadClientDetails(updated.id, undefined)
         } else {
           payload.origem_sistema = 'Cadastro Manual Pipedrive NTC'
           payload.data_criacao = new Date().toISOString()
@@ -550,6 +582,7 @@ export default function Clientes() {
           })
         }
 
+        markSubModalClosed()
         setIsContactModalOpen(false)
         resetForm()
         fetchContatos()
@@ -618,6 +651,7 @@ export default function Clientes() {
             description: 'Os dados do contato foram atualizados com sucesso.',
           })
           setSelectedB2C(updated)
+          loadClientDetails(undefined, updated.id)
         } else {
           payload.origem_sistema = 'Cadastro Manual Pipedrive NTC'
           payload.data_criacao = new Date().toISOString()
@@ -630,6 +664,7 @@ export default function Clientes() {
           })
         }
 
+        markSubModalClosed()
         setIsContactModalOpen(false)
         resetForm()
         fetchContatos()
@@ -676,6 +711,7 @@ export default function Clientes() {
   }
 
   const openEditB2BModal = (org: ClienteB2B) => {
+    markSubModalOpen()
     resetForm()
     setEditingContactId(org.id)
     setContactTipo('b2b')
@@ -694,6 +730,7 @@ export default function Clientes() {
   }
 
   const openEditB2CModal = (pes: ClienteB2C) => {
+    markSubModalOpen()
     resetForm()
     setEditingContactId(pes.id)
     setContactTipo('b2c')
@@ -727,6 +764,7 @@ export default function Clientes() {
         title: 'Pessoa vinculada à organização',
         description: 'Vínculo e cargo estabelecidos com sucesso na base mestre.',
       })
+      markSubModalClosed()
       setIsAddContatoOpen(false)
       setSelectedB2CCandidateId('')
       setContatoCargo('')
@@ -785,6 +823,7 @@ export default function Clientes() {
         title: 'Consentimento registrado',
         description: `Consentimento ${prefStatus} gravado para o canal ${prefCanal}.`,
       })
+      markSubModalClosed()
       setIsAddPrefOpen(false)
       loadClientDetails(selectedB2B?.id, selectedB2C?.id)
     } catch (err) {
@@ -1743,12 +1782,29 @@ export default function Clientes() {
         open={!!selectedB2B || !!selectedB2C}
         onOpenChange={(open) => {
           if (!open) {
+            // Se um submodal de edição/vínculo/recompra estiver aberto ou acabando de fechar,
+            // ignora o evento de fechamento para não fechar a ficha em cascata
+            if (isFichaProtectedFromCascade()) {
+              return
+            }
             setSelectedB2B(null)
             setSelectedB2C(null)
           }
         }}
       >
-        <DialogContent className="max-w-3xl w-full p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col">
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            if (isFichaProtectedFromCascade()) {
+              e.preventDefault()
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (isFichaProtectedFromCascade()) {
+              e.preventDefault()
+            }
+          }}
+          className="max-w-3xl w-full p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col"
+        >
           {selectedB2B ? (
             /* DETALHES ORGANIZAÇÃO B2B */
             <>
@@ -1862,7 +1918,7 @@ export default function Clientes() {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => setIsAddContatoOpen(true)}
+                      onClick={openAddContatoModal}
                       className="text-xs h-8 bg-[#017848] hover:bg-[#01653c] text-white rounded-xl font-bold"
                     >
                       <Link2 className="w-3.5 h-3.5 mr-1" />
@@ -1963,7 +2019,7 @@ export default function Clientes() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setIsAddPrefOpen(true)}
+                      onClick={openAddPrefModal}
                       className="text-xs h-7 rounded-lg border-[#E3E7EB]"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
@@ -2161,7 +2217,7 @@ export default function Clientes() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setIsAddPrefOpen(true)}
+                      onClick={openAddPrefModal}
                       className="text-xs h-7 rounded-lg border-[#E3E7EB]"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
@@ -2211,10 +2267,29 @@ export default function Clientes() {
         open={isContactModalOpen}
         onOpenChange={(open) => {
           setIsContactModalOpen(open)
-          if (!open) resetForm()
+          if (!open) {
+            markSubModalClosed()
+            resetForm()
+          }
         }}
       >
-        <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            // Se a ficha de contato estiver aberta por trás, impede que o clique no backdrop
+            // se propague para a ficha subjacente
+            if (selectedB2B || selectedB2C) {
+              e.preventDefault()
+              markSubModalClosed()
+              setIsContactModalOpen(false)
+              resetForm()
+            }
+          }}
+          onCloseAutoFocus={(e) => {
+            // Evita foco automático abrupto transferido para a camada anterior que possa desferir fechamento
+            e.preventDefault()
+          }}
+          className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center space-x-2">
               {editingContactId ? (
@@ -2538,8 +2613,24 @@ export default function Clientes() {
       </Dialog>
 
       {/* MODAL ADICIONAR VÍNCULO B2B <-> B2C */}
-      <Dialog open={isAddContatoOpen} onOpenChange={setIsAddContatoOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+      <Dialog
+        open={isAddContatoOpen}
+        onOpenChange={(open) => {
+          setIsAddContatoOpen(open)
+          if (!open) markSubModalClosed()
+        }}
+      >
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            if (selectedB2B || selectedB2C) {
+              e.preventDefault()
+              markSubModalClosed()
+              setIsAddContatoOpen(false)
+            }
+          }}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-md rounded-2xl"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Vincular Pessoa à Organização
@@ -2610,8 +2701,24 @@ export default function Clientes() {
       </Dialog>
 
       {/* MODAL ADICIONAR PREFERÊNCIA LGPD */}
-      <Dialog open={isAddPrefOpen} onOpenChange={setIsAddPrefOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+      <Dialog
+        open={isAddPrefOpen}
+        onOpenChange={(open) => {
+          setIsAddPrefOpen(open)
+          if (!open) markSubModalClosed()
+        }}
+      >
+        <DialogContent
+          onPointerDownOutside={(e) => {
+            if (selectedB2B || selectedB2C) {
+              e.preventDefault()
+              markSubModalClosed()
+              setIsAddPrefOpen(false)
+            }
+          }}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-md rounded-2xl"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900">
               Registrar Consentimento LGPD
@@ -2882,12 +2989,21 @@ export default function Clientes() {
         open={isRecompraModalOpen}
         onOpenChange={(val) => {
           setIsRecompraModalOpen(val)
-          if (!val) setRecompraInitialValues(undefined)
+          if (!val) {
+            markSubModalClosed()
+            setRecompraInitialValues(undefined)
+          }
         }}
         initialValues={recompraInitialValues}
         onSuccess={() => {
+          markSubModalClosed()
           setRecompraInitialValues(undefined)
           fetchContatos()
+          if (selectedB2B) {
+            loadClientDetails(selectedB2B.id, undefined)
+          } else if (selectedB2C) {
+            loadClientDetails(undefined, selectedB2C.id)
+          }
           toast({
             title: 'Negócio de recompra iniciado!',
             description: 'A oportunidade foi cadastrada com sucesso.',
