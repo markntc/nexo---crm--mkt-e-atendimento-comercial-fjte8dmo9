@@ -69,7 +69,7 @@ if (fs.existsSync(indexHtmlPath)) {
 const hookPath = path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js')
 if (fs.existsSync(hookPath)) {
   let hookContent = fs.readFileSync(hookPath, 'utf8')
-  const hookVersionRegex = /(const\s+currentVersion\s*=\s*['"])([^'"]+)(['"])/
+  const hookVersionRegex = /((?:let|const)\s+currentVersion\s*=\s*['"])([^'"]+)(['"])/
   if (hookVersionRegex.test(hookContent)) {
     hookContent = hookContent.replace(hookVersionRegex, `$1${targetVersion}$3`)
     fs.writeFileSync(hookPath, hookContent, 'utf8')

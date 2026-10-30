@@ -54,7 +54,7 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
   await t.test('pocketbase/hooks/versao_app.js reflete package.json', () => {
     const hookPath = path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js')
     const hookContent = fs.readFileSync(hookPath, 'utf8')
-    const match = hookContent.match(/const\s+currentVersion\s*=\s*['"]([^'"]+)['"]/)
+    const match = hookContent.match(/(?:let|const)\s+currentVersion\s*=\s*['"]([^'"]+)['"]/)
     assert.ok(match, 'versao_app.js deve declarar currentVersion')
     assert.strictEqual(
       match[1],

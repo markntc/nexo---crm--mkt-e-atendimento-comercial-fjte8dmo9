@@ -8,13 +8,44 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Pragma', 'no-cache')
   e.response.header().set('Expires', '0')
 
-  // Versão canônica publicada do app
-  const currentVersion = '0.0.80'
+  // Determina dinamicamente a versão lendo arquivos de build/metadados caso existam
+  let currentVersion = '0.0.80'
+  let buildTimestamp = Date.now()
+  let buildTime = new Date().toISOString()
+
+  // Tentativas de leitura de versão dinâmica dos arquivos gerados no deploy/build
+  const possiblePaths = [
+    'public/version.json',
+    '../public/version.json',
+    'version.json',
+    'pb_public/version.json',
+    'package.json',
+    '../package.json',
+  ]
+
+  for (let i = 0; i < possiblePaths.length; i++) {
+    try {
+      const content = $os.readFile(possiblePaths[i])
+      if (content && content.length > 0) {
+        const text =
+          typeof content === 'string' ? content : String.fromCharCode.apply(null, content)
+        const parsed = JSON.parse(text)
+        if (parsed && typeof parsed.version === 'string' && parsed.version.trim()) {
+          currentVersion = parsed.version.trim()
+          if (parsed.buildTimestamp) buildTimestamp = parsed.buildTimestamp
+          if (parsed.buildTime) buildTime = parsed.buildTime
+          break
+        }
+      }
+    } catch (_) {
+      // Continua para o próximo caminho caso não consiga ler
+    }
+  }
 
   return e.json(200, {
     version: currentVersion,
-    updated_at: new Date().toISOString(),
-    timestamp: Date.now(),
+    updated_at: buildTime,
+    timestamp: buildTimestamp,
     status: 'ok',
   })
 })
