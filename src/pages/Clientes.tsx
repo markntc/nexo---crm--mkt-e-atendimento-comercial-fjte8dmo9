@@ -1783,51 +1783,23 @@ export default function Clientes() {
             /* DETALHES ORGANIZAÇÃO B2B */
             <>
               <DialogHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Building2 className="w-5 h-5 text-sky-600" />
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-bold border-slate-300 rounded-full"
-                    >
-                      Organização (B2B)
+                <div className="flex items-center space-x-2">
+                  <Building2 className="w-5 h-5 text-sky-600" />
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold border-slate-300 rounded-full"
+                  >
+                    Organização (B2B)
+                  </Badge>
+                  {wonOrgIds.has(selectedB2B.id) ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                      Cliente
                     </Badge>
-                    {wonOrgIds.has(selectedB2B.id) ? (
-                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-                        Cliente
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
-                        Prospect
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditB2BModal(selectedB2B)}
-                      className="text-xs font-semibold h-8 px-3 rounded-xl border-slate-300 hover:bg-slate-100 text-slate-700"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
-                      Editar
-                    </Button>
-                    {wonOrgIds.has(selectedB2B.id) && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          handleIniciarRecompra({
-                            b2bId: selectedB2B.id,
-                            nome: selectedB2B.razao_social,
-                          })
-                        }
-                        className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
-                      >
-                        <Repeat className="w-3.5 h-3.5 mr-1.5" />
-                        Recompra
-                      </Button>
-                    )}
-                  </div>
+                  ) : (
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                      Prospect
+                    </Badge>
+                  )}
                 </div>
                 <DialogTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2B.razao_social}
@@ -1840,9 +1812,37 @@ export default function Clientes() {
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
                 <div className="space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Dados Cadastrais Oficiais
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Dados Cadastrais Oficiais
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditB2BModal(selectedB2B)}
+                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                        Editar
+                      </Button>
+                      {wonOrgIds.has(selectedB2B.id) && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleIniciarRecompra({
+                              b2bId: selectedB2B.id,
+                              nome: selectedB2B.razao_social,
+                            })
+                          }
+                          className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-3 rounded-lg shadow-xs"
+                        >
+                          <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                          Recompra
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">
@@ -2038,51 +2038,23 @@ export default function Clientes() {
             /* DETALHES PESSOA B2C */
             <>
               <DialogHeader className="p-5 border-b border-[#E3E7EB] bg-slate-50/70 text-left shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <User className="w-5 h-5 text-emerald-600" />
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-bold border-slate-300 rounded-full"
-                    >
-                      Pessoa (B2C)
+                <div className="flex items-center space-x-2">
+                  <User className="w-5 h-5 text-emerald-600" />
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold border-slate-300 rounded-full"
+                  >
+                    Pessoa (B2C)
+                  </Badge>
+                  {wonPessoaIds.has(selectedB2C.id) ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                      Cliente
                     </Badge>
-                    {wonPessoaIds.has(selectedB2C.id) ? (
-                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-                        Cliente
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
-                        Prospect
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditB2CModal(selectedB2C)}
-                      className="text-xs font-semibold h-8 px-3 rounded-xl border-slate-300 hover:bg-slate-100 text-slate-700"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
-                      Editar
-                    </Button>
-                    {wonPessoaIds.has(selectedB2C.id) && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          handleIniciarRecompra({
-                            b2cId: selectedB2C.id,
-                            nome: selectedB2C.nome_completo,
-                          })
-                        }
-                        className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-8 px-3 rounded-xl shadow-xs"
-                      >
-                        <Repeat className="w-3.5 h-3.5 mr-1.5" />
-                        Recompra
-                      </Button>
-                    )}
-                  </div>
+                  ) : (
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
+                      Prospect
+                    </Badge>
+                  )}
                 </div>
                 <DialogTitle className="text-lg font-bold text-slate-900 mt-2">
                   {selectedB2C.nome_completo}
@@ -2095,9 +2067,37 @@ export default function Clientes() {
               <div className="flex-1 overflow-y-auto p-5 space-y-6">
                 {/* DADOS CADASTRAIS */}
                 <div className="space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Dados Pessoais
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Dados Pessoais
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditB2CModal(selectedB2C)}
+                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                        Editar
+                      </Button>
+                      {wonPessoaIds.has(selectedB2C.id) && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleIniciarRecompra({
+                              b2cId: selectedB2C.id,
+                              nome: selectedB2C.nome_completo,
+                            })
+                          }
+                          className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-3 rounded-lg shadow-xs"
+                        >
+                          <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                          Recompra
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">E-mail</p>
