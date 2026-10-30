@@ -1559,10 +1559,9 @@ export default function Clientes() {
                     <th className="px-4 py-3">Razão Social / Nome Fantasia</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">CNPJ</th>
-                    <th className="px-4 py-3">E-mail Corporativo</th>
-                    <th className="px-4 py-3">Telefone</th>
-                    <th className="px-4 py-3">Marca de Captura</th>
-                    <th className="px-4 py-3 text-right">Ação</th>
+                    <th className="px-4 py-3">Marca</th>
+                    <th className="px-4 py-3">Atalho</th>
+                    <th className="px-4 py-3 text-left">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E3E7EB]/60">
@@ -1577,7 +1576,7 @@ export default function Clientes() {
                     if (filteredOrgs.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                          <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
                             <div className="flex flex-col items-center justify-center space-y-2">
                               <Building2 className="w-8 h-8 text-slate-300" />
                               <p className="font-semibold text-slate-700">
@@ -1636,9 +1635,7 @@ export default function Clientes() {
                               </Badge>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-mono text-slate-700">{c.cnpj}</td>
-                          <td className="px-4 py-3 text-slate-600">{c.email_principal || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600">{c.telefone || '—'}</td>
+                          <td className="px-4 py-3 font-mono text-slate-700">{c.cnpj || '—'}</td>
                           <td className="px-4 py-3">
                             {c.expand?.marca_captura_id ? (
                               <Badge
@@ -1651,33 +1648,36 @@ export default function Clientes() {
                               <span className="text-slate-500">NTC Geral</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <div
-                              className="flex items-center justify-end space-x-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {wonOrgIds.has(c.id) && (
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleIniciarRecompra({ b2bId: c.id, nome: c.razao_social })
-                                  }
-                                  className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
-                                  title="Iniciar novo negócio de recompra pré-preenchido"
-                                >
-                                  <Repeat className="w-3 h-3 mr-1" />
-                                  Recompra
-                                </Button>
-                              )}
+                          <td className="px-4 py-3">
+                            {wonOrgIds.has(c.id) ? (
                               <Button
-                                variant="ghost"
                                 size="sm"
-                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                                onClick={() => handleOpenB2B(c)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleIniciarRecompra({ b2bId: c.id, nome: c.razao_social })
+                                }}
+                                className="text-xs font-bold bg-[#017848] hover:bg-[#01653c] text-white h-7 px-2.5 rounded-lg shadow-2xs"
+                                title="Iniciar novo negócio de recompra pré-preenchido"
                               >
-                                Ver Ficha
+                                <Repeat className="w-3 h-3 mr-1" />
+                                Recompra
                               </Button>
-                            </div>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-left">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleOpenB2B(c)
+                              }}
+                            >
+                              Ver Ficha
+                            </Button>
                           </td>
                         </tr>
                       )
