@@ -9,7 +9,7 @@ routerAdd('GET', '/backend/v1/versao', (e) => {
   e.response.header().set('Expires', '0')
 
   // Determina dinamicamente a versão lendo arquivos de build/metadados caso existam
-  let currentVersion = '0.0.90'
+  let currentVersion = '0.0.91'
   let buildTimestamp = Date.now()
   let buildTime = new Date().toISOString()
 
