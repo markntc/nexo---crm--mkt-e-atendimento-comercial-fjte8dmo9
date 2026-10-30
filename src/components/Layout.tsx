@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBrand } from '@/contexts/BrandContext'
-import pb from '@/lib/pocketbase/client'
 import { GlobalSearch } from './GlobalSearch'
 import { NtcLogo } from './NtcLogo'
 import { Button } from '@/components/ui/button'
@@ -75,98 +74,8 @@ export default function Layout() {
     localStorage.setItem('ntc_sidebar_pinned', String(isSidebarPinned))
   }, [isSidebarPinned])
 
-  // Badges em tempo real
-  const [tarefasVencidasCount, setTarefasVencidasCount] = useState<number>(0)
-  const [duplicidadesCount, setDuplicidadesCount] = useState<number>(0)
-  const [contatosCount, setContatosCount] = useState<number>(0)
-
   const navigate = useNavigate()
   const location = useLocation()
-
-  // Buscar contagens para os badges pretos do menu estilo Pipedrive
-  const fetchSidebarCounts = async () => {
-    try {
-      const nowIso = new Date().toISOString()
-
-      // Unificar filtros de marca e escopo de visibilidade com a listagem de Clientes
-      const b2bFilters: string[] = []
-      const b2cFilters: string[] = []
-      const leadFilters: string[] = []
-
-      if (activeBrand) {
-        b2bFilters.push(`marca_captura_id = "${activeBrand.id}"`)
-        b2cFilters.push(`marca_captura_id = "${activeBrand.id}"`)
-        leadFilters.push(`marca_id = "${activeBrand.id}"`)
-      }
-
-      if (user && !isAdmin && !isDiretoria) {
-        // Escopo "proprios" restringe aos criados pelo usuário
-        // Representante sempre 'proprios'; Supervisor com escopo equipe/marca vê todos da marca
-        const isPropriosOnly =
-          isRepresentante ||
-          escopoVisibilidade === 'proprios' ||
-          (user.permissoes && (user.permissoes as any).escopo_visibilidade === 'proprios') ||
-          (user.permissoes && (user.permissoes as any).escopo === 'proprios')
-
-        if (isPropriosOnly) {
-          b2bFilters.push(`criado_por_id = "${user.id}"`)
-          b2cFilters.push(`criado_por_id = "${user.id}"`)
-          leadFilters.push(`criado_por_id = "${user.id}"`)
-        }
-      }
-
-      const filterB2B = b2bFilters.join(' && ') || undefined
-      const filterB2C = b2cFilters.join(' && ') || undefined
-      const filterLeads = leadFilters.join(' && ') || undefined
-
-      const [tarefasRes, dupRes, b2bRes, b2cRes, leadsRes] = await Promise.all([
-        pb
-          .collection('atividades')
-          .getList(1, 1, {
-            filter: `concluida = false && data_vencimento < "${nowIso}"`,
-          })
-          .catch(() => ({ totalItems: 0 })),
-        pb
-          .collection('duplicidades')
-          .getList(1, 1, {
-            filter: `status = "Aberta" || status = "Em Revisão"`,
-          })
-          .catch(() => ({ totalItems: 0 })),
-        pb
-          .collection('organizacoes')
-          .getList(1, 1, {
-            filter: filterB2B,
-          })
-          .catch(() => ({ totalItems: 0 })),
-        pb
-          .collection('pessoas')
-          .getList(1, 1, {
-            filter: filterB2C,
-          })
-          .catch(() => ({ totalItems: 0 })),
-        pb
-          .collection('leads')
-          .getList(1, 1, {
-            filter: filterLeads,
-          })
-          .catch(() => ({ totalItems: 0 })),
-      ])
-
-      setTarefasVencidasCount(tarefasRes.totalItems || 0)
-      setDuplicidadesCount(dupRes.totalItems || 0)
-      setContatosCount(
-        (b2bRes.totalItems || 0) + (b2cRes.totalItems || 0) + (leadsRes.totalItems || 0),
-      )
-    } catch {
-      // Ignora erro de contagem para não travar layout
-    }
-  }
-
-  useEffect(() => {
-    fetchSidebarCounts()
-    const timer = setInterval(fetchSidebarCounts, 30000)
-    return () => clearInterval(timer)
-  }, [activeBrand, user?.id, isAdmin, isDiretoria, isRepresentante, escopoVisibilidade])
 
   // Quando o pin está desativado, o menu NÃO expande no hover: só abre com pin ativado
   const isExpanded = isSidebarPinned
@@ -184,7 +93,6 @@ export default function Layout() {
       label: 'Negócios',
       path: '/negocios',
       icon: Funnel,
-      badge: null,
       activeMatches: ['/negocios', '/pipelines', '/oportunidades'],
       visible: true,
     },
@@ -192,7 +100,6 @@ export default function Layout() {
       label: 'Contatos',
       path: '/contatos',
       icon: Users2,
-      badge: contatosCount > 0 ? contatosCount : null,
       activeMatches: ['/contatos', '/clientes', '/leads'],
       visible: true,
     },
@@ -200,35 +107,30 @@ export default function Layout() {
       label: 'Tarefas',
       path: '/tarefas',
       icon: CheckSquare,
-      badge: tarefasVencidasCount > 0 ? tarefasVencidasCount : null,
       visible: !isRepresentante,
     },
     {
       label: 'Conciliação',
       path: '/conciliacao',
       icon: GitCompare,
-      badge: duplicidadesCount > 0 ? duplicidadesCount : null,
       visible: podeAcessarConciliacao,
     },
     {
       label: 'Importação',
       path: '/importacao',
       icon: FileSpreadsheet,
-      badge: null,
       visible: podeAcessarImportacao,
     },
     {
       label: 'Painéis & Relatórios',
       path: '/relatorios',
       icon: BarChart3,
-      badge: null,
       visible: podeAcessarRelatorios,
     },
     {
       label: 'Preferências',
       path: '/preferencias',
       icon: Settings,
-      badge: null,
       visible: podeAcessarPreferencias,
     },
   ]
@@ -414,22 +316,11 @@ export default function Layout() {
                       active ? 'text-white' : 'text-slate-200',
                     )}
                   />
-                  {/* Badge contador sobreposto quando recolhido */}
-                  {!isExpanded && item.badge !== null && item.badge !== undefined && (
-                    <span className="absolute -top-1.5 -right-2 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#0B0C10] text-white ring-1 ring-white/20 shadow-md">
-                      {item.badge}
-                    </span>
-                  )}
                 </div>
 
                 {isExpanded && (
                   <div className="flex-1 flex items-center justify-between min-w-0 animate-fade-in">
                     <span className="truncate">{item.label}</span>
-                    {item.badge !== null && item.badge !== undefined && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0B0C10] text-slate-200 ring-1 ring-white/10 shrink-0">
-                        {item.badge}
-                      </span>
-                    )}
                   </div>
                 )}
               </NavLink>
@@ -446,11 +337,6 @@ export default function Layout() {
                     className="bg-[#0B0C10] text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-xl border border-white/10 flex items-center space-x-2"
                   >
                     <span>{item.label}</span>
-                    {item.badge !== null && item.badge !== undefined && (
-                      <span className="px-1.5 py-0.2 rounded bg-white/20 text-[10px] font-bold">
-                        {item.badge}
-                      </span>
-                    )}
                   </TooltipContent>
                 </Tooltip>
               )
@@ -583,11 +469,6 @@ export default function Layout() {
                     <Icon className="w-4 h-4 shrink-0" />
                     <span>{item.label}</span>
                   </div>
-                  {item.badge !== null && item.badge !== undefined && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0B0C10] text-slate-200">
-                      {item.badge}
-                    </span>
-                  )}
                 </button>
               )
             })}
@@ -828,13 +709,7 @@ export default function Layout() {
         </main>
 
         {/* Modal de Ação Rápida */}
-        <QuickActionModal
-          type={quickAction}
-          onClose={() => setQuickAction(null)}
-          onSuccess={() => {
-            fetchSidebarCounts()
-          }}
-        />
+        <QuickActionModal type={quickAction} onClose={() => setQuickAction(null)} />
       </div>
     </div>
   )

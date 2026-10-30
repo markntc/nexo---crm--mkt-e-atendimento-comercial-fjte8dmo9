@@ -948,7 +948,7 @@ export default function Clientes() {
     <div className="flex flex-col lg:flex-row gap-5 min-h-[calc(100vh-6.5rem)]">
       {/*
         SUB-MENU LATERAL ESTILO PIPEDRIVE (Captura 2):
-        Pessoas / Organizações / Linha do tempo de contatos / Mesclar duplicatas
+        Pessoas / Organizações / Leads / Mesclar duplicatas
       */}
       <aside className="w-full lg:w-64 bg-white border border-[#E3E7EB] rounded-2xl p-3 shrink-0 shadow-xs h-fit space-y-1">
         <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -959,7 +959,7 @@ export default function Clientes() {
           type="button"
           onClick={() => handleSelectSubNav('pessoas')}
           className={cn(
-            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            'w-full flex items-center px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
             activeSubNav === 'pessoas'
               ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
               : 'text-slate-700 hover:bg-slate-50',
@@ -974,16 +974,13 @@ export default function Clientes() {
             />
             <span>Pessoas</span>
           </div>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
-            {clientesB2C.length}
-          </span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectSubNav('organizacoes')}
           className={cn(
-            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            'w-full flex items-center px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
             activeSubNav === 'organizacoes'
               ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
               : 'text-slate-700 hover:bg-slate-50',
@@ -998,16 +995,13 @@ export default function Clientes() {
             />
             <span>Organizações</span>
           </div>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1C2833] text-white">
-            {clientesB2B.length}
-          </span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectSubNav('leads')}
           className={cn(
-            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
+            'w-full flex items-center px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
             activeSubNav === 'leads'
               ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
               : 'text-slate-700 hover:bg-slate-50',
@@ -1021,30 +1015,6 @@ export default function Clientes() {
               )}
             />
             <span>Leads</span>
-          </div>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#017848] text-white">
-            {leadsList.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectSubNav('timeline')}
-          className={cn(
-            'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left',
-            activeSubNav === 'timeline'
-              ? 'bg-[#E8F5FA] text-[#0284C7] shadow-xs'
-              : 'text-slate-700 hover:bg-slate-50',
-          )}
-        >
-          <div className="flex items-center space-x-2.5">
-            <Clock
-              className={cn(
-                'w-4 h-4',
-                activeSubNav === 'timeline' ? 'text-[#0284C7]' : 'text-slate-500',
-              )}
-            />
-            <span>Linha do tempo de contatos</span>
           </div>
         </button>
 
