@@ -82,6 +82,48 @@ test('Verificação de fonte única de verdade para a versão', async (t) => {
       'A versão do package.json deve permanecer estritamente inalterada após a sincronização',
     )
   })
+
+  await t.test(
+    'Invariante: versão commitada == version.json == hook versao_app (todas iguais, sempre)',
+    () => {
+      // 1. package.json
+      const packageVersion = appVersion
+      // 2. public/version.json
+      const versionJson = JSON.parse(
+        fs.readFileSync(path.join(rootDir, 'public', 'version.json'), 'utf8'),
+      )
+      // 3. pocketbase/hooks/versao_app.js
+      const hookContent = fs.readFileSync(
+        path.join(rootDir, 'pocketbase', 'hooks', 'versao_app.js'),
+        'utf8',
+      )
+      const hookMatch = hookContent.match(/(?:let|const)\s+currentVersion\s*=\s*['"]([^'"]+)['']/)
+      // 4. index.html
+      const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8')
+      const htmlMatch = html.match(
+        /<meta[^>]*name=["']app-version["'][^>]*content=["']([^"']+)["']/i,
+      )
+
+      assert.strictEqual(
+        versionJson.version,
+        packageVersion,
+        `version.json (${versionJson.version}) deve ser estritamente idêntica a package.json (${packageVersion})`,
+      )
+      assert.ok(hookMatch && hookMatch[1], 'Hook versao_app.js deve declarar currentVersion')
+      assert.strictEqual(
+        hookMatch[1],
+        packageVersion,
+        `hook versao_app.js (${hookMatch[1]}) deve ser estritamente idêntica a package.json (${packageVersion})`,
+      )
+      assert.ok(htmlMatch && htmlMatch[1], 'index.html deve declarar meta app-version')
+      assert.strictEqual(
+        htmlMatch[1],
+        packageVersion,
+        `index.html (${htmlMatch[1]}) deve ser estritamente idêntica a package.json (${packageVersion})`,
+      )
+    },
+  )
+
   await t.test('src/lib/appVersion.ts importa versão diretamente do package.json', () => {
     const appVersionTsPath = path.join(rootDir, 'src', 'lib', 'appVersion.ts')
     const content = fs.readFileSync(appVersionTsPath, 'utf8')

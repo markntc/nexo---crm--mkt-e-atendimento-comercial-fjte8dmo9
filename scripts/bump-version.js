@@ -2,13 +2,16 @@
  * Script de bump de versão do app Nexo NTC.
  *
  * ORDEM DE VERSIONAMENTO DEFINIDA:
- * 1. BUMP NO FLUXO DE COMMIT / RELEASE:
- *    Executa este script explicitamente (`npm run version:bump` ou `npm run version:bump minor|major|patch`)
- *    antes ou durante o commit. Ele incrementa o package.json e dispara a sincronização dos artefatos.
- * 2. BUILD APENAS LÊ E SINCRONIZA:
+ * 1. BUMP NO INÍCIO DO CICLO DE TRABALHO (RODADA):
+ *    Executa este script explicitamente no início do ciclo (`npm run version:bump` ou `node scripts/bump-version.js`)
+ *    ANTES do build, do deploy do backend e dos testes/QA.
+ *    Ele incrementa o package.json e dispara a sincronização imediata dos artefatos (public/version.json, hook, html).
+ * 2. O FLUXO DE COMMIT NUNCA ALTERA VERSÃO:
+ *    O commit grava exatamente os arquivos já construídos, testados e verificados, sem novo bump.
+ * 3. BUILD APENAS LÊ E SINCRONIZA:
  *    O comando de build (via `prebuild` / `node scripts/sync-version.js`) apenas LÊ o package.json atual
  *    e sincroniza public/version.json, pocketbase/hooks/versao_app.js e index.html, SEM NUNCA BUMPAR.
- *    Dessa forma, builder, preview publicado e hook backend ficam exatamente com o mesmo número commitado.
+ *    Dessa forma, package.json commitado == preview servido == hook backend == número construído (todos iguais).
  */
 import fs from 'fs'
 import path from 'path'

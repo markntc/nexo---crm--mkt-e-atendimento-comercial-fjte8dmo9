@@ -3,9 +3,10 @@
  * Fonte única de verdade: package.json
  *
  * ORDEM DE VERSIONAMENTO:
+ * - O bump de versão acontece no INÍCIO do ciclo de trabalho (rodada), ANTES do build e do commit.
+ * - O fluxo de commit NUNCA dispara bump-version nem altera a versão.
  * - O build APENAS LÊ a versão do package.json e sincroniza os artefatos.
- * - O build NUNCA BUMPA/INCREMENTA a versão. O incremento pertence exclusivamente
- *   ao fluxo de commit/release (`npm run version:bump`).
+ * - O build NUNCA BUMPA/INCREMENTA a versão.
  *
  * Sincroniza e valida:
  * 1. public/version.json (gerado com version de package.json + timestamp)
@@ -40,10 +41,22 @@ if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true })
 }
 const versionJsonPath = path.join(publicDir, 'version.json')
+let existingBuildTime = buildTime
+let existingBuildTimestamp = buildTimestamp
+if (fs.existsSync(versionJsonPath)) {
+  try {
+    const existing = JSON.parse(fs.readFileSync(versionJsonPath, 'utf8'))
+    if (existing.version === targetVersion && existing.buildTime) {
+      existingBuildTime = existing.buildTime
+      existingBuildTimestamp = existing.buildTimestamp || buildTimestamp
+    }
+  } catch (_) {}
+}
+
 const versionData = {
   version: targetVersion,
-  buildTime,
-  buildTimestamp,
+  buildTime: existingBuildTime,
+  buildTimestamp: existingBuildTimestamp,
 }
 fs.writeFileSync(versionJsonPath, JSON.stringify(versionData, null, 2) + '\n', 'utf8')
 console.log(`[Version Sync] public/version.json atualizado com v${targetVersion}`)
@@ -64,7 +77,7 @@ if (fs.existsSync(indexHtmlPath)) {
   }
   const buildTimeRegex = /(<meta[^>]*name=["']build-time["'][^>]*content=["'])([^"']+)(["'][^>]*>)/i
   if (buildTimeRegex.test(html)) {
-    html = html.replace(buildTimeRegex, `$1${buildTime}$3`)
+    html = html.replace(buildTimeRegex, `$1${existingBuildTime}$3`)
   }
   fs.writeFileSync(indexHtmlPath, html, 'utf8')
   console.log(`[Version Sync] index.html atualizado com v${targetVersion}`)
@@ -83,16 +96,8 @@ if (fs.existsSync(hookPath)) {
 }
 
 // 4. Sincronizar CURRENT_BUILD_TIMESTAMP em src/lib/appVersion.ts
-const appVersionTsPath = path.join(rootDir, 'src', 'lib', 'appVersion.ts')
-if (fs.existsSync(appVersionTsPath)) {
-  let tsContent = fs.readFileSync(appVersionTsPath, 'utf8')
-  const tsRegex = /(export\s+const\s+CURRENT_BUILD_TIMESTAMP\s*=\s*)(\d+)/
-  if (tsRegex.test(tsContent)) {
-    tsContent = tsContent.replace(tsRegex, `$1${buildTimestamp}`)
-    fs.writeFileSync(appVersionTsPath, tsContent, 'utf8')
-    console.log(`[Version Sync] src/lib/appVersion.ts sincronizado com timestamp ${buildTimestamp}`)
-  }
-}
+// Nota: src/lib/appVersion.ts não é modificado dinamicamente no prebuild
+// para evitar mutações de código-fonte de src/ durante o ciclo de build.
 
 // 5. Se o diretório dist existir (em build/postbuild), sincronizar dist/version.json
 const distDir = path.join(rootDir, 'dist')
