@@ -371,13 +371,9 @@ export default function Pipelines() {
   // Seletor combinado Funil · Equipe:
   // - Equipes já vêm filtradas pela marca ativa (loadFunisAndEquipes), então a lista
   //   nunca contém equipe de outra marca
-  // - A seção EQUIPE do dropdown (e o trecho "· equipe" do gatilho) só aparece quando
+  // - A seção EQUIPE do dropdown só aparece quando
   //   a marca ativa tem mais de uma equipe — padrão do seletor condicional do Kanban
   const showEquipeSection = equipes.length > 1
-  const selectedEquipeLabel =
-    selectedEquipeFilter === 'all'
-      ? 'Todas as Equipes'
-      : (equipes.find((eq) => eq.id === selectedEquipeFilter)?.nome_equipe ?? 'Todas as Equipes')
 
   // Alterna view mode e sincroniza na URL
   const handleChangeViewMode = (mode: ViewMode) => {
@@ -671,7 +667,7 @@ export default function Pipelines() {
         BARRA DE FERRAMENTAS SUPERIOR ESTILO PIPEDRIVE — LINHA ÚNICA:
         - Alternância de visualização: Kanban, Lista, Tabela
         - Botão verde Pipedrive "+ Negócio"
-        - Seletor de funil (nome abreviado com tooltip) e de equipe
+        - Seletor combinado "Funis e equipes" (tooltip com o funil ativo)
         - Botão "Filtros" (ícone de funil) com badge de filtros ativos
         - Pesquisa com mais espaço (flex-1)
         - "Ordenar por" reduzido a ícone com menu
@@ -746,19 +742,7 @@ export default function Pipelines() {
                   className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-2 transition-colors"
                 >
                   <Kanban className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span className="flex items-center min-w-0">
-                    <span className="max-w-[120px] truncate">
-                      {activeFunil?.nome_funil || 'Funil de vendas'}
-                    </span>
-                    {showEquipeSection && (
-                      <>
-                        <span className="text-slate-300 mx-1.5">·</span>
-                        <span className="max-w-[110px] truncate font-semibold text-slate-600">
-                          {selectedEquipeLabel}
-                        </span>
-                      </>
-                    )}
-                  </span>
+                  <span>Funis e equipes</span>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 </button>
               </DropdownMenuTrigger>
