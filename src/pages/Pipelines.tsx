@@ -193,6 +193,9 @@ export default function Pipelines() {
 
       setFunis(funisRes)
       setEquipes(equipesRes)
+      // Ao trocar de marca, reseta o filtro de equipe: equipes de outra marca nunca
+      // devem permanecer aplicadas (e a seção EQUIPE pode nem ser exibida)
+      setSelectedEquipeFilter('all')
 
       if (funisRes.length > 0) {
         if (!activeFunilId || !funisRes.some((f) => f.id === activeFunilId)) {
@@ -364,6 +367,17 @@ export default function Pipelines() {
 
   const activeFunil = funis.find((f) => f.id === activeFunilId)
   const etapas = (activeFunil?.etapas_ordenadas || []).map(getEtapaNome)
+
+  // Seletor combinado Funil · Equipe:
+  // - Equipes já vêm filtradas pela marca ativa (loadFunisAndEquipes), então a lista
+  //   nunca contém equipe de outra marca
+  // - A seção EQUIPE do dropdown (e o trecho "· equipe" do gatilho) só aparece quando
+  //   a marca ativa tem mais de uma equipe — padrão do seletor condicional do Kanban
+  const showEquipeSection = equipes.length > 1
+  const selectedEquipeLabel =
+    selectedEquipeFilter === 'all'
+      ? 'Todas as Equipes'
+      : (equipes.find((eq) => eq.id === selectedEquipeFilter)?.nome_equipe ?? 'Todas as Equipes')
 
   // Alterna view mode e sincroniza na URL
   const handleChangeViewMode = (mode: ViewMode) => {
@@ -722,23 +736,33 @@ export default function Pipelines() {
             <span>Negócio</span>
           </Button>
 
-          {/* Seletor de Funil de Vendas */}
+          {/* Seletor combinado Funil · Equipe (padrão visual do botão "Filtros") */}
           {funis.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
                   title={activeFunil?.nome_funil || 'Funil de vendas'}
-                  className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center space-x-2 transition-colors"
+                  className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-2 transition-colors"
                 >
-                  <Kanban className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="max-w-[120px] truncate">
-                    {activeFunil?.nome_funil || 'Funil de vendas'}
+                  <Kanban className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span className="flex items-center min-w-0">
+                    <span className="max-w-[120px] truncate">
+                      {activeFunil?.nome_funil || 'Funil de vendas'}
+                    </span>
+                    {showEquipeSection && (
+                      <>
+                        <span className="text-slate-300 mx-1.5">·</span>
+                        <span className="max-w-[110px] truncate font-semibold text-slate-600">
+                          {selectedEquipeLabel}
+                        </span>
+                      </>
+                    )}
                   </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 rounded-xl border-[#E3E7EB]">
+              <DropdownMenuContent align="start" className="w-60 rounded-xl border-[#E3E7EB]">
                 <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Funis Disponíveis
                 </DropdownMenuLabel>
@@ -754,25 +778,43 @@ export default function Pipelines() {
                     {f.nome_funil}
                   </DropdownMenuItem>
                 ))}
+
+                {/* Seção EQUIPE: escondida quando a marca ativa tem apenas uma equipe (ou nenhuma) */}
+                {showEquipeSection && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Equipe
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={() => setSelectedEquipeFilter('all')}
+                      className={cn(
+                        'text-xs cursor-pointer font-medium rounded-lg',
+                        selectedEquipeFilter === 'all'
+                          ? 'bg-emerald-50 text-[#017848] font-bold'
+                          : '',
+                      )}
+                    >
+                      Todas as Equipes
+                    </DropdownMenuItem>
+                    {equipes.map((eq) => (
+                      <DropdownMenuItem
+                        key={eq.id}
+                        onClick={() => setSelectedEquipeFilter(eq.id)}
+                        className={cn(
+                          'text-xs cursor-pointer font-medium rounded-lg',
+                          eq.id === selectedEquipeFilter
+                            ? 'bg-emerald-50 text-[#017848] font-bold'
+                            : '',
+                        )}
+                      >
+                        {eq.nome_equipe}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-
-          {/* Filtro de Equipe */}
-          {equipes.length > 0 && (
-            <Select value={selectedEquipeFilter} onValueChange={setSelectedEquipeFilter}>
-              <SelectTrigger className="h-9 text-xs w-36 rounded-xl bg-white border-[#E3E7EB]">
-                <SelectValue placeholder="Equipes" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="all">Todas as Equipes</SelectItem>
-                {equipes.map((eq) => (
-                  <SelectItem key={eq.id} value={eq.id}>
-                    {eq.nome_equipe}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           )}
 
           {/* Botão "Filtros": colapsa Status + Fechamento em um único painel, com badge de filtros ativos */}
