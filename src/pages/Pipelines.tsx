@@ -63,6 +63,8 @@ import {
   ChevronDown,
   ArrowUpDown,
   Sparkles,
+  X,
+  Check,
   Calendar,
   RefreshCw,
   HelpCircle,
@@ -72,6 +74,25 @@ import { cn } from '@/lib/utils'
 
 type ViewMode = 'kanban' | 'list' | 'table'
 type SortOption = 'proxima_acao' | 'valor_desc' | 'valor_asc' | 'created_desc' | 'titulo'
+type QuickDateFilter = 'todos' | '30d' | '60d' | '90d' | 'atrasados' | 'sem_proxima_acao'
+
+// Rótulos dos filtros rápidos de fechamento (usados no painel de Filtros e nos chips removíveis)
+const QUICK_DATE_FILTER_LABELS: Record<Exclude<QuickDateFilter, 'todos'>, string> = {
+  '30d': 'Próximos 30 dias',
+  '60d': '60 dias',
+  '90d': '90 dias',
+  atrasados: 'Atrasados',
+  sem_proxima_acao: 'Sem próxima ação',
+}
+
+// Rótulos curtos de ordenação (usados no tooltip do ícone "Ordenar por")
+const SORT_LABELS: Record<SortOption, string> = {
+  proxima_acao: 'Próxima atividade',
+  valor_desc: 'Maior valor',
+  valor_asc: 'Menor valor',
+  created_desc: 'Recentes',
+  titulo: 'Nome',
+}
 
 export const ETAPA_SEM_ETAPA_VALIDA = '__SEM_ETAPA_VALIDA__'
 export const ETAPA_SEM_ETAPA_VALIDA_LABEL = 'Sem etapa válida'
@@ -106,9 +127,7 @@ export default function Pipelines() {
   // Filtro de status estilo Pipedrive ("Status é Aberto" / "Todos")
   const [statusFilter, setStatusFilter] = useState<'aberto' | 'todos'>('aberto')
   // Chip de filtro rápido de data esperada de fechamento: todos | 30d | 60d | 90d | atrasados | sem_proxima_acao
-  const [quickDateFilter, setQuickDateFilter] = useState<
-    'todos' | '30d' | '60d' | '90d' | 'atrasados' | 'sem_proxima_acao'
-  >('todos')
+  const [quickDateFilter, setQuickDateFilter] = useState<QuickDateFilter>('todos')
 
   // Deep linking para OpportunityDrawer
   const selectedOppId = searchParams.get('oppId')
@@ -627,18 +646,25 @@ export default function Pipelines() {
 
   const totalGeralValor = filteredOpps.reduce((sum, o) => sum + (o.valor_estimado || 0), 0)
 
+  // Quantidade de filtros ativos (Status + Fechamento): alimenta o badge do botão "Filtros"
+  // e define se a linha 2 (chips + contador/total) é renderizada
+  const activeFilterCount =
+    (statusFilter !== 'todos' ? 1 : 0) + (quickDateFilter !== 'todos' ? 1 : 0)
+
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)] space-y-3.5">
       {/*
-        BARRA DE FERRAMENTAS SUPERIOR ESTILO PIPEDRIVE (Captura 1):
-        - Alternância de visualização: Kanban (ícone colunas), Lista (ícone lista), Tabela (ícone grade)
+        BARRA DE FERRAMENTAS SUPERIOR ESTILO PIPEDRIVE — LINHA ÚNICA:
+        - Alternância de visualização: Kanban, Lista, Tabela
         - Botão verde Pipedrive "+ Negócio"
-        - Totalizador R$ do funil
-        - Seletor de "Funil de vendas"
-        - Filtro
-        - Ordenação ("Ordenar por: Próxima atividade")
+        - Seletor de funil (nome abreviado com tooltip) e de equipe
+        - Botão "Filtros" (ícone de funil) com badge de filtros ativos
+        - Pesquisa com mais espaço (flex-1)
+        - "Ordenar por" reduzido a ícone com menu
+        - Resumo discreto: contador de negócios · Total R$ (à direita)
+        - Linha 2 (colapsável): chips removíveis dos filtros ativos
       */}
-      <div className="bg-white border border-[#E3E7EB] rounded-2xl p-2.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+      <div className="bg-white border border-[#E3E7EB] rounded-2xl p-2.5 shadow-xs flex flex-col gap-2 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
           {/* Alternância de Visualização */}
           <div className="inline-flex items-center bg-[#F4F6F8] rounded-xl p-1 border border-[#E3E7EB]">
@@ -702,10 +728,11 @@ export default function Pipelines() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
+                  title={activeFunil?.nome_funil || 'Funil de vendas'}
                   className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center space-x-2 transition-colors"
                 >
                   <Kanban className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="max-w-[160px] truncate">
+                  <span className="max-w-[120px] truncate">
                     {activeFunil?.nome_funil || 'Funil de vendas'}
                   </span>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -747,25 +774,145 @@ export default function Pipelines() {
               </SelectContent>
             </Select>
           )}
-        </div>
 
-        {/* Lado Direito da Barra: Total R$, Busca e Ordenação */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Totalizador Financeiro */}
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100/80 border border-[#E3E7EB] text-xs font-bold text-slate-800">
-            <span className="text-[11px] text-slate-500 font-normal mr-1">Total:</span>
-            {formatCurrencyBRL(totalGeralValor)}
-          </div>
+          {/* Botão "Filtros": colapsa Status + Fechamento em um único painel, com badge de filtros ativos */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title="Filtros de status e fechamento previsto"
+                className={cn(
+                  'h-9 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors',
+                  activeFilterCount > 0
+                    ? 'border-emerald-300 bg-emerald-50 text-[#017848]'
+                    : 'border-[#E3E7EB] bg-white text-slate-700 hover:bg-slate-50',
+                )}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filtros</span>
+                {activeFilterCount > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#017848] text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 rounded-xl border-[#E3E7EB]">
+              <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Status
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setStatusFilter('todos')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    statusFilter === 'todos' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                Todos
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setStatusFilter('aberto')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    statusFilter === 'aberto' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                Em aberto (exclui ganhos e perdidos)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Fechamento previsto
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('todos')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === 'todos' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                Todos
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('30d')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === '30d' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                {QUICK_DATE_FILTER_LABELS['30d']}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('60d')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === '60d' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                {QUICK_DATE_FILTER_LABELS['60d']}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('90d')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === '90d' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                {QUICK_DATE_FILTER_LABELS['90d']}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('atrasados')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === 'atrasados' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                {QUICK_DATE_FILTER_LABELS.atrasados}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickDateFilter('sem_proxima_acao')}
+                className="text-xs cursor-pointer rounded-lg"
+              >
+                <Check
+                  className={cn(
+                    'w-3.5 h-3.5 mr-2 shrink-0',
+                    quickDateFilter === 'sem_proxima_acao' ? 'text-[#017848]' : 'opacity-0',
+                  )}
+                />
+                {QUICK_DATE_FILTER_LABELS.sem_proxima_acao}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          {/* Busca Rápida */}
-          <div className="relative w-44 sm:w-56">
+          {/* Busca Rápida (com mais espaço na linha única) */}
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-3 text-slate-400" />
             <Input
               type="text"
               placeholder="Pesquisar negócio..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="h-9 pl-8 pr-2 text-xs rounded-xl bg-white border-[#E3E7EB]"
+              className="h-9 pl-8 pr-2 text-xs rounded-xl bg-white border-[#E3E7EB] w-full"
             />
           </div>
 
@@ -774,181 +921,102 @@ export default function Pipelines() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 flex items-center space-x-1.5 transition-colors"
+                title={`Ordenar por: ${SORT_LABELS[sortBy]}`}
+                aria-label="Ordenar negócios"
+                className="h-9 w-9 rounded-xl border border-[#E3E7EB] bg-white hover:bg-slate-50 flex items-center justify-center transition-colors shrink-0"
               >
-                <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden sm:inline text-slate-500">Ordenar por:</span>
-                <span className="font-bold text-slate-800">
-                  {sortBy === 'proxima_acao' && 'Próxima atividade'}
-                  {sortBy === 'valor_desc' && 'Maior valor'}
-                  {sortBy === 'valor_asc' && 'Menor valor'}
-                  {sortBy === 'created_desc' && 'Recentes'}
-                  {sortBy === 'titulo' && 'Nome'}
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <ArrowUpDown className="w-4 h-4 text-slate-500" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 rounded-xl border-[#E3E7EB]">
-              <DropdownMenuItem
-                onClick={() => setSortBy('proxima_acao')}
-                className="text-xs cursor-pointer rounded-lg"
-              >
-                Próxima atividade (Follow-up)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortBy('valor_desc')}
-                className="text-xs cursor-pointer rounded-lg"
-              >
-                Maior valor (R$)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortBy('valor_asc')}
-                className="text-xs cursor-pointer rounded-lg"
-              >
-                Menor valor (R$)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortBy('created_desc')}
-                className="text-xs cursor-pointer rounded-lg"
-              >
-                Mais recentes primeiro
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setSortBy('titulo')}
-                className="text-xs cursor-pointer rounded-lg"
-              >
-                Título do negócio (A-Z)
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl border-[#E3E7EB]">
+              <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Ordenar por
+              </DropdownMenuLabel>
+              {(
+                [
+                  ['proxima_acao', 'Próxima atividade (Follow-up)'],
+                  ['valor_desc', 'Maior valor (R$)'],
+                  ['valor_asc', 'Menor valor (R$)'],
+                  ['created_desc', 'Mais recentes primeiro'],
+                  ['titulo', 'Título do negócio (A-Z)'],
+                ] as [SortOption, string][]
+              ).map(([value, label]) => (
+                <DropdownMenuItem
+                  key={value}
+                  onClick={() => setSortBy(value)}
+                  className="text-xs cursor-pointer rounded-lg"
+                >
+                  <Check
+                    className={cn(
+                      'w-3.5 h-3.5 mr-2 shrink-0',
+                      sortBy === value ? 'text-[#017848]' : 'opacity-0',
+                    )}
+                  />
+                  {label}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Resumo discreto: contador de negócios + total do funil.
+               Saiu da barra proeminente ("Total: R$ ...") e virou texto discreto
+               junto ao contador, alinhado à direita da linha única. */}
+          <div className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap ml-auto pl-2">
+            <span>
+              ({filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'})
+            </span>
+            <span className="text-slate-300">·</span>
+            <span className="font-semibold text-slate-600">
+              {formatCurrencyBRL(totalGeralValor)}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Sub-barra de Filtros com Chips Pipedrive ("Status é Aberto", Chips 30/60/90 dias e Atrasados) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1 shrink-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* Chip Status Aberto */}
-          <button
-            type="button"
-            onClick={() => setStatusFilter(statusFilter === 'aberto' ? 'todos' : 'aberto')}
-            className={cn(
-              'inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer',
-              statusFilter === 'aberto'
-                ? 'bg-emerald-100 text-[#017848] border border-emerald-300'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200',
+        {/* LINHA 2 COLAPSÁVEL: só renderizada quando há filtros ativos —
+           chips removíveis dos filtros aplicados */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs px-1 shrink-0">
+            {statusFilter !== 'todos' && (
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-[#017848] border border-emerald-300">
+                <span className="w-2 h-2 rounded-full bg-[#017848]" />
+                Status: Em aberto
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('todos')}
+                  title="Remover filtro de status"
+                  className="w-4 h-4 rounded-full hover:bg-emerald-200 flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
             )}
-          >
-            <span
-              className={cn(
-                'w-2 h-2 rounded-full',
-                statusFilter === 'aberto' ? 'bg-[#017848]' : 'bg-slate-400',
-              )}
-            />
-            <span>{statusFilter === 'aberto' ? 'Status: Em aberto' : 'Status: Todos'}</span>
-          </button>
 
-          <span className="text-slate-300">|</span>
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-            Fechamento:
-          </span>
-
-          {/* Chip Todos */}
-          <button
-            type="button"
-            onClick={() => setQuickDateFilter('todos')}
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
-              quickDateFilter === 'todos'
-                ? 'bg-slate-900 text-white shadow-2xs'
-                : 'bg-white border border-[#E3E7EB] text-slate-600 hover:bg-slate-50',
+            {quickDateFilter !== 'todos' && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full text-[11px] font-semibold border',
+                  quickDateFilter === 'atrasados'
+                    ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : quickDateFilter === 'sem_proxima_acao'
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                      : 'bg-emerald-50 border-emerald-200 text-[#017848]',
+                )}
+              >
+                {quickDateFilter === 'atrasados' && <Clock className="w-3 h-3" />}
+                {quickDateFilter === 'sem_proxima_acao' && <Calendar className="w-3 h-3" />}
+                {QUICK_DATE_FILTER_LABELS[quickDateFilter]}
+                <button
+                  type="button"
+                  onClick={() => setQuickDateFilter('todos')}
+                  title="Remover filtro de fechamento"
+                  className="w-4 h-4 rounded-full hover:bg-black/10 flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
             )}
-          >
-            Todos
-          </button>
-
-          {/* Chip Próximos 30 dias */}
-          <button
-            type="button"
-            onClick={() => setQuickDateFilter(quickDateFilter === '30d' ? 'todos' : '30d')}
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
-              quickDateFilter === '30d'
-                ? 'bg-[#017848] text-white shadow-xs'
-                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
-            )}
-          >
-            <span>Próximos 30 dias</span>
-          </button>
-
-          {/* Chip 60 dias */}
-          <button
-            type="button"
-            onClick={() => setQuickDateFilter(quickDateFilter === '60d' ? 'todos' : '60d')}
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
-              quickDateFilter === '60d'
-                ? 'bg-[#017848] text-white shadow-xs'
-                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
-            )}
-          >
-            60 dias
-          </button>
-
-          {/* Chip 90 dias */}
-          <button
-            type="button"
-            onClick={() => setQuickDateFilter(quickDateFilter === '90d' ? 'todos' : '90d')}
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all',
-              quickDateFilter === '90d'
-                ? 'bg-[#017848] text-white shadow-xs'
-                : 'bg-white border border-[#E3E7EB] text-slate-700 hover:border-[#017848] hover:text-[#017848]',
-            )}
-          >
-            90 dias
-          </button>
-
-          {/* Chip Atrasados */}
-          <button
-            type="button"
-            onClick={() =>
-              setQuickDateFilter(quickDateFilter === 'atrasados' ? 'todos' : 'atrasados')
-            }
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
-              quickDateFilter === 'atrasados'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100',
-            )}
-          >
-            <Clock className="w-3 h-3" />
-            <span>Atrasados</span>
-          </button>
-
-          {/* Chip Sem próxima ação (brinde) */}
-          <button
-            type="button"
-            onClick={() =>
-              setQuickDateFilter(
-                quickDateFilter === 'sem_proxima_acao' ? 'todos' : 'sem_proxima_acao',
-              )
-            }
-            className={cn(
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex items-center space-x-1',
-              quickDateFilter === 'sem_proxima_acao'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100',
-            )}
-            title="Filtrar negócios sem data de próxima ação agendada"
-          >
-            <Calendar className="w-3 h-3" />
-            <span>Sem próxima ação</span>
-          </button>
-
-          <span className="text-slate-400 text-[11px] ml-2">
-            ({filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'})
-          </span>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ÁREA PRINCIPAL: KANBAN, LISTA OU TABELA */}
