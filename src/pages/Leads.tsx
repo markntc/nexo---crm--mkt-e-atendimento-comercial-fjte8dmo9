@@ -32,6 +32,7 @@ import {
 import { Target, Plus, Search, Briefcase, Trash2, Loader2 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function Leads() {
   const navigate = useNavigate()
@@ -177,16 +178,39 @@ export default function Leads() {
     }
   }
 
-  const handleDeleteLead = async (id: string) => {
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDeleteLead = (lead: Lead) => {
+    setDeleteTarget(lead)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
     try {
-      await pb.collection('leads').delete(id)
+      await pb.collection('leads').delete(deleteTarget.id)
       toast({
         title: 'Lead excluído',
         description: 'Registro removido da lista.',
       })
+      setDeleteTarget(null)
       fetchLeads()
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Erro ao excluir lead:', err)
+      const fieldErrors = extractFieldErrors(err)
+      const rawMsg = getErrorMessage(err)
+      const desc =
+        rawMsg === 'Failed to delete record.'
+          ? 'Este lead não pode ser excluído porque ainda possui vínculos (negócios ou contatos). Remova os vínculos antes de excluir.'
+          : Object.values(fieldErrors)[0] || rawMsg || 'Falha ao excluir o lead. Tente novamente.'
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível excluir',
+        description: desc,
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -360,7 +384,7 @@ export default function Leads() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDeleteLead(l.id)}
+                            onClick={() => handleDeleteLead(l)}
                             className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -483,6 +507,46 @@ export default function Leads() {
         initialValues={dealInitialValues}
         onSuccess={handleDealCreatedSuccess}
       />
+
+      {/* DIÁLOGO DE CONFIRMAÇÃO DE EXCLUSÃO — sempre confirmar antes de deletar */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setDeleteTarget(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[#1C2833]">Excluir lead?</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-slate-600">
+            Tem certeza de que deseja excluir{' '}
+            <span className="font-bold text-slate-900">{deleteTarget?.dados_contato}</span>? Esta
+            ação não pode ser desfeita.
+          </p>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => setDeleteTarget(null)}
+              className="text-xs border-[#D5DBDB]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+              className="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? 'Excluindo...' : 'Confirmar exclusão'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

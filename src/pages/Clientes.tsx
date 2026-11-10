@@ -81,6 +81,7 @@ import {
 import type { Lead, Funil } from '@/types'
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
 
 type ContactSubNav = 'pessoas' | 'organizacoes' | 'leads' | 'timeline' | 'duplicatas'
 
@@ -241,6 +242,58 @@ export default function Clientes() {
   const [prefMarcaId, setPrefMarcaId] = useState('')
   const [prefCanal, setPrefCanal] = useState<'E-mail' | 'WhatsApp' | 'Telefone' | 'SMS'>('WhatsApp')
   const [prefStatus, setPrefStatus] = useState<'Opt-in' | 'Opt-out'>('Opt-in')
+
+  // Confirmação de exclusão (Pessoas / Organizações / Leads) — sempre via dialog Confirmar/Cancelar
+  const [deleteTarget, setDeleteTarget] = useState<{
+    tipo: 'pessoa' | 'organizacao' | 'lead'
+    id: string
+    nome: string
+  } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const openDeleteConfirm = (tipo: 'pessoa' | 'organizacao' | 'lead', id: string, nome: string) => {
+    setDeleteTarget({ tipo, id, nome })
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    const { tipo, id } = deleteTarget
+    const collectionMap = { pessoa: 'pessoas', organizacao: 'organizacoes', lead: 'leads' } as const
+    try {
+      await pb.collection(collectionMap[tipo]).delete(id)
+      toast({
+        title:
+          tipo === 'pessoa'
+            ? 'Pessoa excluída'
+            : tipo === 'organizacao'
+              ? 'Organização excluída'
+              : 'Lead excluído',
+        description: 'Registro removido da listagem.',
+      })
+      setDeleteTarget(null)
+      if (tipo === 'pessoa') setSelectedB2C(null)
+      if (tipo === 'organizacao') setSelectedB2B(null)
+      fetchContatos()
+    } catch (err: unknown) {
+      console.error('Erro ao excluir registro:', err)
+      const fieldErrors = extractFieldErrors(err)
+      const rawMsg = getErrorMessage(err)
+      const desc =
+        rawMsg === 'Failed to delete record.'
+          ? 'Este registro não pode ser excluído porque ainda possui vínculos (negócios, leads, pessoas vinculadas ou consentimentos). Remova os vínculos antes de excluir.'
+          : Object.values(fieldErrors)[0] ||
+            rawMsg ||
+            'Falha ao excluir o registro. Tente novamente.'
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível excluir',
+        description: desc,
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const fetchContatos = async () => {
     setIsLoading(true)
@@ -935,23 +988,8 @@ export default function Clientes() {
     }
   }
 
-  const handleDeleteLead = async (leadId: string) => {
-    if (!window.confirm('Tem certeza de que deseja excluir este lead?')) return
-    try {
-      await pb.collection('leads').delete(leadId)
-      toast({
-        title: 'Lead removido',
-        description: 'Registro excluído com sucesso.',
-      })
-      fetchContatos()
-    } catch (err) {
-      console.error('Erro ao excluir lead:', err)
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Falha ao excluir lead.',
-      })
-    }
+  const handleDeleteLead = (lead: Lead) => {
+    openDeleteConfirm('lead', lead.id, lead.dados_contato || 'Lead')
   }
 
   const handleOpenConvert = (lead: Lead) => {
@@ -1379,17 +1417,31 @@ export default function Clientes() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-left">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenB2C(c)
-                              }}
-                            >
-                              Ver Ficha
-                            </Button>
+                            <div className="flex items-center space-x-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenB2C(c)
+                                }}
+                              >
+                                Ver Ficha
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openDeleteConfirm('pessoa', c.id, c.nome_completo || 'Pessoa')
+                                }}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                title="Excluir Pessoa"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -1572,7 +1624,7 @@ export default function Clientes() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDeleteLead(ld.id)}
+                                onClick={() => handleDeleteLead(ld)}
                                 className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                                 title="Excluir Lead"
                               >
@@ -1706,17 +1758,35 @@ export default function Clientes() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-left">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenB2B(c)
-                              }}
-                            >
-                              Ver Ficha
-                            </Button>
+                            <div className="flex items-center space-x-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-[#017848] hover:bg-emerald-50 h-7 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenB2B(c)
+                                }}
+                              >
+                                Ver Ficha
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openDeleteConfirm(
+                                    'organizacao',
+                                    c.id,
+                                    c.razao_social || 'Organização',
+                                  )
+                                }}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                title="Excluir Organização"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -3024,6 +3094,53 @@ export default function Clientes() {
         initialValues={leadDealInitialValues}
         onSuccess={handleDealFromLeadCreatedSuccess}
       />
+
+      {/* DIÁLOGO DE CONFIRMAÇÃO DE EXCLUSÃO (Pessoas / Organizações / Leads) */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setDeleteTarget(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[#1C2833]">
+              {deleteTarget?.tipo === 'pessoa'
+                ? 'Excluir pessoa'
+                : deleteTarget?.tipo === 'organizacao'
+                  ? 'Excluir organização'
+                  : 'Excluir lead'}
+              ?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-slate-600">
+            Tem certeza de que deseja excluir{' '}
+            <span className="font-bold text-slate-900">{deleteTarget?.nome}</span>? Esta ação não
+            pode ser desfeita.
+          </p>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => setDeleteTarget(null)}
+              className="text-xs border-[#E3E7EB]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+              className="text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? 'Excluindo...' : 'Confirmar exclusão'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
