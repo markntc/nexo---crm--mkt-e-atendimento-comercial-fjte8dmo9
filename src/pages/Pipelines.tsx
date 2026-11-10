@@ -988,7 +988,7 @@ export default function Pipelines() {
           {/* Resumo discreto: contador de negócios + total do funil.
                Saiu da barra proeminente ("Total: R$ ...") e virou texto discreto
                junto ao contador, alinhado à direita da linha única. */}
-          <div className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap ml-auto pl-2">
+          <div className="hidden md:flex items-center gap-1.5 h-9 px-3 rounded-xl border border-[#E3E7EB] bg-white text-[11px] text-slate-500 whitespace-nowrap ml-auto shrink-0">
             <span>
               ({filteredOpps.length} {filteredOpps.length === 1 ? 'negócio' : 'negócios'})
             </span>
