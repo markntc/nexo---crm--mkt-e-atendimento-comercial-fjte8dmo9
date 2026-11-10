@@ -722,14 +722,15 @@ export default function Pipelines() {
             </button>
           </div>
 
-          {/* Botão Primário Verde Pipedrive "+ Negócio" */}
+          {/* Botão Primário Verde Pipedrive: apenas o símbolo "+", com descrição ao passar o mouse */}
           <Button
             size="sm"
             onClick={() => setIsNewOppModalOpen(true)}
-            className="h-9 px-3.5 rounded-xl font-bold text-xs bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center space-x-1 transition-all active:scale-95"
+            title="Adicionar negócio"
+            aria-label="Adicionar negócio"
+            className="h-9 w-9 p-0 rounded-xl bg-[#017848] hover:bg-[#01653c] text-white shadow-sm flex items-center justify-center transition-all active:scale-95"
           >
-            <Plus className="w-4 h-4 mr-0.5" />
-            <span>Negócio</span>
+            <Plus className="w-4 h-4" />
           </Button>
 
           {/* Seletor combinado Funil · Equipe (padrão visual do botão "Filtros") */}

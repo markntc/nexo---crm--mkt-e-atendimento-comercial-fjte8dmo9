@@ -530,11 +530,12 @@ export default function Layout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
-                  className="h-9 w-9 rounded-full bg-[#017848] hover:bg-[#01653c] text-white shadow-xs shrink-0 font-bold transition-transform active:scale-95"
-                  title="Criação Rápida (+)"
-                  aria-label="Adicionar item rapidamente"
+                  variant="outline"
+                  className="h-9 w-9 rounded-md bg-[#F4F6F7] hover:bg-white border-[#D5DBDB] text-[#5D6D7E] hover:text-[#1C2833] shadow-none shrink-0 transition-transform active:scale-95"
+                  title="Adicionar negócio"
+                  aria-label="Adicionar negócio"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
