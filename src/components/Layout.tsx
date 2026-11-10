@@ -601,7 +601,7 @@ export default function Layout() {
                   type="button"
                   className="flex items-center space-x-2 p-1 rounded-full hover:bg-slate-100 transition-colors"
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#017848] text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center text-xs font-bold">
                     {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AD'}
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-500 hidden sm:block" />
