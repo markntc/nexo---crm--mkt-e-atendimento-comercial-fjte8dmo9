@@ -12,6 +12,8 @@ import type { Funil, Oportunidade, Equipe, ClienteB2B, ClienteB2C, EtapaConfig }
 import { getEtapaNome, isWonStage, isLostStage } from '@/lib/relationshipStatus'
 import { OpportunityDrawer } from '@/components/OpportunityDrawer'
 import { AddDealModal } from '@/components/AddDealModal'
+import { WonDealCelebrationModal } from '@/components/WonDealCelebrationModal'
+import { fireConfetti, type ConfettiOrigin } from '@/lib/confetti'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -169,6 +171,13 @@ export default function Pipelines() {
 
   // Efeito Shake de Trava de Follow-up
   const [shakingOppId, setShakingOppId] = useState<string | null>(null)
+
+  // Comemoração de negócio ganho (apenas para quem executou a transição para Ganho)
+  const [wonCelebration, setWonCelebration] = useState<{
+    clienteNome: string
+    valor: number
+    vendedorNome: string
+  } | null>(null)
 
   // 1. Carrega funis e equipes da marca ativa
   const loadFunisAndEquipes = async () => {
@@ -433,7 +442,8 @@ export default function Pipelines() {
     if (!opp.etapa_id && opp.etapa_atual === targetColEtapa) return
 
     // Arrasto direto e instantâneo, sempre, sem quadro condicional
-    executeDirectMoveEtapa(opp, resolved)
+    // A origem do confete é o ponto onde o card foi solto
+    executeDirectMoveEtapa(opp, resolved, { x: e.clientX, y: e.clientY })
   }
 
   // Avanço rápido via Lista/Tabela direto e instantâneo
@@ -451,8 +461,17 @@ export default function Pipelines() {
   const executeDirectMoveEtapa = async (
     opp: Oportunidade,
     resolved: { nome: string; id?: string; is_won?: boolean; is_lost?: boolean },
+    confettiOrigin?: ConfettiOrigin,
   ) => {
     try {
+      // Transição para Ganho: o negócio ainda não estava ganho e a etapa de destino é ganho
+      const wasWon =
+        typeof opp.is_won === 'boolean'
+          ? opp.is_won
+          : isWonStage(opp.etapa_id || opp.etapa_atual, activeFunil?.etapas_ordenadas)
+      const becomesWon = resolved.is_won ?? isWonStage(resolved.nome, activeFunil?.etapas_ordenadas)
+      const isWonTransition = !wasWon && Boolean(becomesWon)
+
       const payload: Record<string, unknown> = {
         etapa_atual: resolved.nome,
       }
@@ -472,6 +491,18 @@ export default function Pipelines() {
         title: 'Etapa atualizada com sucesso!',
         description: `Negócio movido para "${resolved.nome}".`,
       })
+
+      if (isWonTransition) {
+        const b2b = opp.expand?.cliente_b2b_id
+        const b2c = opp.expand?.cliente_b2c_id
+        fireConfetti(confettiOrigin)
+        setWonCelebration({
+          clienteNome: b2b?.razao_social || b2c?.nome_completo || 'Cliente Não Vinculado',
+          valor: opp.valor_estimado || 0,
+          vendedorNome:
+            opp.expand?.vendedor_id?.name || opp.expand?.vendedor_id?.email || 'Não informado',
+        })
+      }
 
       loadOportunidades()
     } catch (err: unknown) {
@@ -1893,6 +1924,17 @@ export default function Pipelines() {
           })
           setIsNewOppModalOpen(true)
         }}
+      />
+
+      {/* MODAL DE PARABÉNS: NEGÓCIO GANHO (somente após a transição feita por este usuário) */}
+      <WonDealCelebrationModal
+        open={wonCelebration !== null}
+        onOpenChange={(val) => {
+          if (!val) setWonCelebration(null)
+        }}
+        clienteNome={wonCelebration?.clienteNome || ''}
+        valor={wonCelebration?.valor || 0}
+        vendedorNome={wonCelebration?.vendedorNome || ''}
       />
 
       {/* MODAL NOVO NEGÓCIO IDÊNTICO AO PIPEDRIVE */}
