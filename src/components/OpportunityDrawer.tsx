@@ -1,5 +1,5 @@
 // src/components/OpportunityDrawer.tsx
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import pb from '@/lib/pocketbase/client'
 import type { Oportunidade, Atividade, PreferenciaComunicacao, Organizacao, Pessoa } from '@/types'
 import { getClientStatusSets } from '@/lib/relationshipStatus'
@@ -50,6 +50,9 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { AddDealModal } from '@/components/AddDealModal'
+import { EmailComposerModal, type EmailComposerTarget } from '@/components/EmailComposerModal'
+import { Mail } from 'lucide-react'
+import { listConnectors } from '@/lib/skipConnectors'
 import type { AnexoOportunidade } from '@/types'
 import {
   listarAnexosOportunidade,
@@ -112,6 +115,40 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   // Exclusão com confirmação
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Envio de e-mail pela ficha do negócio (conta Outlook conectada do próprio usuário)
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
+  const [emailTarget, setEmailTarget] = useState<EmailComposerTarget | null>(null)
+  const [outlookConnected, setOutlookConnected] = useState<boolean | null>(null)
+  // Lock de fechamento: impede que o drawer seja desmontado em cascata quando um
+  // submodal (e-mail, edição, etc.) está aberto sobre ele.
+  const isSubModalOpenRef = useRef(false)
+  const subModalCloseTimestampRef = useRef<number>(0)
+  const markSubModalOpen = () => {
+    isSubModalOpenRef.current = true
+  }
+  const markSubModalClosed = () => {
+    isSubModalOpenRef.current = false
+    subModalCloseTimestampRef.current = Date.now()
+  }
+
+  // Status do conector Outlook: recarrega sempre que o drawer (re)abre
+  useEffect(() => {
+    if (!opportunityId) return
+    let cancelled = false
+    listConnectors()
+      .then((all) => {
+        if (!cancelled) {
+          setOutlookConnected(all.find((c) => c.toolkit === 'outlook')?.status === 'connected')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOutlookConnected(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [opportunityId])
 
   const fetchDetail = async (id: string) => {
     setIsLoading(true)
@@ -470,9 +507,37 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       : 'Sem vínculo'
   const followStatus = getFollowUpStatus(opportunity?.proxima_acao_data)
 
+  // Destinatário do e-mail: e-mail principal do cliente vinculado
+  // (Pessoa → email_principal; Organização → email_principal)
+  const emailTargetEmail =
+    (clienteB2B?.email_principal || clienteB2C?.email_principal || null) ?? null
+  const openEmailModal = () => {
+    setEmailTarget({
+      nome: clienteB2B?.razao_social || clienteB2C?.nome_completo || '',
+      email: emailTargetEmail,
+    })
+    markSubModalOpen()
+    setIsEmailModalOpen(true)
+  }
+  const emailButtonDisabled = outlookConnected === false || !emailTargetEmail
+  const emailButtonTitle =
+    outlookConnected === false
+      ? 'Conecte seu Outlook para enviar e-mails'
+      : !emailTargetEmail
+        ? 'Cliente sem e-mail cadastrado'
+        : 'Enviar e-mail pela sua conta Outlook'
+
   return (
     <>
-      <Dialog open={!!opportunityId} onOpenChange={(open) => !open && onClose()}>
+      <Dialog
+        open={!!opportunityId}
+        onOpenChange={(open) => {
+          if (open) return
+          if (isSubModalOpenRef.current) return
+          if (Date.now() - subModalCloseTimestampRef.current < 500) return
+          onClose()
+        }}
+      >
         <DialogContent className="max-w-3xl w-full p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border border-[#E3E7EB] sm:max-h-[92vh] flex flex-col">
           {isLoading || !opportunity ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-3 min-h-[300px]">
@@ -566,6 +631,17 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                           className="text-xs h-7 border-[#D5DBDB]"
                         >
                           {isEditing ? 'Cancelar Edição' : 'Editar Oportunidade'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={emailButtonDisabled}
+                          onClick={openEmailModal}
+                          className="text-xs h-7 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold"
+                          title={emailButtonTitle}
+                        >
+                          <Mail className="w-3.5 h-3.5 mr-1 text-[#1B4F72]" />
+                          Enviar e-mail
                         </Button>
                         {onDuplicate && (
                           <Button
@@ -1312,7 +1388,11 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       {opportunity && editDealModalOpen && (
         <AddDealModal
           open={editDealModalOpen}
-          onOpenChange={setEditDealModalOpen}
+          onOpenChange={(val) => {
+            setEditDealModalOpen(val)
+            if (val) markSubModalOpen()
+            else markSubModalClosed()
+          }}
           mode="edit"
           dealId={opportunity.id}
           defaultFunilId={opportunity.funil_id}
@@ -1343,11 +1423,22 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
             tipo_cliente: opportunity.tipo_cliente,
           }}
           onSuccess={() => {
+            markSubModalClosed()
             fetchDetail(opportunity.id)
             onUpdate()
           }}
         />
       )}
+
+      {/* MODAL ENVIO DE E-MAIL (conta Outlook conectada do próprio usuário) */}
+      <EmailComposerModal
+        open={isEmailModalOpen}
+        onOpenChange={(val) => {
+          setIsEmailModalOpen(val)
+          if (!val) markSubModalClosed()
+        }}
+        target={emailTarget}
+      />
     </>
   )
 }
