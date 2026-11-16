@@ -24,6 +24,8 @@ import { GeoSelector } from '@/components/GeoSelector'
 import { extrairCidadeEstado } from '@/lib/geoUtils'
 import { prepararInitialValuesDeLead } from '@/lib/leadConversionUtils'
 import { Repeat } from 'lucide-react'
+import { EmailComposerModal } from '@/components/EmailComposerModal'
+import { listConnectors } from '@/lib/skipConnectors'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -178,6 +180,51 @@ export default function Clientes() {
   const [linkedPessoas, setLinkedPessoas] = useState<Pessoa[]>([])
   const [clientOpps, setClientOpps] = useState<Oportunidade[]>([])
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
+
+  // Envio de e-mail pela ficha (conta Outlook conectada do próprio usuário)
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
+  const [emailTarget, setEmailTarget] = useState<{ nome: string; email: string | null } | null>(
+    null,
+  )
+  const [outlookConnected, setOutlookConnected] = useState<boolean | null>(null)
+
+  const emailTargetEmail =
+    (selectedB2B?.email_principal || selectedB2C?.email_principal || null) ?? null
+
+  const openEmailModal = () => {
+    setEmailTarget({
+      nome: selectedB2B?.razao_social || selectedB2C?.nome_completo || '',
+      email: emailTargetEmail,
+    })
+    markSubModalOpen()
+    setIsEmailModalOpen(true)
+  }
+
+  // Status do conector Outlook: recarrega sempre que a ficha (re)abre
+  useEffect(() => {
+    if (!selectedB2B && !selectedB2C) return
+    let cancelled = false
+    listConnectors()
+      .then((all) => {
+        if (!cancelled) {
+          setOutlookConnected(all.find((c) => c.toolkit === 'outlook')?.status === 'connected')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOutlookConnected(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedB2B, selectedB2C])
+
+  const emailButtonDisabled = outlookConnected === false || !emailTargetEmail
+  const emailButtonTitle =
+    outlookConnected === false
+      ? 'Conecte seu Outlook para enviar e-mails'
+      : !emailTargetEmail
+        ? 'Este contato não possui e-mail cadastrado'
+        : 'Enviar e-mail'
 
   // Lock de fechamento da ficha de detalhes: quando um submodal está aberto sobre a ficha,
   // ou acabando de fechar (grace period para descartar eventos propagados/desferidos),
@@ -1922,6 +1969,17 @@ export default function Clientes() {
                         <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
                         Editar
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={openEmailModal}
+                        disabled={emailButtonDisabled}
+                        title={emailButtonTitle}
+                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                      >
+                        <Mail className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                        Enviar e-mail
+                      </Button>
                       {wonOrgIds.has(selectedB2B.id) && (
                         <Button
                           size="sm"
@@ -2176,6 +2234,17 @@ export default function Clientes() {
                       >
                         <Edit2 className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
                         Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={openEmailModal}
+                        disabled={emailButtonDisabled}
+                        title={emailButtonTitle}
+                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                      >
+                        <Mail className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                        Enviar e-mail
                       </Button>
                       {wonPessoaIds.has(selectedB2C.id) && (
                         <Button
@@ -3053,6 +3122,16 @@ export default function Clientes() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL ENVIO DE E-MAIL (conta Outlook conectada do próprio usuário) */}
+      <EmailComposerModal
+        open={isEmailModalOpen}
+        onOpenChange={(val) => {
+          setIsEmailModalOpen(val)
+          if (!val) markSubModalClosed()
+        }}
+        target={emailTarget}
+      />
 
       {/* MODAL RECOMPRA (AddDealModal PRÉ-PREENCHIDO COM ÚLTIMO NEGÓCIO GANHO) */}
       <AddDealModal
