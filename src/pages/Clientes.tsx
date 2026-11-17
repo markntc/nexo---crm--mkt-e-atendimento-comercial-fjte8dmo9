@@ -223,8 +223,14 @@ export default function Clientes() {
     outlookConnected === false
       ? 'Conecte seu Outlook para enviar e-mails'
       : !emailTargetEmail
-        ? 'Este contato não possui e-mail cadastrado'
+        ? 'Cliente sem e-mail cadastrado'
         : 'Enviar e-mail'
+  // Motivo visível (sem depender de tooltip/title, que navegadores não exibem em botões disabled)
+  const emailDisabledReason = emailButtonDisabled
+    ? outlookConnected === false
+      ? 'Conecte seu Outlook para enviar e-mails'
+      : 'Cliente sem e-mail cadastrado'
+    : null
 
   // Lock de fechamento da ficha de detalhes: quando um submodal está aberto sobre a ficha,
   // ou acabando de fechar (grace period para descartar eventos propagados/desferidos),
@@ -1997,6 +2003,9 @@ export default function Clientes() {
                       )}
                     </div>
                   </div>
+                  {emailDisabledReason && (
+                    <p className="text-xs text-slate-400 text-right">{emailDisabledReason}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">
@@ -2263,6 +2272,9 @@ export default function Clientes() {
                       )}
                     </div>
                   </div>
+                  {emailDisabledReason && (
+                    <p className="text-xs text-slate-400 text-right">{emailDisabledReason}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-3 text-xs p-3.5 bg-slate-50 rounded-xl border border-[#E3E7EB]">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase font-bold">E-mail</p>

@@ -526,6 +526,12 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       : !emailTargetEmail
         ? 'Cliente sem e-mail cadastrado'
         : 'Enviar e-mail pela sua conta Outlook'
+  // Motivo visível (sem depender de tooltip/title, que navegadores não exibem em botões disabled)
+  const emailDisabledReason = emailButtonDisabled
+    ? outlookConnected === false
+      ? 'Conecte seu Outlook para enviar e-mails'
+      : 'Cliente sem e-mail cadastrado'
+    : null
 
   return (
     <>
@@ -666,6 +672,11 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                           Excluir
                         </Button>
                       </div>
+                      {emailDisabledReason && (
+                        <p className="w-full text-xs text-slate-400 text-right">
+                          {emailDisabledReason}
+                        </p>
+                      )}
                     </div>
 
                     {isEditing ? (
