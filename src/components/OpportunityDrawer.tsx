@@ -48,11 +48,11 @@ import {
   FileText,
   UploadCloud,
 } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { AddDealModal } from '@/components/AddDealModal'
 import { EmailComposerModal, type EmailComposerTarget } from '@/components/EmailComposerModal'
-import { Mail } from 'lucide-react'
-import { listConnectors } from '@/lib/skipConnectors'
+import { useEnviarEmailFlow, MSG_SEM_EMAIL } from '@/hooks/useEnviarEmailFlow.tsx'
 import type { AnexoOportunidade } from '@/types'
 import {
   listarAnexosOportunidade,
@@ -117,9 +117,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Envio de e-mail pela ficha do negócio (conta Outlook conectada do próprio usuário)
+  // Botão SEMPRE clicável: sem conexão → login Microsoft na hora; sem e-mail → mensagem.
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [emailTarget, setEmailTarget] = useState<EmailComposerTarget | null>(null)
-  const [outlookConnected, setOutlookConnected] = useState<boolean | null>(null)
   // Lock de fechamento: impede que o drawer seja desmontado em cascata quando um
   // submodal (e-mail, edição, etc.) está aberto sobre ele.
   const isSubModalOpenRef = useRef(false)
@@ -131,24 +131,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     isSubModalOpenRef.current = false
     subModalCloseTimestampRef.current = Date.now()
   }
-
-  // Status do conector Outlook: recarrega sempre que o drawer (re)abre
-  useEffect(() => {
-    if (!opportunityId) return
-    let cancelled = false
-    listConnectors()
-      .then((all) => {
-        if (!cancelled) {
-          setOutlookConnected(all.find((c) => c.toolkit === 'outlook')?.status === 'connected')
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setOutlookConnected(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [opportunityId])
 
   const fetchDetail = async (id: string) => {
     setIsLoading(true)
@@ -244,6 +226,40 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
       setOpportunity(null)
     }
   }, [opportunityId])
+
+  const clienteB2B = opportunity?.expand?.organizacao_id || opportunity?.expand?.cliente_b2b_id
+  const clienteB2C = opportunity?.expand?.pessoa_id || opportunity?.expand?.cliente_b2c_id
+  const clienteNome = clienteB2B
+    ? clienteB2B.razao_social
+    : clienteB2C
+      ? clienteB2C.nome_completo
+      : 'Sem vínculo'
+  const followStatus = getFollowUpStatus(opportunity?.proxima_acao_data)
+
+  // Destinatário do e-mail: e-mail principal do cliente vinculado
+  // (Pessoa → email_principal; Organização → email_principal)
+  const emailTargetEmail =
+    (clienteB2B?.email_principal || clienteB2C?.email_principal || null) ?? null
+
+  // Fluxo do botão "Enviar e-mail" (sempre clicável): conexão/redator/mensagem
+  // centralizados no hook compartilhado com as fichas de Pessoa/Organização.
+  const { handleEnviarEmail, isBusy: isEmailFlowBusy } = useEnviarEmailFlow({
+    // Lido no momento do clique: nunca um alvo defasado do render anterior.
+    getTarget: () => ({
+      nome: clienteB2B?.razao_social || clienteB2C?.nome_completo || '',
+      email: emailTargetEmail,
+    }),
+    onSuccess: (target) => {
+      setEmailTarget(target)
+      markSubModalOpen()
+      setIsEmailModalOpen(true)
+    },
+  })
+
+  // Dica visível (sem depender de tooltip/title, que navegadores não exibem):
+  // o aviso NÃO bloqueia o clique — apenas orienta o usuário. A checagem real
+  // da conexão acontece no clique (hook), que inicia o login se necessário.
+  const emailDisabledReason = !emailTargetEmail ? MSG_SEM_EMAIL : null
 
   if (!opportunityId) return null
 
@@ -498,41 +514,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
     }
   }
 
-  const clienteB2B = opportunity?.expand?.organizacao_id || opportunity?.expand?.cliente_b2b_id
-  const clienteB2C = opportunity?.expand?.pessoa_id || opportunity?.expand?.cliente_b2c_id
-  const clienteNome = clienteB2B
-    ? clienteB2B.razao_social
-    : clienteB2C
-      ? clienteB2C.nome_completo
-      : 'Sem vínculo'
-  const followStatus = getFollowUpStatus(opportunity?.proxima_acao_data)
-
-  // Destinatário do e-mail: e-mail principal do cliente vinculado
-  // (Pessoa → email_principal; Organização → email_principal)
-  const emailTargetEmail =
-    (clienteB2B?.email_principal || clienteB2C?.email_principal || null) ?? null
-  const openEmailModal = () => {
-    setEmailTarget({
-      nome: clienteB2B?.razao_social || clienteB2C?.nome_completo || '',
-      email: emailTargetEmail,
-    })
-    markSubModalOpen()
-    setIsEmailModalOpen(true)
-  }
-  const emailButtonDisabled = outlookConnected === false || !emailTargetEmail
-  const emailButtonTitle =
-    outlookConnected === false
-      ? 'Conecte seu Outlook para enviar e-mails'
-      : !emailTargetEmail
-        ? 'Cliente sem e-mail cadastrado'
-        : 'Enviar e-mail pela sua conta Outlook'
-  // Motivo visível (sem depender de tooltip/title, que navegadores não exibem em botões disabled)
-  const emailDisabledReason = emailButtonDisabled
-    ? outlookConnected === false
-      ? 'Conecte seu Outlook para enviar e-mails'
-      : 'Cliente sem e-mail cadastrado'
-    : null
-
   return (
     <>
       <Dialog
@@ -641,10 +622,15 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={emailButtonDisabled}
-                          onClick={openEmailModal}
-                          className="text-xs h-7 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold"
-                          title={emailButtonTitle}
+                          type="button"
+                          onClick={handleEnviarEmail}
+                          aria-busy={isEmailFlowBusy}
+                          aria-disabled={!emailTargetEmail}
+                          className={cn(
+                            'text-xs h-7 border-[#D5DBDB] text-slate-700 hover:bg-slate-100 font-semibold',
+                            isEmailFlowBusy && 'opacity-60 pointer-events-none',
+                          )}
+                          title={emailDisabledReason ?? 'Enviar e-mail pela sua conta Outlook'}
                         >
                           <Mail className="w-3.5 h-3.5 mr-1 text-[#1B4F72]" />
                           Enviar e-mail

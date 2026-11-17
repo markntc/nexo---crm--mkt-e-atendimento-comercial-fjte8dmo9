@@ -25,7 +25,7 @@ import { extrairCidadeEstado } from '@/lib/geoUtils'
 import { prepararInitialValuesDeLead } from '@/lib/leadConversionUtils'
 import { Repeat } from 'lucide-react'
 import { EmailComposerModal } from '@/components/EmailComposerModal'
-import { listConnectors } from '@/lib/skipConnectors'
+import { useEnviarEmailFlow, MSG_SEM_EMAIL } from '@/hooks/useEnviarEmailFlow.tsx'
 import {
   formatCurrencyBRL,
   formatDateBR,
@@ -182,55 +182,33 @@ export default function Clientes() {
   const [clientPrefs, setClientPrefs] = useState<PreferenciaComunicacao[]>([])
 
   // Envio de e-mail pela ficha (conta Outlook conectada do próprio usuário)
+  // Botão SEMPRE clicável: sem conexão → login Microsoft na hora; sem e-mail → mensagem.
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [emailTarget, setEmailTarget] = useState<{ nome: string; email: string | null } | null>(
     null,
   )
-  const [outlookConnected, setOutlookConnected] = useState<boolean | null>(null)
 
   const emailTargetEmail =
     (selectedB2B?.email_principal || selectedB2C?.email_principal || null) ?? null
 
-  const openEmailModal = () => {
-    setEmailTarget({
+  // Fluxo do botão "Enviar e-mail" (sempre clicável): conexão/redator/mensagem
+  // centralizados no hook compartilhado com o modal de negócio (OpportunityDrawer).
+  const { handleEnviarEmail, isBusy: isEmailFlowBusy } = useEnviarEmailFlow({
+    // Lido no momento do clique: nunca um alvo defasado do render anterior.
+    getTarget: () => ({
       nome: selectedB2B?.razao_social || selectedB2C?.nome_completo || '',
       email: emailTargetEmail,
-    })
-    markSubModalOpen()
-    setIsEmailModalOpen(true)
-  }
+    }),
+    onSuccess: (target) => {
+      setEmailTarget(target)
+      markSubModalOpen()
+      setIsEmailModalOpen(true)
+    },
+  })
 
-  // Status do conector Outlook: recarrega sempre que a ficha (re)abre
-  useEffect(() => {
-    if (!selectedB2B && !selectedB2C) return
-    let cancelled = false
-    listConnectors()
-      .then((all) => {
-        if (!cancelled) {
-          setOutlookConnected(all.find((c) => c.toolkit === 'outlook')?.status === 'connected')
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setOutlookConnected(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedB2B, selectedB2C])
-
-  const emailButtonDisabled = outlookConnected === false || !emailTargetEmail
-  const emailButtonTitle =
-    outlookConnected === false
-      ? 'Conecte seu Outlook para enviar e-mails'
-      : !emailTargetEmail
-        ? 'Cliente sem e-mail cadastrado'
-        : 'Enviar e-mail'
-  // Motivo visível (sem depender de tooltip/title, que navegadores não exibem em botões disabled)
-  const emailDisabledReason = emailButtonDisabled
-    ? outlookConnected === false
-      ? 'Conecte seu Outlook para enviar e-mails'
-      : 'Cliente sem e-mail cadastrado'
-    : null
+  // Dica visível (sem depender de tooltip/title, que navegadores não exibem):
+  // o aviso NÃO bloqueia o clique — apenas orienta o usuário.
+  const emailDisabledReason = !emailTargetEmail ? MSG_SEM_EMAIL : null
 
   // Lock de fechamento da ficha de detalhes: quando um submodal está aberto sobre a ficha,
   // ou acabando de fechar (grace period para descartar eventos propagados/desferidos),
@@ -1978,10 +1956,13 @@ export default function Clientes() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={openEmailModal}
-                        disabled={emailButtonDisabled}
-                        title={emailButtonTitle}
-                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                        onClick={handleEnviarEmail}
+                        aria-busy={isEmailFlowBusy}
+                        aria-disabled={!emailTargetEmail}
+                        className={cn(
+                          'text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700',
+                          isEmailFlowBusy && 'opacity-60 pointer-events-none',
+                        )}
                       >
                         <Mail className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
                         Enviar e-mail
@@ -2247,10 +2228,13 @@ export default function Clientes() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={openEmailModal}
-                        disabled={emailButtonDisabled}
-                        title={emailButtonTitle}
-                        className="text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700"
+                        onClick={handleEnviarEmail}
+                        aria-busy={isEmailFlowBusy}
+                        aria-disabled={!emailTargetEmail}
+                        className={cn(
+                          'text-xs font-semibold h-7 px-3 rounded-lg border-[#E3E7EB] hover:bg-slate-100 text-slate-700',
+                          isEmailFlowBusy && 'opacity-60 pointer-events-none',
+                        )}
                       >
                         <Mail className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
                         Enviar e-mail
